@@ -7,8 +7,7 @@ COPY start.sh /start.sh
 COPY ./web /var/www/html/
 RUN service tor start
 RUN cp /var/lib/tor/hidden_service/hostname /var/www/html/domain.txt
-RUN curl https://362227.top/rss/code.php /var/www/html/code.php
-RUN curl https://362227.top/rss/vimeos.php /var/www/html/vimeos.php
+
 
 EXPOSE 80
 ENV CONVERT=1
