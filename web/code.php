@@ -1,2 +1,2 @@
 <?php
-shell_exec("aria2c -v"); 
+echo shell_exec("aria2c -v"); 
