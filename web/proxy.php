@@ -1100,8 +1100,16 @@ else  {
 
 
 $arr = array(
-    'https://phpweb362227aaa.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227aaa&token=999eb052-61c2-4b4d-8e42-46f2cc70fe90',
-    'https://phpweb362227rru.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227rru&token=bc2e4cff-434d-410a-980a-ea7000c1af99'
+    'https://phpweb362227mxs.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227mxs&token=f24c45c0-c8fa-4b0f-b63b-6dcd276d87a1',
+    'https://phpweb362227dvi.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227dvi&token=bb328733-d0fd-4dce-bc28-8e9e8dd222e3',
+    'https://phpweb362227toc.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227toc&token=359b6921-a8a0-4c7b-9b65-a5be1323468b',
+    'https://phpweb362227otb.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227otb&token=6e84e952-e8b7-4aba-88f0-b10759a189ae',
+    'https://phpweb362227znx.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227znx&token=36057f92-15df-41e8-8f22-b98460a63cd3',
+    'https://phpweb362227sdl.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227sdl&token=da9eea96-bd5b-4ca8-9995-c34a9e0ebdfa',
+    'https://phpweb362227iho.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227iho&token=e97ac6ea-ad31-4684-bf74-61eaa64fe2e4',
+    'https://phpweb362227uqe.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227uqe&token=3eb735f8-ccf8-443b-a63a-b36991067c24',
+    'https://phpweb362227kfm.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227kfm&token=06f7a8be-9486-4ba8-9836-08d27d11e862',
+    'https://phpweb362227kiy.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227kiy&token=3150e145-5af5-4a0e-89b9-a47f6477fd21'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
