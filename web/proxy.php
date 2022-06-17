@@ -174,7 +174,7 @@ $headers[] = 'Sec-Fetch-Dest: document';
 $headers[] = 'Sec-Fetch-Mode: navigate';
 $headers[] = 'Sec-Fetch-Site: none';
 $headers[] = 'Sec-Fetch-User: ?1';
-$headers[] = 'Referer:http://www.305films.tv';
+$headers[] = 'Referer:http://www.305films.com';
 $headers[] = 'Upgrade-Insecure-Requests: 1';
 $headers[] = 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36';
 $headers[] = 'Sec-Ch-Ua: \" Not A;Brand\";v=\"99\", \"Chromium\";v=\"102\", \"Google Chrome\";v=\"102\"';
