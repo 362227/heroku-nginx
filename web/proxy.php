@@ -1,5 +1,5 @@
 <?php
-//修改
+// 修改
 date_default_timezone_set('PRC');
 $url=$_GET["url"]; 
 $ref=$_GET["ref"]; 
