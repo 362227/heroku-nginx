@@ -1318,8 +1318,8 @@ else  {
 
 
 $arr = array(
-    'https://phpweb362227aaa.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227aaa&token=999eb052-61c2-4b4d-8e42-46f2cc70fe90',
-    'https://phpweb362227rru.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227rru&token=bc2e4cff-434d-410a-980a-ea7000c1af99'
+    'https://phpweb362227aaa.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227aaa&token=b14505dc-72aa-4150-83f0-641d459340e0',
+    'https://phpweb362227rru.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227rru&token=b14505dc-72aa-4150-83f0-641d459340e0'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
