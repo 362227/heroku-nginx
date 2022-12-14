@@ -1,5 +1,5 @@
 <?php
-// 修改
+// 在"链接02 - 单个ref"修改ref地址
 date_default_timezone_set('PRC');
 $url=$_GET["url"]; 
 $ref=$_GET["ref"]; 
@@ -42,8 +42,8 @@ else  {
 
 
 $arr = array(
-    'https://phpweb362227aaa.herokuapp.com/vimeo刷脚本单个ref.php?url='.$url.'&'.$ref.'=abcdef&name=phpweb362227aaa&token=b14505dc-72aa-4150-83f0-641d459340e0',
-    'https://phpweb362227rru.herokuapp.com/vimeo刷脚本单个ref.php?url='.$url.'&'.$ref.'=abcdef&name=phpweb362227rru&token=b14505dc-72aa-4150-83f0-641d459340e0'
+    'https://phpweb362227aaa.herokuapp.com/vimeo刷脚本单个ref.php?url='.$url.'&ref='.$ref.'&name=phpweb362227aaa&token=b14505dc-72aa-4150-83f0-641d459340e0',
+    'https://phpweb362227rru.herokuapp.com/vimeo刷脚本单个ref.php?url='.$url.'&ref='.$ref.'&name=phpweb362227rru&token=b14505dc-72aa-4150-83f0-641d459340e0'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
