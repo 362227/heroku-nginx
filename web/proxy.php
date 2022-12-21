@@ -1310,9 +1310,9 @@ echo $result;
 
 }
 
-else if  (strlen($result) > 6) {echo $result;}
+else if  (strlen($result) > 6) {echo $result;}  //如果有数据输出，且没有出现“this video cannot be played here”，即输出最普通的（无ref，可能有，也可能404，带密码，私密等等）
 
-else  {
+else  {   //上述条件均不满足（即无数据输出，curl_php遇到验证码确实是无数据输出），就是有验证码了
 
 
 
