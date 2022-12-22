@@ -1318,8 +1318,10 @@ else  {   //上述条件均不满足（即无数据输出，curl_php遇到验证
 
 
 $arr = array(
-    'https://phpweb362227aaa.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227aaa&token=b14505dc-72aa-4150-83f0-641d459340e0',
-    'https://phpweb362227rru.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227rru&token=b14505dc-72aa-4150-83f0-641d459340e0'
+    'https://tocviuwifjiaie004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
+    'https://tocviuwifjiaie004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af'
+    #'https://phpweb362227aaa.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227aaa&token=b14505dc-72aa-4150-83f0-641d459340e0',
+    #'https://phpweb362227rru.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227rru&token=b14505dc-72aa-4150-83f0-641d459340e0'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
