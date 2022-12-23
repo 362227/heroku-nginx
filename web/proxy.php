@@ -11,7 +11,7 @@ $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -40,7 +40,7 @@ $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -69,7 +69,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -98,7 +98,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -127,7 +127,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -158,7 +158,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -189,7 +189,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -219,7 +219,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -248,7 +248,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -277,7 +277,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -306,7 +306,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -335,7 +335,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -364,7 +364,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -393,7 +393,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -422,7 +422,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -451,7 +451,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -480,7 +480,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -509,7 +509,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -538,7 +538,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -567,7 +567,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -596,7 +596,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -625,7 +625,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -655,7 +655,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -684,7 +684,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -716,7 +716,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -746,7 +746,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -775,7 +775,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -806,7 +806,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -835,7 +835,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -864,7 +864,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -894,7 +894,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -923,7 +923,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -952,7 +952,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -981,7 +981,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -1010,7 +1010,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -1040,7 +1040,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -1070,7 +1070,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -1100,7 +1100,7 @@ if ( strpos($result,'this video cannot be played here') !== false) {
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION,ture);
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
 
 $headers = array();
@@ -1272,9 +1272,9 @@ echo $result;
 
 }
 
-else if  (strlen($result) > 6) {echo $result;}  //如果有数据输出，且没有出现“this video cannot be played here”，即输出最普通的（无ref，可能有，也可能404，带密码，私密等等）
 
-else  {   //上述条件均不满足（即无数据输出，curl_php遇到验证码确实是无数据输出），就是有验证码了
+
+else if  (strpos($result,'Verify to continue') !== false){  //有验证码了
 
 
 
@@ -1344,4 +1344,20 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
 echo $result;
+}
+
+
+else if  (strlen($result) > 76) {echo $result;}  //如果有数据输出，且没有出现“this video cannot be played here”，即输出最普通的（无ref，可能有，也可能404，带密码，私密等等）
+
+else {
+$arr = array(
+    'https://tocviuwifjiaie004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
+    'https://tocviuwifjiaie004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af'
+    #'https://phpweb362227aaa.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227aaa&token=b14505dc-72aa-4150-83f0-641d459340e0',
+    #'https://phpweb362227rru.herokuapp.com/proxy.php?url='.$url.'&ref=abcdef&name=phpweb362227rru&token=b14505dc-72aa-4150-83f0-641d459340e0'
+);
+$key = array_rand($arr, 1);
+//输出随机内容
+// echo $arr[$key];
+echo file_get_contents ($arr[$key]);
 }
