@@ -1318,10 +1318,10 @@ else  {   //上述条件均不满足（即无数据输出，curl_php遇到验证
 
 
 $arr = array(
-    'https://sovj2weiosjke001php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
-    'https://sovj2weiosjke002php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
-    'https://sovj2weiosjke003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
-    'https://sovj2weiosjke004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960'
+    'https://sovj2weiosjke001php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie001php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke002php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie002php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke005php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie005php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke006php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie006php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
