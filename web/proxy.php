@@ -33,7 +33,9 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+
+if (strlen($result) > 6 && $content === "this video cannot be played here") {
     
 $ch = curl_init();
 
@@ -62,7 +64,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+    if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -91,7 +94,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+         if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -120,7 +124,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
   
     $ch = curl_init();
 
@@ -149,7 +154,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
 
             
             
@@ -171,7 +177,7 @@ $headers[] = 'Sec-Fetch-Dest: document';
 $headers[] = 'Sec-Fetch-Mode: navigate';
 $headers[] = 'Sec-Fetch-Site: none';
 $headers[] = 'Sec-Fetch-User: ?1';
-$headers[] = 'Referer:https://foreign-xchange.co';
+$headers[] = 'Referer:http://www.mathieuplainfosse.com';
 $headers[] = 'Upgrade-Insecure-Requests: 1';
 $headers[] = 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36';
 $headers[] = 'Sec-Ch-Ua: \" Not A;Brand\";v=\"99\", \"Chromium\";v=\"102\", \"Google Chrome\";v=\"102\"';
@@ -180,7 +186,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {       
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {          
             
             
             
@@ -211,7 +218,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) { 
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {  
             
             
     $ch = curl_init();
@@ -241,7 +249,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -270,7 +279,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -299,7 +309,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -328,7 +339,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -357,7 +369,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -386,7 +399,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -415,7 +429,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -444,7 +459,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -473,7 +489,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -502,7 +519,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -531,7 +549,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -560,7 +579,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -589,7 +609,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -618,7 +639,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -647,7 +669,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
   
     $ch = curl_init();
@@ -677,7 +700,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -706,7 +730,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
 
             
 
@@ -738,7 +763,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
   
     $ch = curl_init();
@@ -768,7 +794,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -797,7 +824,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
 
          
             
@@ -828,7 +856,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -857,7 +886,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -886,7 +916,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
   
     $ch = curl_init();
@@ -907,7 +938,7 @@ $headers[] = 'Sec-Fetch-Dest: document';
 $headers[] = 'Sec-Fetch-Mode: navigate';
 $headers[] = 'Sec-Fetch-Site: none';
 $headers[] = 'Sec-Fetch-User: ?1';
-$headers[] = 'Referer:https://editorjon.co.uk';
+$headers[] = 'Referer:http://www.resetcontent.com';
 $headers[] = 'Upgrade-Insecure-Requests: 1';
 $headers[] = 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36';
 $headers[] = 'Sec-Ch-Ua: \" Not A;Brand\";v=\"99\", \"Chromium\";v=\"102\", \"Google Chrome\";v=\"102\"';
@@ -916,7 +947,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -945,7 +977,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -974,7 +1007,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -1003,7 +1037,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
     $ch = curl_init();
 
@@ -1032,7 +1067,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
  
             
     $ch = curl_init();
@@ -1062,7 +1098,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
             
             
     $ch = curl_init();
@@ -1092,7 +1129,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-if ( strpos($result,'this video cannot be played here') !== false) {
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+        if ($content === "this video cannot be played here") {
         
 
     $ch = curl_init();
