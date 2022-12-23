@@ -1,5 +1,6 @@
 <?php
 // 修改
+ini_set('display_errors','off');
 date_default_timezone_set('PRC');
 $url=$_GET["url"]; 
 $ref=$_GET["ref"]; 
