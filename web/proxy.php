@@ -1281,10 +1281,10 @@ else if  (strpos($result,'Verify to continue') !== false){  //有验证码了
 
 
 $arr = array(
-    'https://tocviuwifjiaie001php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
-    'https://tocviuwifjiaie002php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
-    'https://tocviuwifjiaie003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
-    'https://tocviuwifjiaie004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af'
+    'https://sovj2weiosjke001php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=sovj2weiosjke004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke002php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=sovj2weiosjke004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=sovj2weiosjke004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=sovj2weiosjke004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
@@ -1352,10 +1352,10 @@ else if  (strlen($result) > 76) {echo $result;}  //如果有数据输出，且�
 
 else {
 $arr = array(
-    'https://tocviuwifjiaie001php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
-    'https://tocviuwifjiaie002php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
-    'https://tocviuwifjiaie003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af',
-    'https://tocviuwifjiaie004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=fe14de06-d3f1-418e-ad29-21350db011af'
+    'https://sovj2weiosjke001php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke002php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960',
+    'https://sovj2weiosjke004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=tocviuwifjiaie004php&token=ee54df0c-b1a6-477c-bcd6-dc010d124960'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
