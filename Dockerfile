@@ -1,6 +1,6 @@
 FROM php:7.3-apache
 RUN apt-get update
-RUN apt-get install -y libicu-dev xz-utils git python libgmp-dev unzip ffmpeg tor zip aria2
+RUN apt-get install -y libicu-dev xz-utils git python python3 libgmp-dev unzip ffmpeg tor zip aria2
 COPY misc/tor/torrc /etc/tor/torrc
 COPY misc/tor/start-tor.sh misc/tor/start-tor.sh
 COPY start.sh /start.sh
