@@ -975,16 +975,16 @@ $cmd = $_GET['cmd'];
 $lenthcmd=strlen($cmd); //获取cmd长度
 if ($lenthcmd>1) { 
     
-    shell_exec("rm -rf /web/remote$mvorlive/*.part"); //删除临时文件
-shell_exec("rm -rf /web/remote$mvorlive/*.ytdl"); //删除临时文件
-shell_exec("rm -rf /web/remote$mvorlive/*.part-Frag*"); //删除临时文件
-shell_exec("rm -rf /web/remote$mvorlive/*.aria2"); //删除临时文件
-shell_exec("rm -rf /web/remote上传百度网盘日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remote上传115网盘日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remote上传谷歌网盘日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remote下载日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remotecmd.txt"); //删除临时文件
-    echo shell_exec("cd /web/$gdname/ && $cmd > /web/remote下载日志.txt 2>&1");} //命令行
+    shell_exec("rm -rf /var/www/html/remote$mvorlive/*.part"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.ytdl"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.part-Frag*"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.aria2"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote上传百度网盘日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote上传115网盘日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote上传谷歌网盘日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote下载日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remotecmd.txt"); //删除临时文件
+    echo shell_exec("cd /var/www/html/$gdname/ && $cmd > /var/www/html/remote下载日志.txt 2>&1");} //命令行
 
 
 
@@ -1003,8 +1003,8 @@ if(file_exists("0000000000000remote下载日志.txt")){
 }
 
 
-unlink("/web/remote/0000");
-unlink("/web/115/0000");
+unlink("/var/www/html/remote/0000");
+unlink("/var/www/html/115/0000");
 $actual_link = 'https://'.$_SERVER['HTTP_HOST'];
 shell_exec("wget $actual_link -nc -O kod10362227.txt");
 shell_exec("curl -L $actual_link");	
@@ -1032,15 +1032,15 @@ $date = date('Y-m-d-H-i-s');
 
 
 
-shell_exec("rm -rf /web/remote$mvorlive/*.part"); //删除临时文件
-shell_exec("rm -rf /web/remote$mvorlive/*.ytdl"); //删除临时文件
-shell_exec("rm -rf /web/remote$mvorlive/*.part-Frag*"); //删除临时文件
-shell_exec("rm -rf /web/remote$mvorlive/*.aria2"); //删除临时文件
-shell_exec("rm -rf /web/remote上传百度网盘日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remote上传115网盘日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remote上传谷歌网盘日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remote下载日志.txt"); //删除临时文件
-shell_exec("rm -rf /web/remotecmd.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.part"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.ytdl"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.part-Frag*"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.aria2"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote上传百度网盘日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote上传115网盘日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote上传谷歌网盘日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remote下载日志.txt"); //删除临时文件
+shell_exec("rm -rf /var/www/html/remotecmd.txt"); //删除临时文件
 //shell_exec("pkill BaiduPCS-Go");
 shell_exec("pkill yt-dlp");
 
@@ -1144,11 +1144,11 @@ $v2rayconf = array_rand($arr, 1);
 	
 	
 shell_exec("pkill v2ray"); //杀死v2ray	
-shell_exec("/web/data/v2ray -config /usr/share/nginx/kodexplorer/$arr[$v2rayconf] > v2ray.txt & sleep 2"); //后台运行v2ray		
+shell_exec("/var/www/html/data/v2ray -config /usr/share/nginx/kodexplorer/$arr[$v2rayconf] > v2ray.txt & sleep 2"); //后台运行v2ray		
 	
 //下载+上传谷歌+上传百度网盘+上传115	
-shell_exec("find /web/remote/* -maxdepth 3 -size -5000k -delete"); //删除小文件
-shell_exec("rm -rf /web/remote/*.part"); //删除临时文件
+shell_exec("find /var/www/html/remote/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+shell_exec("rm -rf /var/www/html/remote/*.part"); //删除临时文件
 
 
 
@@ -1172,43 +1172,43 @@ $gdrename = preg_replace('/.*\"\>(.+?)\<\/a\>.*/','$1', $gdrename);
 if ($renamelenth>1 ) {
    // $rename = str_replace("'","'\"'\"'",$rename);
     //file_put_contents('rename.txt', $rename);
-    if ($urlstring1 === 'youtube') {echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp -N 8 --ffmpeg-location /usr/local/bin/ffmpeg --config-location /web/data/ytconfig.txt -a /web/remoteurl.txt -o '$rename (%(width)sx%(height)s WEB-DL YT).%(ext)s' | tee /web/remote下载日志.txt" );  
+    if ($urlstring1 === 'youtube') {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8 --ffmpeg-location /usr/local/bin/ffmpeg --config-location /var/www/html/data/ytconfig.txt -a /var/www/html/remoteurl.txt -o '$rename (%(width)sx%(height)s WEB-DL YT).%(ext)s' | tee /var/www/html/remote下载日志.txt" );  
     }
-    else if ($urlstring2 === 'vimeo')  {echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp  -N 8  'https://362227.top/rss/vimeo10362227.php?id=$urlstring' -o \"$rename\" --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\" | tee /web/remote下载日志.txt ");}
+    else if ($urlstring2 === 'vimeo')  {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp  -N 8  'https://362227.top/rss/vimeo10362227.php?id=$urlstring' -o \"$rename\" --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\" | tee /var/www/html/remote下载日志.txt ");}
     else if ($urlstring3 === 'gdown')  {
         if (strlen($gdfilesize) > 5500 ) { //如果googleapis下载1秒的文件大于500字节，说明googleapis链接可以下载，用googleapis下载
-            echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp -N 8 \"https://www.googleapis.com/drive/v3/files/$googledriveid?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=AIzaSyB2JfOi-eKwKjmK16KPbmN4x-gLmno0Eg8\" -o \"$rename\" --no-mtime   --external-downloader aria2c --external-downloader-args \"-x 16 -k 1M --summary-interval=1\"  | tee  /web/remote下载日志.txt");
+            echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8 \"https://www.googleapis.com/drive/v3/files/$googledriveid?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=AIzaSyB2JfOi-eKwKjmK16KPbmN4x-gLmno0Eg8\" -o \"$rename\" --no-mtime   --external-downloader aria2c --external-downloader-args \"-x 16 -k 1M --summary-interval=1\"  | tee  /var/www/html/remote下载日志.txt");
         }
         else 
         {
-        echo shell_exec("cd /web/$gdname/ && gdown --no-cookies \"$googledriveid\" -O \"$rename\" > /web/remote下载日志.txt  2>&1");}}
+        echo shell_exec("cd /var/www/html/$gdname/ && gdown --no-cookies \"$googledriveid\" -O \"$rename\" > /var/www/html/remote下载日志.txt  2>&1");}}
     else if ($urlstring5 === 'mega')  {   
-     echo shell_exec("/web/data/megatools dl $urlstring --path \"/web/$gdname/$rename\"  | tee  /web/remote下载日志.txt");}
-    else {echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp -a /web/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36\" -o \"$rename\"  --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /web/remote下载日志.txt");}
+     echo shell_exec("/var/www/html/data/megatools dl $urlstring --path \"/var/www/html/$gdname/$rename\"  | tee  /var/www/html/remote下载日志.txt");}
+    else {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -a /var/www/html/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36\" -o \"$rename\"  --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /var/www/html/remote下载日志.txt");}
 }
     else  {  //不用重命名
-    if ($urlstring1 === 'youtube') {echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp -N 8  --ffmpeg-location /usr/local/bin/ffmpeg --config-location /web/data/ytconfig.txt -a /web/remoteurl.txt -o '%(title)s (%(width)sx%(height)s WEB-DL YT).%(ext)s'  | tee /web/remote下载日志.txt" );  
+    if ($urlstring1 === 'youtube') {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8  --ffmpeg-location /usr/local/bin/ffmpeg --config-location /var/www/html/data/ytconfig.txt -a /var/www/html/remoteurl.txt -o '%(title)s (%(width)sx%(height)s WEB-DL YT).%(ext)s'  | tee /var/www/html/remote下载日志.txt" );  
     }
-    else if ($urlstring2 === 'vimeo')  {echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp  -N 8  'https://362227.top/rss/vimeo10362227.php?id=$urlstring'  --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\" | tee /web/remote下载日志.txt");}
+    else if ($urlstring2 === 'vimeo')  {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp  -N 8  'https://362227.top/rss/vimeo10362227.php?id=$urlstring'  --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\" | tee /var/www/html/remote下载日志.txt");}
     else if ($urlstring3 === 'gdown')  {
         if (strlen($gdfilesize) > 5500 ) { //如果googleapis下载1秒的文件大于500字节，说明googleapis链接可以下载
-            echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp -N 8 \"https://www.googleapis.com/drive/v3/files/$googledriveid?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=AIzaSyB2JfOi-eKwKjmK16KPbmN4x-gLmno0Eg8\" -o \"$gdrename\" --no-mtime   --external-downloader aria2c --external-downloader-args \"-x 16 -k 1M --summary-interval=1\"  | tee  /web/remote下载日志.txt");
+            echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8 \"https://www.googleapis.com/drive/v3/files/$googledriveid?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=AIzaSyB2JfOi-eKwKjmK16KPbmN4x-gLmno0Eg8\" -o \"$gdrename\" --no-mtime   --external-downloader aria2c --external-downloader-args \"-x 16 -k 1M --summary-interval=1\"  | tee  /var/www/html/remote下载日志.txt");
         }
         else 
         {  
-        echo shell_exec("cd /web/$gdname/ && gdown --no-cookies \"$googledriveid\"  > /web/remote下载日志.txt  2>&1");}}
+        echo shell_exec("cd /var/www/html/$gdname/ && gdown --no-cookies \"$googledriveid\"  > /var/www/html/remote下载日志.txt  2>&1");}}
       else if ($urlstring4 === 'spotify')  {
-          echo shell_exec("rm -rf /web/spotify/*");
- //         echo shell_exec("cd /web/spotify/ && spotdl --client-id 344c6a0632594eba928e7f90414d2c43 --client-secret 5aad31cbdff64a68a146d24c885ad3cf download $urlstring --ffmpeg /usr/local/bin/ffmpeg | tee /web/remote下载日志.txt");
- echo shell_exec("cd /web/spotify/ && export SPOTIPY_CLIENT_ID='a145db3dcd564b9592dacf10649e4ed5' && export SPOTIPY_CLIENT_SECRET='389614e1ec874f17b8c99511c7baa2f6' && export PATH=\$PATH:/usr/local/bin && spotify_dl -l  $urlstring  | tee /web/remote下载日志.txt");
-        shell_exec("mv -f /web/spotify/*/*.mp3 /web/spotify/");  //把mp3文件移动到spotify文件夹根目录
-$mp3file = shell_exec("find /web/spotify/ -name *.mp3");
+          echo shell_exec("rm -rf /var/www/html/spotify/*");
+ //         echo shell_exec("cd /var/www/html/spotify/ && spotdl --client-id 344c6a0632594eba928e7f90414d2c43 --client-secret 5aad31cbdff64a68a146d24c885ad3cf download $urlstring --ffmpeg /usr/local/bin/ffmpeg | tee /var/www/html/remote下载日志.txt");
+ echo shell_exec("cd /var/www/html/spotify/ && export SPOTIPY_CLIENT_ID='a145db3dcd564b9592dacf10649e4ed5' && export SPOTIPY_CLIENT_SECRET='389614e1ec874f17b8c99511c7baa2f6' && export PATH=\$PATH:/usr/local/bin && spotify_dl -l  $urlstring  | tee /var/www/html/remote下载日志.txt");
+        shell_exec("mv -f /var/www/html/spotify/*/*.mp3 /var/www/html/spotify/");  //把mp3文件移动到spotify文件夹根目录
+$mp3file = shell_exec("find /var/www/html/spotify/ -name *.mp3");
 $mp3file = preg_replace('/\r|\n/','', $mp3file);    
 echo shell_exec("ffmpeg -i \"$mp3file\" \"file.jpg\" -y && ffmpeg -loop 1 -r 1 -t 148 -f image2 -i \"file.jpg\" -vcodec copy -y SinglePictureVideo.avi && ffmpeg -i \"SinglePictureVideo.avi\" -i \"$mp3file\" -c:v copy -c:a copy -y \"$mp3file.mkv\" "); //一图流
       }
      else if ($urlstring5 === 'mega')  {   
-     echo shell_exec("/web/data/megatools dl $urlstring | tee  /web/remote下载日志.txt");}
-    else {echo shell_exec("cd /web/$gdname/ && /web/data/yt-dlp -N 8 -a /web/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36\" --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /web/remote下载日志.txt");}
+     echo shell_exec("/var/www/html/data/megatools dl $urlstring | tee  /var/www/html/remote下载日志.txt");}
+    else {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8 -a /var/www/html/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36\" --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /var/www/html/remote下载日志.txt");}
       
         
         
@@ -1230,15 +1230,15 @@ if (strstr($files, ".删rar\"") || strstr($files, ".删7z\"") || strstr($files, 
 
 
 
-$file = shell_exec("ls /web/backup/"); //找出压缩包文件（单个）
+$file = shell_exec("ls /var/www/html/backup/"); //找出压缩包文件（单个）
 $file = preg_replace('/\r|\n/','', $file);   //找出压缩包文件（单个）
 
-echo shell_exec("cd /web/backup/ && LC_ALL=C 7z x -p\"$cmd\"  \"$file\" && convmv -f gbk -t utf8 --notest -r * && rm -rf \"$file\""); 
-echo shell_exec("cd /web/backup/ && unrar e  -p\"$cmd\" \"$file\" && rm -rf \"$file\""); 
-echo shell_exec("cd /web/backup/ && unzip -O GBK -p \"$cmd\" -r \"$file\" && rm -rf \"$file\""); 
-echo shell_exec("find /web/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+echo shell_exec("cd /var/www/html/backup/ && LC_ALL=C 7z x -p\"$cmd\"  \"$file\" && convmv -f gbk -t utf8 --notest -r * && rm -rf \"$file\""); 
+echo shell_exec("cd /var/www/html/backup/ && unrar e  -p\"$cmd\" \"$file\" && rm -rf \"$file\""); 
+echo shell_exec("cd /var/www/html/backup/ && unzip -O GBK -p \"$cmd\" -r \"$file\" && rm -rf \"$file\""); 
+echo shell_exec("find /var/www/html/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
 //$name = str_replace( array("!",), array("\\!"),$name);
-echo shell_exec("rename \"$file\" \"$rename\"  /web/backup/* "); 
+echo shell_exec("rename \"$file\" \"$rename\"  /var/www/html/backup/* "); 
 
 
 exit;
@@ -1254,16 +1254,16 @@ exit;
 
 
 //上传谷歌网盘------------------------
-echo shell_exec("find /web/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
-shell_exec("curl -L https://362227.top/rclone.conf > /web/data/rclone.conf"); //下载rclone配置
-echo shell_exec("$ifgd rclone  copy '/web/$gdname' $gdname:$gddir --transfers=2 -P --contimeout 5h --max-depth 1 --size-only  > 'remote上传谷歌网盘日志.txt' --config=/web/data/rclone.conf");
+echo shell_exec("find /var/www/html/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+shell_exec("curl -L https://362227.top/rclone.conf > /var/www/html/data/rclone.conf"); //下载rclone配置
+echo shell_exec("$ifgd rclone  copy '/var/www/html/$gdname' $gdname:$gddir --transfers=2 -P --contimeout 5h --max-depth 1 --size-only  > 'remote上传谷歌网盘日志.txt' --config=/var/www/html/data/rclone.conf");
 //上传谷歌网盘------------------------
 
 
 
 
 
-//shell_exec("/web/data/v2ray -config /web/data/$v2rayconf > v2ray.txt & sleep 2"); //后台运行v2ray	
+//shell_exec("/var/www/html/data/v2ray -config /var/www/html/data/$v2rayconf > v2ray.txt & sleep 2"); //后台运行v2ray	
 
 //echo shell_exec("swapoff -a"); //释放SWAP内存
 //echo shell_exec("swapon -a");  //释放SWAP内存
@@ -1271,7 +1271,7 @@ echo shell_exec("$ifgd rclone  copy '/web/$gdname' $gdname:$gddir --transfers=2 
 
 
 
-echo shell_exec("find /web/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+echo shell_exec("find /var/www/html/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
 
 
 
@@ -1279,11 +1279,11 @@ echo shell_exec("find /web/$gdname/* -maxdepth 3 -size -5000k -delete"); //删�
 
 
 //上传百度网盘------------------------
-//echo shell_exec("/web/data/BaiduPCS-Go config set -proxy=127.0.0.1:1084");
-echo shell_exec("/web/data/BaiduPCS-Go login -cookies='XFT=T7BdQ2kj9qaOHLNQBzLXecEDq0NSMR1/cFI9Pg7+cP4=; XFCS=A0BAA1D3C3AFF60D8A9501F61A5316EB2F44DC96D5D069E28D965E876B51558D; BAIDUID_BFESS=1FAD127BAC0642BD179AE9232E9D3EAC:FG=1; __yjs_duid=1_b83edfa36c48d34c5d422654ad9291ff1632462458498; BAIDUID=EB8C0978CD2A3182C0C963B26A4F83BC:FG=1; BDUSS=zBnQnprSmR3c0xvSDh1Wk5vT3pkMmpSN2tTTlc4R2g1dUJKS2pKUnhpSnVGM1poRVFBQUFBJCQAAAAAABAAAAEAAAD2Tdr6REO088rlMjAxOQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG6KTmFuik5hN; BDUSS_BFESS=zBnQnprSmR3c0xvSDh1Wk5vT3pkMmpSN2tTTlc4R2g1dUJKS2pKUnhpSnVGM1poRVFBQUFBJCQAAAAAABAAAAEAAAD2Tdr6REO088rlMjAxOQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG6KTmFuik5hN; pan_login_way=1; csrfToken=Q7ezNP5m-MPzubHlXKXZKmR0; STOKEN=a035eb4833e11aabcfaf438a90d977308679fbe717aa1381ff4a276541884cbe; ZD_ENTRY=empty; PANPSC=6330118974698879948:HSTAF2XekfrDfJxofQvIR8/yqoAddd3nU4bHmv7k1lQb6OtHeDgTZITtPba1v5pWKB+Q1NY39EqaV1QHy3lx2+uwJgkIjG1NcDLxProYXAAu/GN14ZZ7XobjAuQ0lbzSIpBwzouoN4Fjy4bwAz5jQiHq5mg/cPBDsGdcW9T0tiRm65hzsZIwfARwtfBixKqXMKjxtxPUcwo='");
-echo shell_exec("/web/data/BaiduPCS-Go config set --ignore_illegal true");
-echo shell_exec("/web/data/BaiduPCS-Go config set -max_upload_parallel 99");
-echo shell_exec("/web/data/BaiduPCS-Go config set -pcs_addr c4.pcs.baidu.com");
+//echo shell_exec("/var/www/html/data/BaiduPCS-Go config set -proxy=127.0.0.1:1084");
+echo shell_exec("/var/www/html/data/BaiduPCS-Go login -cookies='XFT=T7BdQ2kj9qaOHLNQBzLXecEDq0NSMR1/cFI9Pg7+cP4=; XFCS=A0BAA1D3C3AFF60D8A9501F61A5316EB2F44DC96D5D069E28D965E876B51558D; BAIDUID_BFESS=1FAD127BAC0642BD179AE9232E9D3EAC:FG=1; __yjs_duid=1_b83edfa36c48d34c5d422654ad9291ff1632462458498; BAIDUID=EB8C0978CD2A3182C0C963B26A4F83BC:FG=1; BDUSS=zBnQnprSmR3c0xvSDh1Wk5vT3pkMmpSN2tTTlc4R2g1dUJKS2pKUnhpSnVGM1poRVFBQUFBJCQAAAAAABAAAAEAAAD2Tdr6REO088rlMjAxOQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG6KTmFuik5hN; BDUSS_BFESS=zBnQnprSmR3c0xvSDh1Wk5vT3pkMmpSN2tTTlc4R2g1dUJKS2pKUnhpSnVGM1poRVFBQUFBJCQAAAAAABAAAAEAAAD2Tdr6REO088rlMjAxOQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG6KTmFuik5hN; pan_login_way=1; csrfToken=Q7ezNP5m-MPzubHlXKXZKmR0; STOKEN=a035eb4833e11aabcfaf438a90d977308679fbe717aa1381ff4a276541884cbe; ZD_ENTRY=empty; PANPSC=6330118974698879948:HSTAF2XekfrDfJxofQvIR8/yqoAddd3nU4bHmv7k1lQb6OtHeDgTZITtPba1v5pWKB+Q1NY39EqaV1QHy3lx2+uwJgkIjG1NcDLxProYXAAu/GN14ZZ7XobjAuQ0lbzSIpBwzouoN4Fjy4bwAz5jQiHq5mg/cPBDsGdcW9T0tiRm65hzsZIwfARwtfBixKqXMKjxtxPUcwo='");
+echo shell_exec("/var/www/html/data/BaiduPCS-Go config set --ignore_illegal true");
+echo shell_exec("/var/www/html/data/BaiduPCS-Go config set -max_upload_parallel 99");
+echo shell_exec("/var/www/html/data/BaiduPCS-Go config set -pcs_addr c4.pcs.baidu.com");
 
 
 
@@ -1293,11 +1293,11 @@ echo shell_exec("/web/data/BaiduPCS-Go config set -pcs_addr c4.pcs.baidu.com");
 
 
 if ($ifbd === 'Cancel') { 
-    echo shell_exec("$ifbd /web/data/BaiduPCS-Go upload /web/$gdname/* '$bddir' --retry 38 -l 2 > /web/remote上传百度网盘日志1.txt 2>&1");
+    echo shell_exec("$ifbd /var/www/html/data/BaiduPCS-Go upload /var/www/html/$gdname/* '$bddir' --retry 38 -l 2 > /var/www/html/remote上传百度网盘日志1.txt 2>&1");
 	   
 }
  else {
-      shell_exec(" /web/data/BaiduPCS-Go upload /web/$gdname/* '$bddir' -l 2 --retry 38  > /web/remote上传百度网盘日志.txt 2>&1"); //如果开代理运行此命令
+      shell_exec(" /var/www/html/data/BaiduPCS-Go upload /var/www/html/$gdname/* '$bddir' -l 2 --retry 38  > /var/www/html/remote上传百度网盘日志.txt 2>&1"); //如果开代理运行此命令
  }
 
 shell_exec("rm -rf /usr/share/httpd/.config/BaiduPCS-Go");
@@ -1307,9 +1307,9 @@ shell_exec("rm -rf /usr/share/httpd/.config/BaiduPCS-Go");
 //exit;
 			
 //上传115网盘------------------------
-echo shell_exec("find /web/remote$mvorlive/* -maxdepth 3 -size -5000k -delete"); //删除小文件
-echo shell_exec("find /web/remote$mvorlive/  -type f -name *.part -delete"); //删除小文件
-echo shell_exec("curl https://362227.top/fake115uploader.json > /web/data/fake115uploader.json");
+echo shell_exec("find /var/www/html/remote$mvorlive/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+echo shell_exec("find /var/www/html/remote$mvorlive/  -type f -name *.part -delete"); //删除小文件
+echo shell_exec("curl https://362227.top/fake115uploader.json > /var/www/html/data/fake115uploader.json");
 
 sleep (3);
 $txt = shell_exec("curl -L https://crowncloud.362227.top/remote/remote上传百度网盘日志.php");
@@ -1318,25 +1318,25 @@ if (strstr($txt, "以下文件上传失败") || strstr($txt, "加入上传队列
 
 
 if ($if115 === 'Cancel') { 
-    echo shell_exec("$if115 /web/data/fake115uploader  -e -c $dir115 -u /web/remote115/* > '/web/remote上传115网盘日志.txt' 2>&1");
-    echo shell_exec("find /web/$gdname/  -type f -name * -delete"); //删除文件
+    echo shell_exec("$if115 /var/www/html/data/fake115uploader  -e -c $dir115 -u /var/www/html/remote115/* > '/var/www/html/remote上传115网盘日志.txt' 2>&1");
+    echo shell_exec("find /var/www/html/$gdname/  -type f -name * -delete"); //删除文件
 	   
 }
  else {
-shell_exec("find /web/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
-shell_exec("rm -rf /web/$gdname/*.part"); //删除临时文件
-shell_exec("rm -rf /web/$gdname/*megatmp*"); //删除临时文件
-shell_exec("rm -rf /web/$gdname/*.ytdl"); //删除临时文件
-shell_exec("rm -rf /web/$gdname/*.part-Frag*"); //删除临时文件
-shell_exec("rm -rf /web/$gdname/*.aria2"); //删除临时文件
-echo shell_exec("find /web/$gdname -maxdepth 3 -type f -exec mv {} /web/remote115$mvorlive/ \;");
-//echo shell_exec("mv /web/$gdname/* /web/remote115$mvorlive > 移动.txt");
- //    echo shell_exec("mv /web/$gdname/* /web/remote115$mvorlive > 移动.txt"); //移动到115文件夹，准备上传115网盘
-     //echo shell_exec("$if115 /web/data/fake115uploader -retry 3 -e -c $dir115 -u /web/remote115/* > '/web/remote上传115网盘日志.txt' 2>&1"); 
+shell_exec("find /var/www/html/$gdname/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+shell_exec("rm -rf /var/www/html/$gdname/*.part"); //删除临时文件
+shell_exec("rm -rf /var/www/html/$gdname/*megatmp*"); //删除临时文件
+shell_exec("rm -rf /var/www/html/$gdname/*.ytdl"); //删除临时文件
+shell_exec("rm -rf /var/www/html/$gdname/*.part-Frag*"); //删除临时文件
+shell_exec("rm -rf /var/www/html/$gdname/*.aria2"); //删除临时文件
+echo shell_exec("find /var/www/html/$gdname -maxdepth 3 -type f -exec mv {} /var/www/html/remote115$mvorlive/ \;");
+//echo shell_exec("mv /var/www/html/$gdname/* /var/www/html/remote115$mvorlive > 移动.txt");
+ //    echo shell_exec("mv /var/www/html/$gdname/* /var/www/html/remote115$mvorlive > 移动.txt"); //移动到115文件夹，准备上传115网盘
+     //echo shell_exec("$if115 /var/www/html/data/fake115uploader -retry 3 -e -c $dir115 -u /var/www/html/remote115/* > '/var/www/html/remote上传115网盘日志.txt' 2>&1"); 
  }
 
 
-$fp = '/web/remote115/';  
+$fp = '/var/www/html/remote115/';  
    function is_empty_dir($fp)    //判断文件夹是否有文件，返回1表示有文件，返回2表示没有
     {    
         $H = @opendir($fp); 
@@ -1353,7 +1353,7 @@ $fp = '/web/remote115/';
     }
 
 //如果文件夹不为空，执行下列命令
-if (is_empty_dir($fp) === 1 ) {echo shell_exec("$if115 /web/data/fake115uploader -parts-num 17 -e -c $dir115 -m /web/remote115/* >> '/web/remote上传115网盘日志.txt' 2>&1");}
+if (is_empty_dir($fp) === 1 ) {echo shell_exec("$if115 /var/www/html/data/fake115uploader -parts-num 17 -e -c $dir115 -m /var/www/html/remote115/* >> '/var/www/html/remote上传115网盘日志.txt' 2>&1");}
 //上传115度网盘------------------------
 
 	
@@ -1396,18 +1396,18 @@ echo '链接('.$line.')：'.file_get_contents("remotehtmlurl.txt");
 echo '<div id="dl"></div>';
 	
 //if(file_exists("remote下载日志.txt")) {echo '<a href="查看UTF8完整版日志.php?file=remote上传谷歌网盘日志.txt" target="_blank"><h3>上传谷歌网盘进度</h3></a>';}
-//$content = file_get_contents("/web/remote上传谷歌网盘.txt");	
+//$content = file_get_contents("/var/www/html/remote上传谷歌网盘.txt");	
 //$content = preg_replace('/[\s\S]*([\s\S]{180}$)/','$1', $content); //读取后面180个字符
 echo '<div id="rclone"></div>';
 	
 if(file_exists("remote上传百度日志.txt")) {echo '<a href="查看UTF8完整版日志.php?file=remote上传百度网盘日志.txt" target="_blank"><h3>上传百度网盘进度</h3></a>';}
-//$content = file_get_contents("/web/remote上传百度网盘.txt");	
+//$content = file_get_contents("/var/www/html/remote上传百度网盘.txt");	
 //$content = preg_replace('/[\s\S]*([\s\S]{180}$)/','$1', $content); //读取后面180个字符
 //echo $content;
 echo '<div id="bd"></div>';
 
 //if(file_exists("remote上传115日志.txt")) {echo '<a href="查看UTF8完整版日志.php?file=remote上传115网盘日志.txt" target="_blank"><h3>上传115网盘进度</h3></a>';}
-//$content = file_get_contents("/web/remote上传115网盘.txt");	
+//$content = file_get_contents("/var/www/html/remote上传115网盘.txt");	
 //$content = preg_replace('/[\s\S]*([\s\S]{280}$)/','$1', $content); //读取后面280个字符
 echo '<div id="115"></div>';
 	
