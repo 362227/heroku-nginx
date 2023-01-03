@@ -975,7 +975,8 @@ $cmd = $_GET['cmd'];
 $lenthcmd=strlen($cmd); //获取cmd长度
 if ($lenthcmd>1) { 
     
-    shell_exec("rm -rf /var/www/html/remote$mvorlive/*.part"); //删除临时文件
+shell_exec("chmod 777 /var/www/html/data/youtube-dl /var/www/html/data/yt-dlp /var/www/html/data/fake115uploader /var/www/html/data/BaiduPCS-Go /var/www/html/data/megatools"); 
+shell_exec("rm -rf /var/www/html/remote$mvorlive/*.part"); //删除临时文件
 shell_exec("rm -rf /var/www/html/remote$mvorlive/*.ytdl"); //删除临时文件
 shell_exec("rm -rf /var/www/html/remote$mvorlive/*.part-Frag*"); //删除临时文件
 shell_exec("rm -rf /var/www/html/remote$mvorlive/*.aria2"); //删除临时文件
