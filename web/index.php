@@ -1185,7 +1185,7 @@ if ($renamelenth>1 ) {
         echo shell_exec("cd /var/www/html/$gdname/ && gdown --no-cookies \"$googledriveid\" -O \"$rename\" > /var/www/html/remote下载日志.txt  2>&1");}}
     else if ($urlstring5 === 'mega')  {   
      echo shell_exec("/var/www/html/data/megatools dl $urlstring --path \"/var/www/html/$gdname/$rename\"  | tee  /var/www/html/remote下载日志.txt");}
-    else {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -a /var/www/html/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36\" -o \"$rename\"  --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /var/www/html/remote下载日志.txt");}
+    else {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -a /var/www/html/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36\" -o \"$rename\"  --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /var/www/html/remote下载日志.txt");}
 }
     else  {  //不用重命名
     if ($urlstring1 === 'youtube') {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8  --ffmpeg-location /usr/local/bin/ffmpeg --config-location /var/www/html/data/ytconfig.txt -a /var/www/html/remoteurl.txt -o '%(title)s (%(width)sx%(height)s WEB-DL YT).%(ext)s'  | tee /var/www/html/remote下载日志.txt" );  
@@ -1209,7 +1209,7 @@ echo shell_exec("ffmpeg -i \"$mp3file\" \"file.jpg\" -y && ffmpeg -loop 1 -r 1 -
       }
      else if ($urlstring5 === 'mega')  {   
      echo shell_exec("/var/www/html/data/megatools dl $urlstring | tee  /var/www/html/remote下载日志.txt");}
-    else {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8 -a /var/www/html/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36\" --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /var/www/html/remote下载日志.txt");}
+    else {echo shell_exec("cd /var/www/html/$gdname/ && /var/www/html/data/yt-dlp -N 8 -a /var/www/html/remoteurl.txt --add-header \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36\" --no-mtime --external-downloader aria2c --external-downloader-args  \"-x 16 -k 1M --summary-interval=1\"  | tee /var/www/html/remote下载日志.txt");}
       
         
         
