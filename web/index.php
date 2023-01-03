@@ -858,8 +858,8 @@ MV还是现场： <body onload="selectIndex();">
 
 <p hidden><button id="bt" class="small red button" formaction="/remote无url长度要求.php" target="iframe" >强制提交</button></p>
 <p hidden><button id="bt" class="small red button"  onclick="window.location.href='remote无url长度要求.php'">强制提交</button></p>
-<button id="bt" value="killall" formaction="/remote/killall.php" target="iframe" style="background-color: #F2462B;">杀掉所有进程</button>
-<button id="bt000" value="delete" formaction="/remote/delete.php" target="iframe"style="background-color: #F2462B;">删掉所有中间文件</button>
+<button id="bt" value="killall" formaction="/killall.php" target="iframe" style="background-color: #F2462B;">杀掉所有进程</button>
+<button id="bt000" value="delete" formaction="/delete.php" target="iframe"style="background-color: #F2462B;">删掉所有中间文件</button>
 
 </div>
 
@@ -1148,8 +1148,8 @@ shell_exec("pkill v2ray"); //杀死v2ray
 shell_exec("/var/www/html/data/v2ray -config /usr/share/nginx/kodexplorer/$arr[$v2rayconf] > v2ray.txt & sleep 2"); //后台运行v2ray		
 	
 //下载+上传谷歌+上传百度网盘+上传115	
-shell_exec("find /var/www/html/remote/* -maxdepth 3 -size -5000k -delete"); //删除小文件
-shell_exec("rm -rf /var/www/html/remote/*.part"); //删除临时文件
+shell_exec("find /var/www/html/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+shell_exec("rm -rf /var/www/html/*.part"); //删除临时文件
 
 
 
