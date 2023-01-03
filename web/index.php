@@ -1,5 +1,5 @@
 <?php
-
+shell_exec("chmod 777 /var/www/html/data/youtube-dl /var/www/html/data/yt-dlp /var/www/html/data/fake115uploader /var/www/html/data/BaiduPCS-Go /var/www/html/data/megatools"); 
 /**
  * 检验私密页面的密码
  *
