@@ -1148,8 +1148,8 @@ shell_exec("pkill v2ray"); //杀死v2ray
 shell_exec("/var/www/html/data/v2ray -config /usr/share/nginx/kodexplorer/$arr[$v2rayconf] > v2ray.txt & sleep 2"); //后台运行v2ray		
 	
 //下载+上传谷歌+上传百度网盘+上传115	
-shell_exec("find /var/www/html/* -maxdepth 3 -size -5000k -delete"); //删除小文件
-shell_exec("rm -rf /var/www/html/*.part"); //删除临时文件
+shell_exec("find /var/www/html/backup/* -maxdepth 3 -size -5000k -delete"); //删除小文件
+shell_exec("rm -rf /var/www/html/backup/*.part"); //删除临时文件
 
 
 
