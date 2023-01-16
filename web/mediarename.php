@@ -4,13 +4,17 @@ $regex_link = '/.*/';
 $regex_tit = '/.*/';
 
 
+$dir = dirname("/var/www/html/TX/");
+echo $dir;
+exit;
+
 
 
 $path = "/var/www/html/TX/";
 
 $html = shell_exec("find $path -maxdepth 1 -size +1M -type f ! -name *-Master-* "); //获取文件名
-echo $html;
-exit;
+//echo $html;
+//exit;
 
 
 $date=date("Y-m-d H");
