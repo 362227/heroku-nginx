@@ -127,8 +127,8 @@ $str68="／";
         
         
         
-        
-        shell_exec("cd $path && mv \"$filename\" \"$newfilename\"");
+        rename($filename,$newfilename);
+       // shell_exec("cd $path && mv \"$filename\" \"$newfilename\"");
     }
     echo $videoc;
 
