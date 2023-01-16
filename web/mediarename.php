@@ -11,7 +11,7 @@ $regex_tit = '/.*/';
    {
    	 if($file!="."&&$file!="..")
    	 {
-   	 	$html=$dirname."/".$file;
+   	 	$html=$dirname.$file;
    	 	if($num++%2==0)    //隔行换色
    	 		$bgcolor="#ffffff";
    	 	else 
