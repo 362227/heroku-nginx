@@ -4,27 +4,14 @@ $regex_link = '/.*/';
 $regex_tit = '/.*/';
 
 
-   $dirname='/var/www/html/TX/'; //要遍历的目录名字
-   $dir_handle=opendir($dirname);
-
-   while($file=readdir($dir_handle))
-   {
-   	 if($file!="."&&$file!="..")
-   	 {
-   	 	$html=$dirname.$file;
-   	 	if($num++%2==0)    //隔行换色
-   	 		$bgcolor="#ffffff";
-   	 	else 
-   	 		$bgcolor="#cccccc";
- echo 	$html.'
- '; 
-   	 }
-   }
+$dir = dirname("/var/www/html/TX/");
 
 
-//$path = "/var/www/html/TX/";
 
-//$html = shell_exec("find $path -maxdepth 1 -size +1M -type f ! -name *-Master-* "); //获取文件名
+
+$path = "/var/www/html/TX/";
+
+$html = shell_exec("find $path -maxdepth 1 -size +1M -type f ! -name *-Master-* "); //获取文件名
 //echo $html;
 //exit;
 
@@ -127,7 +114,7 @@ $str68="／";
         
         
         
-        //rename($filename,$newfilename);
+        
         shell_exec("cd $path && mv \"$filename\" \"$newfilename\"");
     }
     echo $videoc;
