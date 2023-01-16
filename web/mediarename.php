@@ -8,7 +8,7 @@ $regex_tit = '/.*/';
 
 $path = "/var/www/html/TX/";
 
-$html = shell_exec("find $path -maxdepth 1 -size +1M"); //获取文件名
+$html = shell_exec("find $path -maxdepth 1 -size +1M -type f ! -name *-Master-* "); //获取文件名
 //echo $html;
 //exit;
 
@@ -28,7 +28,7 @@ if (preg_match_all($regex_link, $html, $filenames) ) {
         $audioc = shell_exec("cd $path && mediainfo \"--Inform=Audio;%Format%%Format_Profile%\"  \"$filename\" "); //获取音频编码
         $audioc = preg_replace('/\r|\n/','', $audioc);
         $newfilename = $name.' ('.$audioc.'-Master-'.$videoc.'-TX)'.$ext;
-        
+        $newfilename = preg_replace('/AVCV\_MPEG4\/ISO\/AVC/','H264', $newfilename);        
         
         
 
