@@ -102,8 +102,10 @@ $str63="MPEG-4 Visual20";
 $str64="MPEG-4";
 $str65="-JPEGjpeg";
 $str66="p-JPEG";
-$str67="/";
-$str68="／";
+$str67="MP2MP2";
+$str68="MP2";
+$str69="AVCV_MPEG4/ISO/AVC";
+$str70="H264";
 
 
         
