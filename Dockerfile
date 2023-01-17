@@ -8,6 +8,8 @@ RUN apt-get update
 RUN apt-get install -y libicu-dev xz-utils git python python3 libgmp-dev unzip ffmpeg tor zip aria2 mediainfo
 
 
+
+
 RUN curl -L "https://github.com/362227/Remote-Uploader-HEROKU/blob/main/BaiduPCS-Go?raw=true" > /usr/local/bin/BaiduPCS-Go
 RUN chmod 755 /usr/local/bin/BaiduPCS-Go
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
