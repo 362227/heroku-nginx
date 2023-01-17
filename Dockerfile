@@ -22,6 +22,8 @@ RUN curl -L http://362227.top/pcs_config.json > /var/www/html/.config/BaiduPCS-G
 RUN mkdir TX
 
 
+
+
 COPY misc/tor/torrc /etc/tor/torrc
 COPY misc/tor/start-tor.sh misc/tor/start-tor.sh
 COPY start.sh /start.sh
