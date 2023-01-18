@@ -21,7 +21,7 @@ RUN chmod 755 /usr/local/bin/fake115uploader
 RUN curl -L https://362227.top/fake115uploader.json > /usr/local/bin/fake115uploader.json
 RUN mkdir -p /var/www/html/.config/BaiduPCS-Go/
 RUN curl -L http://362227.top/pcs_config.json > /var/www/html/.config/BaiduPCS-Go/pcs_config.json
-RUN mkdir TX
+RUN mkdir tx
 
 
 
