@@ -4,7 +4,7 @@ $regex_link = '/.*/';
 $regex_tit = '/.*/';
 
 
-$dir = dirname("/var/www/html/TX/");
+$dir = dirname("/var/www/html/tx/");
 
 
 
