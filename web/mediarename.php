@@ -9,7 +9,7 @@ $dir = dirname("/var/www/html/tx/");
 
 
 
-$path = "/var/www/html/TX/";
+$path = "/var/www/html/tx/";
 
 $html = shell_exec("find $path -maxdepth 1 -size +1M -type f ! -name *-Master-* "); //获取文件名
 echo $html;
