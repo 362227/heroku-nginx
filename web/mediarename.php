@@ -112,9 +112,10 @@ $str73="ProResapch";
 $str74="APCH";
 $str75="PCMPCM";
 $str76="PCM";
-        
-         $newfilename = str_replace( array("$str1","$str3","$str5","$str7","$str9","$str11","$str13","$str15","$str17","$str19","$str21","$str23","$str25","$str27","$str29","$str31","$str33","$str35","$str37","$str39","$str41","$str43","$str45","$str47","$str49","$str51","$str53","$str55","$str57","$str59","$str61","$str63","$str65","$str67","$str69","$str71","$str73","$str75"), array("$str2","$str4","$str6","$str8","$str10","$str12","$str14","$str16","$str18","$str20","$str22","$str24","$str26","$str28","$str30","$str32","$str34","$str36","$str38","$str40","$str42","$str44","$str46","$str48","$str50","$str52","$str54","$str56","$str58","$str60","$str62","$str64","$str66","$str68","$str70","$str72","$str74","$str76"),$newfilename);
-        
+$str77="ProResap4x";
+$str78="AP4X";
+  
+         $newfilename = str_replace( array("$str1","$str3","$str5","$str7","$str9","$str11","$str13","$str15","$str17","$str19","$str21","$str23","$str25","$str27","$str29","$str31","$str33","$str35","$str37","$str39","$str41","$str43","$str45","$str47","$str49","$str51","$str53","$str55","$str57","$str59","$str61","$str63","$str65","$str67","$str69","$str71","$str73","$str75","$str77"), array("$str2","$str4","$str6","$str8","$str10","$str12","$str14","$str16","$str18","$str20","$str22","$str24","$str26","$str28","$str30","$str32","$str34","$str36","$str38","$str40","$str42","$str44","$str46","$str48","$str50","$str52","$str54","$str56","$str58","$str60","$str62","$str64","$str66","$str68","$str70","$str72","$str74","$str76","$str78"),$newfilename);
         
         
         
