@@ -36,6 +36,15 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 $result = curl_exec($ch);
 $content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
 
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+
+ 
+
+
 if (strlen($result) > 6 && $content === "this video cannot be played here") {
     
 $ch = curl_init();
@@ -1160,161 +1169,345 @@ $headers[] = 'Sec-Ch-Ua-Mobile: ?0';
 $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
+
+$result = curl_exec($ch);
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/.*DOCTYPE html.*/','', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
 
-$result = curl_exec($ch);
 echo $result;
-
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-else {
-echo $result;
-}
-}
-
-else {
-echo $result;
-}
 
 }
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+  
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+ 
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+}
+
+else {
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+echo $result;
+}
+
+}
+
+
+
 
 else if  (strlen($result) > 6) {echo $result;}  //如果有数据输出，且没有出现“this video cannot be played here”，即输出最普通的（无ref，可能有，也可能404，带密码，私密等等）
 
@@ -1385,6 +1578,22 @@ $result = curl_exec($ch);
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/.*DOCTYPE html.*/','', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
 echo $result;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
