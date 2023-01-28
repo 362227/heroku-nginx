@@ -1160,6 +1160,11 @@ $headers[] = 'Sec-Ch-Ua-Mobile: ?0';
 $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/.*DOCTYPE html.*/','', $result);
+
 $result = curl_exec($ch);
 echo $result;
 
@@ -1377,5 +1382,9 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/.*DOCTYPE html.*/','', $result);
 echo $result;
 }
