@@ -1514,9 +1514,13 @@ else if  (strlen($result) > 6) {echo $result;}  //如果有数据输出，且没
 
 else  {   //上述条件均不满足（即无数据输出，curl_php遇到验证码确实是无数据输出），就是有验证码了
 
+ 
+ 
+$name1  = preg_replace('/(.*)[0-9]{3}php$/','$1', $name);
+
 $arr = array(
-    'https://sovj2weiosjke007php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=pistolwayne003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453',
-    'https://sovj2weiosjke008php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name=pistolwayne003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453'
+    'https://'.$name1.'003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453',
+    'https://'.$name1.'003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
