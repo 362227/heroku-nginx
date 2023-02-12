@@ -145,15 +145,15 @@ $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(acco
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
 $result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
     //echo $result;
-    if (!strstr($result, "0000000000")){
+    if (strstr($result, "title")){
       echo $result; 
       break; 
    
     }
    
 }
-  if (strstr($result, "000000000")){
-      echo "00000000000"; 
+  if (!strstr($result, "title")){
+      echo "有ref"; 
      }
 
 }
