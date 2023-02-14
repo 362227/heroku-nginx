@@ -1,6 +1,6 @@
 import re
 import glob
-path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并最终*9"
+path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并*9"
 for filename in glob.glob(path):
     with open(filename, encoding='gbk', errors='ignore') as f:
 
