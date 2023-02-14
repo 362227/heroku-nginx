@@ -42,7 +42,7 @@ for i, file in enumerate(files):
     f.truncate()
 
   # 返回“文本已替换”字符串
-  return "文本已替换"
+  return "文本已替换" + txt
 
 # 创建一个变量并存储我们要搜索的文本
  search_text = r"[\s\S]*\"title\":\"(.+?)\".+?(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs\".+?\"\:\"(.+?)\_.+?(\"name\"\:\")(.+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*"
