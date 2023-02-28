@@ -31,6 +31,6 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref"  -t
 
 
 echo 提取最终数据$num"000000"-$num"999999"
-python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则提取最新.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".html
+python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则提取旧的.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".html
 
  
