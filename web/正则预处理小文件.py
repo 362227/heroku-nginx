@@ -45,7 +45,7 @@ for i, file in enumerate(files):
   return "文本已替换" + txt
 
 # 创建一个变量并存储我们要搜索的文本
- search_text = r"[\s\S]*\"title\":\"(.+?)\".+?(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs\".+?\"\:\"(.+?)\_.+?(\"name\"\:\")(.+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*"
+ search_text = r"[\s\S]*\"title\":\"(.+?)\".+?(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs\".+?\"\:\"(.+?)\_.+?(\"name\"\:\")(.+?\").+?(\,\"account\_type\"\:\"business|pro|plus|premium|enterprise|live\_premium\")[\s\S]*"
 
 #创建一个变量并存储我们要更新的文本
  replace_text = r'title>\1 from \6</title><br>\3\2\7\5\6<br><img src="\4?mw=240"  alt="img" /><br>'
