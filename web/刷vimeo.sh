@@ -25,7 +25,7 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref"  -t
 echo 提取大文件有效信息（egrep命令，提取有avc_url的行）
 egrep -i '\"avc_url\"'  /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"temp > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"
 
-rm -rf 合并$num"000000"-$num"999999"temp
+rm -rf /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"temp
 
 echo 进一步删除无效信息（sed命令）
 sed -i s/.*video\"\:\{\"id\"//g  /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"
