@@ -8,25 +8,25 @@ aria2c --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常
 aria2c --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt" --file-allocation=none --max-concurrent-downloads=770 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02 --max-download-result=1000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
 python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/从log文件提取有ref的链接.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt
 
-IP=( "https://www.petgorilla.com/"  "http://malloybrothers.com/" "http://alexanderhammer.com/"  "http://ways-means.co" "http://www.romanwhite.com" ); IP1=( "https://www.ntropic.com/"  "http://coffeeand.tv" "http://believemedia.com" "http://modernpost.com" "http://www.treyfanjoy.com/" ) ; for i in "${IP[@]}";do aria2c  --referer=$i -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=500 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done & for i1 in "${IP1[@]}";do aria2c  --referer=$i1 -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=494 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done
+IP=( "https://www.petgorilla.com/"  "http://malloybrothers.com/" "http://alexanderhammer.com/"  "http://ways-means.co" "http://www.romanwhite.com" ); IP1=( "https://www.ntropic.com/"  "http://coffeeand.tv" "http://believemedia.com" "http://modernpost.com" "http://www.treyfanjoy.com/" ) ; for i in "${IP[@]}";do aria2c  --referer=$i -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=500 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done & for i1 in "${IP1[@]}";do aria2c  --referer=$i1 -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=494 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done &
+for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/${FILE}0" ; done &
+for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/${FILE}0" ; done && find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01"  -size +15k -delete && find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02"  -size +15k -delete && python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 & python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02  
+
 wait
 
-exho 第一次提取数据
-for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/${FILE}0" ; done
-for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/${FILE}0" ; done
+#echo 第一次提取数据
+
 for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/${FILE}0" ; done
 
 
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01"  -type f -name "*.*" -delete  #删重复文件
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02"  -type f -name "*.*" -delete   #删重复文件
+wait
 find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref"  -type f -name "*.*" -delete  #删重复文件
 
 echo 删除15KB以上的小文件
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01"  -size +15k -delete
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02"  -size +15k -delete
+
 find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref"  -size +15k -delete
 
-python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 & python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02  
+
 wait
 python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref
 
