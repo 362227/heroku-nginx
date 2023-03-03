@@ -10,9 +10,11 @@ python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/从log文件
 
 IP=( "https://www.petgorilla.com/"  "http://malloybrothers.com/" "http://alexanderhammer.com/"  "http://ways-means.co" "http://www.romanwhite.com" ); IP1=( "https://www.ntropic.com/"  "http://coffeeand.tv" "http://believemedia.com" "http://modernpost.com" "http://www.treyfanjoy.com/" ) ; for i in "${IP[@]}";do aria2c  --referer=$i -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=500 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done & for i1 in "${IP1[@]}";do aria2c  --referer=$i1 -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=494 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done
 wait
-for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/$FILE" | tee "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/${FILE}0" ; done
-for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/$FILE" | tee "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/${FILE}0" ; done
-for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/$FILE" | tee "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/${FILE}0" ; done
+
+exho 第一次提取数据
+for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01/${FILE}0" ; done
+for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02/${FILE}0" ; done
+for FILE in `ls /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/`; do egrep -i '\"duration\"' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/$FILE" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref/${FILE}0" ; done
 
 
 find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01"  -type f -name "*.*" -delete  #删重复文件
@@ -29,7 +31,7 @@ wait
 python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref
 
 echo 删除5KB以上的小文件
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01"  -size +5k -delete
+find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp01"  -size +5k -delete
 find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02"  -size +5k -delete
 find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref"  -size +5k -delete
 
