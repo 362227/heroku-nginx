@@ -158,7 +158,7 @@ echo file_get_contents ($arr[$key]);
 
 $ch = curl_init();
 
-curl_setopt($ch, CURLOPT_URL, 'https://api.heroku.com/apps/'.$name.'/dynos');
+curl_setopt($ch, CURLOPT_URL, '停止https://api.heroku.com/apps/'.$name.'/dynos');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
 
