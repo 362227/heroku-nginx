@@ -39,10 +39,10 @@ $result = curl_exec($ch);
 
 $content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
 
-$result = preg_replace('/[\s\S]*(\<title\>.+?\<\/title\>)[\s\S]*\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs".+?\"\:\"(.+?)\_.+?(\"name\"\:\".+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*/','$1<br>$3$2$6$5<br><img src="$4?mw=240"  alt="img" /><br>', $result);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
-//$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/[\s\S]*(\<title\>.+?\<\/title\>)[\s\S]*\"width.+?(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs".+?\"\:\"(.+?)\_.+?(\"name\"\:\".+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*/','$1<br>$3$2$6$5<br><img src="$4?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.+?(title>.+?<\/title>).+?thumb\.src \= \"(.+?)\?.+?(\"duration\"\:[0-9]{1,20}\,).+?(account_type\"\:\".+?\",\"name\"\:\".+?\").+?\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.+?(title>.+?<\/title>).+?thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").+?(\"share\_url\"\:\".+?\").+?(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+//$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.+?(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.+?\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
  
 
 $result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','', $result);
@@ -109,10 +109,10 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
 $result = curl_exec($ch);
-$result = preg_replace('/[\s\S]*(\<title\>.+?\<\/title\>)[\s\S]*\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs".+?\"\:\"(.+?)\_.+?(\"name\"\:\".+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*/','$1<br>$3$2$6$5<br><img src="$4?mw=240"  alt="img" /><br>', $result);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
-//$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/[\s\S]*(\<title\>.+?\<\/title\>)[\s\S]*\"width.+?(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs".+?\"\:\"(.+?)\_.+?(\"name\"\:\".+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*/','$1<br>$3$2$6$5<br><img src="$4?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).+?thumb\.src \= \"(.+?)\?.+?(\"duration\"\:[0-9]{1,20}\,).+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).+?thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").+?(\"share\_url\"\:\".+?\").+?(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+//$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.+?(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
 $result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
 $result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','ref有验证码', $result);
@@ -203,8 +203,8 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).+?thumb\.src \= \"(.+?)\?.+?(\"duration\"\:[0-9]{1,20}\,).+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).+?thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").+?(\"share\_url\"\:\".+?\").+?(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
 $result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
 echo $result;
