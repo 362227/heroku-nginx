@@ -173,7 +173,8 @@ $name1  = preg_replace('/(.*)[0-9]{3}php$/','$1', $name);
 $arr = array(
     'https://'.$name1.'001php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453',
     'https://'.$name1.'002php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453',
-    'https://'.$name1.'003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453'
+    'https://'.$name1.'003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453',
+    'https://'.$name1.'004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
