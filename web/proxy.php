@@ -48,7 +48,7 @@ $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(acco
 
 $result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','', $result); //如果有验证码，全部清空内容
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','0', $result);
 
 //echo $result;
 //exit;
@@ -143,8 +143,8 @@ $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"dur
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 //$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
-$result = preg_replace('[\s\S]*CAPTCHA Challenge[\s\S]*/','有验证码', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','0', $result);
+$result = preg_replace('[\s\S]*CAPTCHA Challenge[\s\S]*/','刷ref出现验证码', $result);
     //echo $result;
     if (strstr($result, "title")){
       echo $result; 
@@ -235,8 +235,8 @@ $result = curl_exec($ch);
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
-$result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','刷ref出现验证码', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','0', $result);
+$result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','验证码', $result);
 echo $result;
 }
 }
