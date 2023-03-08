@@ -49,8 +49,8 @@ $result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
 $result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','0', $result);
 
-//echo $result;
-//exit;
+echo $result;
+exit;
 $array = array( 
 "https://www.petgorilla.com/"  ,
   "http://malloybrothers.com/" ,
