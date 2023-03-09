@@ -7,9 +7,12 @@ $ref=$_GET["ref"];
 $token=$_GET["token"];
 $name=$_GET["name"];
 
+$id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url); 
+//echo $id;
+//exit;
 $ch = curl_init();
 
-curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_URL, 'https://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/'.$id);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
 
@@ -35,6 +38,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
  
+
 $array = array( 
 "https://www.petgorilla.com/"  ,
   "http://malloybrothers.com/" ,
@@ -58,7 +62,7 @@ $array = array(
 
 //新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法
 
- if (!strstr($result, "this video cannot be played here")){
+ if (!strstr($result, "domain_status_code\":403")){
  echo $result;
 }else{
     
@@ -95,14 +99,14 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 $result = curl_exec($ch);
 
     //echo $result;
-    if (strstr($result, "avc_url")){
+    if (strstr($result, "account_type")){
       echo $result; 
       break; 
    
     }
    
 }
-  if (!strstr($result, "avc_url")){
+  if (!strstr($result, "account_type")){
       echo "有ref"; 
      }
 
