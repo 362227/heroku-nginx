@@ -45,9 +45,9 @@ $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(acco
 //$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
  
 
-$result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','', $result);
+
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','0', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
 
 //echo $result;
 //exit;
@@ -114,8 +114,7 @@ $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"dur
 $result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
 //$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
 $result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','有ref', $result);
-$result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','ref有验证码', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
     //echo $result;
     if (strstr($result, "title")){
       echo $result; 
@@ -143,7 +142,7 @@ $name1  = preg_replace('/(.*)[0-9]{3}php$/','$1', $name);
 
 $arr = array(
     'https://'.$name1.'003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453',
-    'https://'.$name1.'004php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453'
+    'https://'.$name1.'003php.herokuapp.com/proxy.php?url='.$url.'&ref='.$ref.'&name='.$name1.'003php&token=0e8635cf-e01e-4d5d-b778-53bb2ec48453'
 );
 $key = array_rand($arr, 1);
 //输出随机内容
@@ -158,7 +157,7 @@ echo file_get_contents ($arr[$key]);
 
 $ch = curl_init();
 
-curl_setopt($ch, CURLOPT_URL, '停止https://api.heroku.com/apps/'.$name.'/dynos');
+curl_setopt($ch, CURLOPT_URL, 'https://api.heroku.com/apps/'.$name.'/dynos');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
 
