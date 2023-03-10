@@ -79,7 +79,7 @@ $array = array(
      
      
   echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"https://vimeo.com'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'<br><img src="'.$thumbnail_url.'"  alt="img" >';
-}else if (strstr($result, "domain_status_code\":403")) {  //如果出现403，就是有ref
+}else if (strstr($result, "domain_status_code\":403") && preg_match("/([0-9]{4,10}:[0-9a-z]{4,10})/", $result) == 0  ) {  //如果出现403，且没有hash，就是有ref
     
  
 foreach ($array as $ref) { 
@@ -138,7 +138,7 @@ $uri = $data['uri'];
 }
 
 else {
-    $result = preg_replace('/.*\"video_id\"\:([0-9]{1,10})\,.*/','$1', $result);
+    $result = preg_replace('/.*videos\\\\\/(.+?)\".*/','$1', $result);
     if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) //如果有验证码或者被封，则输出为空
     { $result = preg_replace('.*/','', $result);}
     echo $result;}
