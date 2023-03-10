@@ -4,6 +4,9 @@ num=$1
 python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -n $num -t /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接01.txt
 python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -n $num -t /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt
 
+python 替换为onrender链接.py 链接01.txt
+python 替换为onrender链接.py 链接02.txt
+
 aria2c --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接01.txt" --file-allocation=none --max-concurrent-downloads=770 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=1000 | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
 aria2c --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt" --file-allocation=none --max-concurrent-downloads=770 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02 --max-download-result=1000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
 
