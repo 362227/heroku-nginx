@@ -1,11 +1,16 @@
+import requests
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import fileinput
 import re
 import random
 import sys
 
-# 定义要替换的链接和替换后的链接列表
-old_link = "https://crowncloud.362227.top/rss/刷vimeo跳转地址.php"
-new_links = [
+# 代理
+proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
+
+# 需要尝试的链接列表
+urls = [
     "https://vimeo362227.onrender.com",
     "https://vimeo362227-1.onrender.com",
     "https://vimeo362227-2.onrender.com",
@@ -45,8 +50,40 @@ new_links = [
     "https://kai005.onrender.com",
     "https://kai006.onrender.com"
 ]
+
+def request_url(url):
+    while True:
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                print(f'{url} returned 200')
+                return None # 返回None表示成功
+            else:
+                print(f'{url} returned {response.status_code}')
+        except requests.exceptions.RequestException as e:
+            print(f'{url} failed: {e}')
+        time.sleep(1) # 等待1秒后重试
+
+# 使用线程池并发请求
+with ThreadPoolExecutor() as executor:
+    futures = [executor.submit(request_url, url) for url in urls]
+    # 获取每个请求的结果
+    for future in as_completed(futures):
+        url = future.result()
+        if url:
+            urls.append(url) # 将未返回
+            
+            
+            
+            
+
+
+# 定义要替换的链接和替换后的链接列表
+old_link = "https://crowncloud.362227.top/rss/刷vimeo跳转地址.php"
+new_links = urls
 input_file = sys.argv[1]
 
 # 替换链接并更新文件
 for line in fileinput.input(input_file, inplace=True):
     print(re.sub(f"{old_link}\?url=(https:\/\/player\.vimeo\.com\/video\/\d+)", lambda x: f"{new_links[random.randint(0, len(new_links)-1)]}/oldvimeo.php?url={x.group(1)}&ref=http://friendlondon.tv&name=sovj2weiosjke003php&token=fa54fb92-335d-4f1b-93c7-7c01efce63aa", line), end='')
+
