@@ -12,7 +12,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 # 需要尝试的链接列表
 urls = [
     "https://vimeo362227.onrender.com",
-    "https://vimeo362227-1.onrender.com",
+   # "https://vimeo362227-1.onrender.com",
     "https://vimeo362227-2.onrender.com",
     "https://vimeo362227-3.onrender.com",
     "https://vimeo362227-4.onrender.com",
