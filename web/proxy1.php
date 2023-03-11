@@ -10,6 +10,7 @@ $url=$_GET["url"];
 $ref=$_GET["ref"]; 
 $token=$_GET["token"];
 $name=$_GET["name"];
+$org=$_GET["org"];
 
 $id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url); 
 //echo $id;
@@ -42,6 +43,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
 
+if ($org == 1 ) {echo $result; exit;} //如果url添加&org=1，则输出原始内容
 
 $res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
