@@ -151,10 +151,10 @@ $uri = $data['video']['share_url'];
 }
 
  
-else {  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成000000
+else {  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
    
     if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) { $result = preg_replace('/[\s\S]*/','', $result);}//如果有验证码或者被封，则输出为空
-    $result = str_replace($result, '000000', $result); //只要出现字符，就全部替换成000000
+    $result = str_replace($result, '10362227', $result); //只要出现字符，就全部替换成10362227
 
     echo $result;}
 exit;
