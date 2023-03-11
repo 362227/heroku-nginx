@@ -1,5 +1,9 @@
 <?php
 // 修改
+$t1 = microtime(true);
+$t2 = microtime(true);
+//echo '程序耗时'.round($t2-$t1,3).'秒';
+
 ini_set('display_errors','off');
 date_default_timezone_set('PRC');
 $url=$_GET["url"]; 
@@ -12,7 +16,7 @@ $id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url);
 //exit;
 $ch = curl_init();
 
-curl_setopt($ch, CURLOPT_URL, 'https://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/'.$id);
+curl_setopt($ch, CURLOPT_URL, 'https://player.vimeo.com/video/'.$id);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
 
@@ -38,13 +42,16 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
 
-$data = json_decode($result, true); // 将 JSON 数据转换为 PHP 数组
-$author_name = $data['author_name']; 
-$account_type = $data['account_type']; 
-$duration = $data['duration']; 
-$thumbnail_url = $data['thumbnail_url']; 
-$title = $data['title']; 
-$uri = $data['uri']; 
+
+$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result);
+$data = json_decode($res, true);
+
+$title = $data['video']['title'];
+$author_name = $data['video']['owner']['name']; 
+$account_type = $data['video']['owner']['account_type']; 
+$duration = $data['video']['duration']; 
+$thumbnail_url = $data['video']['thumbs']['base']; 
+$uri = $data['video']['share_url']; 
 
 
 
@@ -78,8 +85,8 @@ $array = array(
  if (strstr($result, "account_type")){
      
      
-  echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"https://vimeo.com'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'<br><img src="'.$thumbnail_url.'"  alt="img" >';
-}else if (strstr($result, "domain_status_code\":403") && preg_match("/([0-9]{4,10}:[0-9a-z]{4,10})/", $result) == 0  ) {  //如果出现403，且没有hash，就是有ref
+  echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+}else if (strstr($result, "this video cannot be played here") ){  //如果出现403
     
  
 foreach ($array as $ref) { 
@@ -87,7 +94,8 @@ foreach ($array as $ref) {
 
 $ch = curl_init();
 
-curl_setopt($ch, CURLOPT_URL, 'https://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/'.$id);
+//curl_setopt($ch, CURLOPT_URL, 'https://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/'.$id);
+curl_setopt($ch, CURLOPT_URL, 'https://player.vimeo.com/video/'.$id);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
 
@@ -115,22 +123,26 @@ $result = curl_exec($ch);
 
 
  
-    if (strstr($result, "account_type")){
-        $data = json_decode($result, true); // 将 JSON 数据转换为 PHP 数组
-$author_name = $data['author_name']; 
-$account_type = $data['account_type']; 
-$duration = $data['duration']; 
-$thumbnail_url = $data['thumbnail_url']; 
-$title = $data['title']; 
-$uri = $data['uri']; 
-        echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"https://vimeo.com'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'<br><img src="'.$thumbnail_url.'"  alt="img" >';
+    if (strstr($result, "avc_url")){
+$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result);
+$data = json_decode($res, true);
+
+$title = $data['video']['title'];
+$author_name = $data['video']['owner']['name']; 
+$account_type = $data['video']['owner']['account_type']; 
+$duration = $data['video']['duration']; 
+$thumbnail_url = $data['video']['thumbs']['base']; 
+$uri = $data['video']['share_url']; 
+
+
+        echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
       break; 
    
     }
    
 }
-  if (!strstr($result, "account_type")){
-      echo "有ref"; 
+  if (!strstr($result, "avc_url")){
+      echo $id."有ref"; 
      }
 
  
@@ -140,7 +152,7 @@ $uri = $data['uri'];
 else {
     $result = preg_replace('/.*videos\\\\\/(.+?)\".*/','$1', $result);
     if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) //如果有验证码或者被封，则输出为空
-    { $result = preg_replace('.*/','', $result);}
+    { $result = preg_replace('/.*/','', $result);}
     echo $result;}
 exit;
 
