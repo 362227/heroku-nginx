@@ -37,6 +37,8 @@ urls = [
     "https://vimeo362227-23.onrender.com",
     "https://vimeo362227-24.onrender.com",
     "https://vimeo362227-25.onrender.com",
+    "https://vimeo362227-26.onrender.com",
+    "https://vimeo362227-27.onrender.com",
     "https://ellie001.onrender.com",
     "https://ellie002.onrender.com",
     "https://ellie003.onrender.com",
