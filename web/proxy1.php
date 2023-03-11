@@ -43,7 +43,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 $result = curl_exec($ch);
 
 
-$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result);
+$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
 $title = $data['video']['title'];
@@ -82,7 +82,7 @@ $array = array(
 
 //新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法
 
- if (strstr($result, "account_type")){
+ if (strstr($result, "avc_url")){
      
      
   echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
@@ -124,7 +124,8 @@ $result = curl_exec($ch);
 
  
     if (strstr($result, "avc_url")){
-$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result);
+
+$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
 $title = $data['video']['title'];
@@ -149,10 +150,12 @@ $uri = $data['video']['share_url'];
  
 }
 
-else {
-    $result = preg_replace('/.*videos\\\\\/(.+?)\".*/','$1', $result);
-    if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) //如果有验证码或者被封，则输出为空
-    { $result = preg_replace('/.*/','', $result);}
+ 
+else {  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成000000
+   
+    if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) { $result = preg_replace('/[\s\S]*/','', $result);}//如果有验证码或者被封，则输出为空
+    $result = str_replace($result, '000000', $result); //只要出现字符，就全部替换成000000
+
     echo $result;}
 exit;
 
