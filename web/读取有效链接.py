@@ -66,7 +66,7 @@ while True:
             else:
                 print(f"{url} 请求失败！")
 
-    with open('urls.txt', 'w') as f:
+    with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
         for url in successful_urls:
             f.write(f"{url}\n")
     print ("等待")
