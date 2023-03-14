@@ -39,7 +39,7 @@ def run_commands(commands):
 
 def main():
     commands = [
-    f"python /usr/local/bin/fake115upload.py -u {shlex.quote(dir + file)} -c 2588129333331541770"
+    f"python /usr/local/bin/fake115upload.py -u {shlex.quote(dir + file)} -c 2590273414476250355"
         for file in file_list
     ]
     run_commands(commands)
