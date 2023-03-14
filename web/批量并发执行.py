@@ -28,7 +28,7 @@ def run_command(command):
 def run_commands(commands):
     threads = []
     for command in commands:
-        while threading.active_count() > 8:
+        while threading.active_count() > 5:
             continue
         thread = threading.Thread(target=run_command, args=(command,))
         thread.start()
