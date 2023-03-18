@@ -69,9 +69,9 @@ while True:
                 else:
                     print(f'{url} returned {response.status_code}')
             except requests.exceptions.RequestException as e:
-                if isinstance(e, requests.exceptions.Timeout) and retry < 7:
+                if isinstance(e, requests.exceptions.Timeout) and retry < 6:
                     retry += 1
-                    print(f'{url} timed out, retrying {retry}/7')
+                    print(f'{url} timed out, retrying {retry}/6')
                 else:
                     print(f'{url} failed: {e}')
                     break
