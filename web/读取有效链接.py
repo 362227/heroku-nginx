@@ -1,8 +1,11 @@
-# -*- coding: UTF-8 -*-
-import concurrent.futures
 import requests
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# 代理
+proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
+
+# 需要尝试的链接列表
 urls = [
     "https://vimeo362227.onrender.com",
     "https://vimeo362227-1.onrender.com",
@@ -48,26 +51,42 @@ urls = [
     "https://kai006.onrender.com"
 ]
 
-successful_urls = []
 
 while True:
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
-        for url in urls:
-            future = executor.submit(requests.get, url)
-            futures.append(future)
+    # 记录成功的链接
+    successful_urls = []
 
-        for future, url in zip(futures, urls):
-            response = future.result()
-            if response.status_code == 200:
-                print(f"{url} 请求成功！")
-                if url not in successful_urls:
+    def request_url(url):
+        retry = 0
+        while True:
+            try:
+                response = requests.get(url, proxies=proxy, timeout=20)
+                if response.status_code == 200:
+                    print(f'{url} returned 200')
                     successful_urls.append(url)
-            else:
-                print(f"{url} 请求失败！")
+                    return None  # 返回None表示成功
+                else:
+                    print(f'{url} returned {response.status_code}')
+            except requests.exceptions.RequestException as e:
+                if isinstance(e, requests.exceptions.Timeout) and retry < 10:
+                    retry += 1
+                    print(f'{url} timed out, retrying {retry}/10')
+                else:
+                    print(f'{url} failed: {e}')
+                    break
+            time.sleep(1)  # 等待1秒后重试
 
+    # 使用线程池并发请求
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        futures = [executor.submit(request_url, url) for url in urls]
+        # 等待所有请求完成
+        for _ in as_completed(futures):
+            pass
+
+    # 将成功的链接写入文件
     with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
         for url in successful_urls:
-            f.write(f"{url}\n")
-    print ("等待")
+            f.write(url + '\n')
+
+    # 休眠一段时间后再次尝试
     time.sleep(10)
