@@ -60,7 +60,8 @@ while True:
         retry = 0
         while True:
             try:
-                response = requests.get(url, proxies=proxy, timeout=20)
+                response = requests.get(url, timeout=20)
+                #response = requests.get(url, proxies=proxy, timeout=20)
                 if response.status_code == 200:
                     print(f'{url} returned 200')
                     successful_urls.append(url)
