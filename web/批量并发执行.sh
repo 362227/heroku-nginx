@@ -15,6 +15,8 @@ export -f upload_file
 # Define a signal handler function to catch CTRL+C signal
 function sigint_handler {
     echo "Interrupt signal received. Stopping the script."
+    # terminate xargs and any running fake115uploader processes
+    pkill -P $$
     exit 1
 }
 
