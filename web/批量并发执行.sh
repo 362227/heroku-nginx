@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the maximum number of workers
-MAX_WORKERS=3
+MAX_WORKERS=$1
 
 # Define a function to upload a file
 function upload_file {
