@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
 # 需要尝试的链接列表
+'''
 urls = [
     "https://vimeo362227.onrender.com",
     "https://vimeo362227-1.onrender.com",
@@ -50,6 +51,61 @@ urls = [
     "https://kai005.onrender.com",
     "https://kai006.onrender.com"
 ]
+'''
+
+urls = [
+    "https://vimeo362227-0001.onrender.com",
+    "https://vimeo362227-0002.onrender.com",
+    "https://vimeo362227-0003.onrender.com",
+    "https://vimeo362227-0004.onrender.com",
+    "https://vimeo362227-0005.onrender.com",
+    "https://vimeo362227-0006.onrender.com",
+    "https://vimeo362227-0007.onrender.com",
+    "https://vimeo362227-0008.onrender.com",
+    "https://vimeo362227-0009.onrender.com",
+    "https://vimeo362227-0010.onrender.com",
+    "https://vimeo362227-0011.onrender.com",
+    "https://vimeo362227-0012.onrender.com",
+    "https://vimeo362227-0013.onrender.com",
+    "https://vimeo362227-0014.onrender.com",
+    "https://vimeo362227-0015.onrender.com",
+    "https://vimeo362227-0016.onrender.com",
+    "https://vimeo362227-0017.onrender.com",
+    "https://vimeo362227-0018.onrender.com",
+    "https://vimeo362227-0019.onrender.com",
+    "https://vimeo362227-0020.onrender.com",
+    "https://vimeo362227-0021.onrender.com",
+    "https://vimeo362227-0022.onrender.com",
+    "https://vimeo362227-0023.onrender.com",
+    "https://vimeo362227-0024.onrender.com",
+    "https://vimeo362227-0025.onrender.com",
+    "https://vimeo362227-0026.onrender.com",
+    "https://vimeo362227-0027.onrender.com",
+    "https://vimeo362227-0028.onrender.com",
+    "https://vimeo362227-0029.onrender.com",
+    
+    "https://vimeo362227-30.onrender.com",
+    "https://vimeo362227-31.onrender.com",
+    "https://vimeo362227-32.onrender.com",
+    "https://vimeo362227-33.onrender.com",
+    "https://vimeo362227-34.onrender.com",
+    "https://vimeo362227-35.onrender.com",
+    "https://vimeo362227-36.onrender.com",
+    "https://vimeo362227-37.onrender.com",
+    "https://vimeo362227-38.onrender.com",
+    "https://vimeo362227-39.onrender.com",
+    "https://vimeo362227-40.onrender.com",
+    "https://vimeo362227-41.onrender.com",
+    "https://vimeo362227-42.onrender.com",
+    "https://vimeo362227-43.onrender.com",
+]
+
+
+
+
+
+
+
 
 
 while True:
