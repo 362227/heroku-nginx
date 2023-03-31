@@ -129,13 +129,6 @@ urls = [
     "https://kobpiwpwprfnj-manyapps-007.onrender.com",
     "https://kobpiwpwprfnj-manyapps-008.onrender.com",
     "https://kobpiwpwprfnj-manyapps-009.onrender.com",
-    "https://kobpiwpwprfnj-manyapps-010.onrender.com",
-    "https://kobpiwpwprfnj-manyapps-011.onrender.com",
-    "https://kobpiwpwprfnj-manyapps-012.onrender.com",
-    "https://kobpiwpwprfnj-manyapps-013.onrender.com",
-    "https://kobpiwpwprfnj-manyapps-014.onrender.com",
-    "https://kobpiwpwprfnj-manyapps-015.onrender.com",
-    "https://kobpiwpwprfnj-manyapps-016.onrender.com",
     
     "https://resignation1-manyapps-001.onrender.com",
     "https://resignation1-manyapps-002.onrender.com",
