@@ -162,9 +162,10 @@ while True:
 
 def request_url(url):
     retry = 0
-    while retry < 6:
+    while True:
         try:
             response = requests.get(url, timeout=20)
+            #response = requests.get(url, proxies=proxy, timeout=20)
             if response.status_code == 200:
                 print(f'{url} returned 200')
                 successful_urls.append(url)
@@ -172,10 +173,13 @@ def request_url(url):
             else:
                 print(f'{url} returned {response.status_code}')
         except requests.exceptions.RequestException as e:
-            print(f'{url} failed: {e}')
-        retry += 1
+            if retry < 6:
+                retry += 1
+                print(f'{url} failed: {e}, retrying {retry}/6')
+            else:
+                print(f'{url} failed: {e}, no more retries')
+                break
         time.sleep(1)  # 等待1秒后重试
-    print(f'{url} failed after {retry} retries')
 
 
     # 使用线程池并发请求
