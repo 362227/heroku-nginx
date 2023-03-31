@@ -146,14 +146,11 @@ urls = [
     "https://resignation1-manyapps-014.onrender.com",
     "https://resignation1-manyapps-015.onrender.com",
     "https://resignation1-manyapps-016.onrender.com",
+    "https://resignation1-manyapps-017.onrender.com",
+    "https://resignation1-manyapps-018.onrender.com",
+    "https://resignation1-manyapps-019.onrender.com",
+    "https://resignation1-manyapps-020.onrender.com",
 ]
-
-
-
-
-
-
-
 
 
 while True:
@@ -165,19 +162,23 @@ while True:
         while True:
             try:
                 response = requests.get(url, timeout=20)
-                #response = requests.get(url, proxies=proxy, timeout=20)
                 if response.status_code == 200:
                     print(f'{url} returned 200')
                     successful_urls.append(url)
                     return None  # 返回None表示成功
                 else:
                     print(f'{url} returned {response.status_code}')
+                    if retry < 6:
+                        retry += 1
+                        print(f'{url} retrying {retry}/6')
+                    else:
+                        break
             except requests.exceptions.RequestException as e:
-                if isinstance(e, requests.exceptions.Timeout) and retry < 6:
+                print(f'{url} failed: {e}')
+                if retry < 6:
                     retry += 1
-                    print(f'{url} timed out, retrying {retry}/6')
+                    print(f'{url} retrying {retry}/6')
                 else:
-                    print(f'{url} failed: {e}')
                     break
             time.sleep(1)  # 等待1秒后重试
 
@@ -193,7 +194,11 @@ while True:
         for url in successful_urls:
             f.write(url + '\n')
 
+    # 如果所有链接都成功，则退出循环
+    if set(successful_urls) == set(urls):
+        print("All URLs succeeded!")
+        break
+
     # 休眠一段时间后再次尝试
     print("一轮结束")
     time.sleep(10)
-
