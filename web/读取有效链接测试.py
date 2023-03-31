@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
 # 需要尝试的链接列表
-'''
 urls = [
     "https://vimeo362227.onrender.com",
     "https://vimeo362227-1.onrender.com",
@@ -145,42 +144,33 @@ urls = [
     "https://resignation1-manyapps-013.onrender.com",
     "https://resignation1-manyapps-014.onrender.com",
     "https://resignation1-manyapps-015.onrender.com",
-    "https://resignation1-manyapps-16.onrender.com",
+    "https://resignation1-manyapps-016.onrender.com",
 ]
-
-
-
-
-
-
-
-
 
 while True:
     # 记录成功的链接
     successful_urls = []
 
-def request_url(url):
-    retry = 0
-    while True:
-        try:
-            response = requests.get(url, timeout=20)
-            #response = requests.get(url, proxies=proxy, timeout=20)
-            if response.status_code == 200:
-                print(f'{url} returned 200')
-                successful_urls.append(url)
-                return None  # 返回None表示成功
-            else:
-                print(f'{url} returned {response.status_code}')
-        except requests.exceptions.RequestException as e:
-            if retry < 6:
-                retry += 1
-                print(f'{url} failed: {e}, retrying {retry}/6')
-            else:
-                print(f'{url} failed: {e}, no more retries')
-                break
-        time.sleep(1)  # 等待1秒后重试
-
+    def request_url(url):
+        retry = 0
+        while True:
+            try:
+                response = requests.get(url, timeout=20)
+                #response = requests.get(url, proxies=proxy, timeout=20)
+                if response.status_code == 200:
+                    print(f'{url} returned 200')
+                    successful_urls.append(url)
+                    return None  # 返回None表示成功
+                else:
+                    print(f'{url} returned {response.status_code}')
+            except requests.exceptions.RequestException as e:
+                if retry < 6:
+                    retry += 1
+                    print(f'{url} failed: {e}, retrying {retry}/6')
+                else:
+                    print(f'{url} failed: {e}, giving up')
+                    break
+            time.sleep(1)  # 等待1秒后重试
 
     # 使用线程池并发请求
     with ThreadPoolExecutor(max_workers=50) as executor:
@@ -197,4 +187,3 @@ def request_url(url):
     # 休眠一段时间后再次尝试
     print("一轮结束")
     time.sleep(10)
-
