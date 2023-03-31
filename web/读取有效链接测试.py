@@ -1,6 +1,7 @@
 import requests
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import deque
 
 # 代理
 proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
@@ -75,8 +76,14 @@ urls = [
     "https://resignation1-manyapps-014.onrender.com",
     "https://resignation1-manyapps-015.onrender.com",
     "https://resignation1-manyapps-016.onrender.com",
+    "https://resignation1-manyapps-017.onrender.com",
+    "https://resignation1-manyapps-018.onrender.com",
+    "https://resignation1-manyapps-019.onrender.com",
+    "https://resignation1-manyapps-020.onrender.com",
 ]
 
+# 保存最后5行输出的 deque
+last_five_lines = deque(maxlen=5)
 
 while True:
     # 记录成功的链接
@@ -88,31 +95,33 @@ while True:
             try:
                 response = requests.get(url, timeout=20)
                 if response.status_code == 200:
-                    print(f'{url} returned 200')
+                    message = f'{url} returned 200'
                     successful_urls.append(url)
-                    return None  # 返回None表示成功
+                    return message  # 返回成功信息
                 else:
-                    print(f'{url} returned {response.status_code}')
+                    message = f'{url} returned {response.status_code}'
                     if retry < 6:
                         retry += 1
-                        print(f'{url} retrying {retry}/6')
+                        message = f'{url} retrying {retry}/6'
                     else:
                         break
             except requests.exceptions.RequestException as e:
-                print(f'{url} failed: {e}')
+                message = f'{url} failed: {e}'
                 if retry < 6:
                     retry += 1
-                    print(f'{url} retrying {retry}/6')
+                    message = f'{url} retrying {retry}/6'
                 else:
                     break
             time.sleep(1)  # 等待1秒后重试
+        return message  # 返回失败信息
 
     # 使用线程池并发请求
     with ThreadPoolExecutor(max_workers=50) as executor:
         futures = [executor.submit(request_url, url) for url in urls]
         # 等待所有请求完成
-        for _ in as_completed(futures):
-            pass
+        for future in as_completed(futures):
+            message = future.result()
+            last_five_lines.append(message)
 
     # 将成功的链接写入文件
     with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
@@ -121,8 +130,12 @@ while True:
 
     # 如果所有链接都成功，则退出循环
     if set(successful_urls) == set(urls):
-        print("All URLs succeeded!")
+        last_five_lines.append("All URLs succeeded!")
         break
+
+    # 实时更新最后5行输出
+    output = '\n'.join(last_five_lines)
+    print(output)
 
     # 休眠一段时间后再次尝试
     print("一轮结束")
