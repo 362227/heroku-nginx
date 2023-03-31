@@ -172,14 +172,11 @@ def request_url(url):
             else:
                 print(f'{url} returned {response.status_code}')
         except requests.exceptions.RequestException as e:
-            if isinstance(e, requests.exceptions.Timeout):
-                retry += 1
-                print(f'{url} timed out, retrying {retry}/6')
-                continue
-            else:
-                print(f'{url} failed: {e}')
-                break
+            print(f'{url} failed: {e}')
+        retry += 1
         time.sleep(1)  # 等待1秒后重试
+    print(f'{url} failed after {retry} retries')
+
 
     # 使用线程池并发请求
     with ThreadPoolExecutor(max_workers=50) as executor:
