@@ -7,9 +7,51 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
 # 需要尝试的链接列表
-'''
+
 urls = [
     "https://vimeo362227.onrender.com",
+    "https://vimeo362227-2.onrender.com",
+    "https://vimeo362227-4.onrender.com",
+    "https://vimeo362227-6.onrender.com",
+    "https://vimeo362227-8.onrender.com",
+    "https://vimeo362227-10.onrender.com",
+    "https://vimeo362227-12.onrender.com",
+    "https://vimeo362227-14.onrender.com",
+    "https://vimeo362227-16.onrender.com",
+    "https://vimeo362227-18.onrender.com",
+    "https://vimeo362227-20.onrender.com",
+    "https://vimeo362227-22.onrender.com",
+    "https://vimeo362227-24.onrender.com",
+    "https://vimeo362227-26.onrender.com",
+    "https://vimeo362227-28.onrender.com",
+    "https://vimeo362227-29.onrender.com",
+    "https://vimeo362227-30.onrender.com",
+    "https://vimeo362227-32.onrender.com",
+    "https://vimeo362227-34.onrender.com",
+    "https://vimeo362227-36.onrender.com",
+    "https://vimeo362227-38.onrender.com",
+    "https://vimeo362227-40.onrender.com",
+    "https://vimeo362227-42.onrender.com",
+    "https://vimeo362227-44.onrender.com",
+    "https://vimeo362227-46.onrender.com",
+    "https://vimeo362227-48.onrender.com",
+    "https://vimeo362227-50.onrender.com",
+    "https://vimeo362227-52.onrender.com",
+    "https://vimeo362227-54.onrender.com",
+    "https://vimeo362227-56.onrender.com",
+    "https://vimeo362227-58.onrender.com",
+    
+    "https://ellie002.onrender.com",
+    "https://ellie004.onrender.com",
+    "https://ellie006.onrender.com",
+    "https://ellie008.onrender.com",
+    "https://ellie010.onrender.com",
+    "https://kai006.onrender.com",
+]
+
+'''
+urls = [
+        "https://vimeo362227.onrender.com",
     "https://vimeo362227-1.onrender.com",
     "https://vimeo362227-2.onrender.com",
     "https://vimeo362227-3.onrender.com",
@@ -75,10 +117,7 @@ urls = [
     "https://ellie009.onrender.com",
     "https://kai005.onrender.com",
     "https://kai006.onrender.com"
-]
-'''
-
-urls = [
+    
     "https://bcxdxrdqx-manyapps-001.onrender.com",
     "https://bcxdxrdqx-manyapps-002.onrender.com",
     "https://bcxdxrdqx-manyapps-003.onrender.com",
@@ -152,7 +191,7 @@ urls = [
     "https://resignation1-manyapps-019.onrender.com",
     "https://resignation1-manyapps-020.onrender.com",
 ]
-
+'''
 
 while True:
     # 记录成功的链接
