@@ -1,19 +1,28 @@
 <?php
-// 修改
+// https://*****.onrender.com/vimeo.php， onrender下载这个proxy.php并重命名为vimeo.php
+$t1 = microtime(true);
+$t2 = microtime(true);
+//echo '程序耗时'.round($t2-$t1,3).'秒';
+
 ini_set('display_errors','off');
 date_default_timezone_set('PRC');
 $url=$_GET["url"]; 
 $ref=$_GET["ref"]; 
 $token=$_GET["token"];
 $name=$_GET["name"];
+$org=$_GET["org"];
 
+$id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url); 
+//echo $id;
+//exit;
 $ch = curl_init();
 
-curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_URL, 'https://player.vimeo.com/video/'.$id);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
 
 curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
+
 
 $headers = array();
 $headers[] = 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9';
@@ -34,24 +43,25 @@ $headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
- 
+
+if ($org == 1 ) {echo $result; exit;} //如果url添加&org=1，则输出原始内容
+
+$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
+$data = json_decode($res, true);
+
+$title = $data['video']['title'];
+$author_name = $data['video']['owner']['name']; 
+$account_type = $data['video']['owner']['account_type']; 
+$duration = $data['video']['duration']; 
+$thumbnail_url = $data['video']['thumbs']['base']; 
+$uri = $data['video']['share_url']; 
 
 
-$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
-
-$result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','', $result); //如果有验证码，全部清空内容
-$result = preg_replace('/[\s\S]*(\<title\>.+?\<\/title\>)[\s\S]*\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs".+?\"\:\"(.+?)\_.+?(\"name\"\:\".+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*/','$1<br>$3$2$6$5<br><img src="$4?mw=240"  alt="img" /><br>', $result);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
-$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
-//$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
- 
 
 
-$result = preg_replace('/fallback |<title>|script>/','title>', $result);
-$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
 
-//echo $result;
-//exit;
+
+
 $array = array( "https://www.colorcollective.com", 
 "https://www.treyfanjoy.com/", 
 "http://www.pulsefilms.com", 
@@ -91,6 +101,133 @@ $array = array( "https://www.colorcollective.com",
 "http://www.resetcontent.com",
 "https://modernpost.com/", 
 "https://www.lane-casting.com" ); 
+
+
+
+
+
+
+
+
+
+
+//新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法
+
+ if (strstr($result, "avc_url")){
+     
+     
+  echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+}else if (strstr($result, "this video cannot be played here") ){  //如果出现403
+    
+ 
+foreach ($array as $ref) { 
+
+
+$ch = curl_init();
+
+//curl_setopt($ch, CURLOPT_URL, 'https://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/'.$id);
+curl_setopt($ch, CURLOPT_URL, 'https://player.vimeo.com/video/'.$id);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
+
+curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
+
+$headers = array();
+$headers[] = 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9';
+$headers[] = 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,ja;q=0.7,fr;q=0.6,ru;q=0.5';
+$headers[] = 'Cache-Control: max-age=0';
+$headers[] = 'Connection: keep-alive';
+$headers[] = 'Cookie: vuid=13se&geolocation=US%3BNV; OptanonAlertBoxClosed=2022-06-07T03:09:00.308Z; __cf_bm=hdM6BzJ5ZoUnhu38JlLdGoiOed1XjlOLkOO3D8pz8eU-1654582551-0-AaLvJIF3QJCD1RHRPrCjw7XOeDDwsScCg8Z9XKbm2TngJk=';
+$headers[] = 'Sec-Fetch-Dest: document';
+$headers[] = 'Sec-Fetch-Mode: navigate';
+$headers[] = 'Sec-Fetch-Site: none';
+$headers[] = 'Sec-Fetch-User: ?1';
+$headers[] = 'Referer:'.$ref;
+$headers[] = 'Upgrade-Insecure-Requests: 1';
+$headers[] = 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36';
+$headers[] = 'Sec-Ch-Ua: \" Not A;Brand\";v=\"99\", \"Chromium\";v=\"102\", \"Google Chrome\";v=\"102\"';
+$headers[] = 'Sec-Ch-Ua-Mobile: ?0';
+$headers[] = 'Sec-Ch-Ua-Platform: \"Windows\"';
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    
+$result = curl_exec($ch);
+
+
+ 
+    if (strstr($result, "avc_url")){
+
+$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
+$data = json_decode($res, true);
+
+$title = $data['video']['title'];
+$author_name = $data['video']['owner']['name']; 
+$account_type = $data['video']['owner']['account_type']; 
+$duration = $data['video']['duration']; 
+$thumbnail_url = $data['video']['thumbs']['base']; 
+$uri = $data['video']['share_url']; 
+
+
+        echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+      break; 
+   
+    }
+   
+}
+  if (!strstr($result, "avc_url")){
+      echo $id."有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref"; 
+     }
+
+ 
+ 
+}
+
+ 
+else {  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
+   
+    if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) { $result = preg_replace('/[\s\S]*/','', $result);}//如果有验证码或者被封，则输出为空
+    $result = str_replace($result, '1036222710362227103622271036222710362227103622271036222710362227103622271036222710362227103622271036222710362227', $result); //只要出现字符，就全部替换成10362227
+
+    echo $result;}
+exit;
+
+//新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$content= preg_replace('/[\s\S]*this video cannot be played here[\s\S]*/','this video cannot be played here', $result);
+
+
+$result = preg_replace('/[\s\S]*CAPTCHA Challenge[\s\S]*/','', $result); //如果有验证码，全部清空内容
+$result = preg_replace('/[\s\S]*(\<title\>.+?\<\/title\>)[\s\S]*\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?thumbs".+?\"\:\"(.+?)\_.+?(\"name\"\:\".+?\").+?(\,\"account\_type\"\:\".+?\")[\s\S]*/','$1<br>$3$2$6$5<br><img src="$4?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.*(\"duration\"\:[0-9]{1,20}\,).*(account_type\"\:\".+?\",\"name\"\:\".+?\").*\"\,\"title\"\:\".+?\"\,(\"share\_url\"\:\".+?\").*/','$1<br>$3$4$5<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+$result = preg_replace('/.*(title>.+?<\/title>).*thumb\.src \= \"(.+?)\?.+?(account_type\"\:\".+?\",\"name\"\:\".+?\").*(\"share\_url\"\:\".+?\").*(\"duration\"\:[0-9]{1,20}\,).*/','$1<br>$5$3$4<br><img src="$2?mw=240"  alt="img" /><br>', $result);
+//$result = preg_replace('/[\s\S]*\"title\"\:\"(.+?)\"\,\"width.*(\"duration\"\:.+?\,).+?(\"share_url\"\:\".+?\").+?(\"name\"\:\".+?\").+?(\"account\_type\"\:\".+?\")\}\,\"spatial.*\"thumbnail\"\:\"(.+?)\"[\s\S]*/','$1<br>$2$5$4$3<br><img src="$6?mw=240"  alt="img" /><br>', $result);
+ 
+
+
+$result = preg_replace('/fallback |<title>|script>/','title>', $result);
+$result = preg_replace('/[\s\S]*DOCTYPE html[\s\S]*|[\s\S]*this video cannot be played here[\s\S]*/','00000000000', $result);
+
+
+
 
 
 
