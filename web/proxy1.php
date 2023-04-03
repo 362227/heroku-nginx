@@ -1,7 +1,4 @@
 <?php
-
-echo "版本：".shell_exec("python -V");
-
 // 修改
 $t1 = microtime(true);
 $t2 = microtime(true);
