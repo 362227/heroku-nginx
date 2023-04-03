@@ -2,7 +2,7 @@ import re
 import glob
 import sys
 
-path = "sys.argv[1]"
+path = sys.argv[1]
 for filename in glob.glob(path):
     with open(filename, encoding='gbk', errors='ignore') as f:
         # 读入文件
