@@ -67,7 +67,6 @@ $array = array( "https://www.colorcollective.com",
 "https://boyinthecastle.com", 
 "http://www.mathieuplainfosse.com", 
 "https://www.els.tv", 
-"https://sesler.com", 
 "https://www.finalcut-edit.com", 
 "https://the-quarry.co.uk",
 "https://therapystudios.com", 
@@ -86,7 +85,6 @@ $array = array( "https://www.colorcollective.com",
 "https://makemakeentertainment.com",
 "http://www.jonasakerlund.com",
 "http://www.romanwhite.com",
-"http://000friendlondon.tv",
 "https://www.kaisaul.com",
 "https://coffeeand.tv/",
 "https://visionfilmco.com",
@@ -97,11 +95,12 @@ $array = array( "https://www.colorcollective.com",
 "https://www.lane-casting.com" ); 
 
 
-$array_chunked = array_chunk($array, ceil(count($array) / 2));
+$array_chunked = array_chunk($array, ceil(count($array) / 4));
 
 $array1 = $array_chunked[0];
 $array2 = $array_chunked[1];
-
+$array1 = $array_chunked[2];
+$array2 = $array_chunked[3];
 
 
 
@@ -119,11 +118,13 @@ $array2 = $array_chunked[1];
     
 
 
-$loop_count = count($array) / 2;
+$loop_count = count($array) / 4;
 for ($i = 0; $i < $loop_count; $i++) {
   $ref1 = $array1[$i];
   $ref2 = $array2[$i];
-  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer $ref1 & curl https://player.vimeo.com/video/$id --referer $ref2";
+  $ref3 = $array3[$i];
+  $ref4 = $array4[$i];
+  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer $ref1 & curl https://player.vimeo.com/video/$id --referer $ref2 & curl https://player.vimeo.com/video/$id --referer $ref3 & curl https://player.vimeo.com/video/$id --referer $ref4";
   $result = shell_exec($curl_cmd);
   
 
