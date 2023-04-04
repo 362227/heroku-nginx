@@ -10,13 +10,10 @@ from requests.exceptions import RetryError, Timeout, ConnectionError, HTTPError
 
 def check_and_delete():
  while True:
-    print("检查是否为200")
-    response = requests.get('http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/211', proxies={'http': 'http://127.0.0.1:1089', 'https': 'http://127.0.0.1:1089'})
-    if response.status_code != 200:
         print("重启 Heroku")
         headers = {'Content-Type': 'application/json', 'Accept': 'application/vnd.heroku+json; version=3', 'Authorization': 'Bearer 0e8635cf-e01e-4d5d-b778-53bb2ec48453'}
-        requests.delete('https://api.heroku.com/apps/pistolwayne-xray-eu/dynos', headers=headers)
-    time.sleep(10)
+        #requests.delete('https://api.heroku.com/apps/pistolwayne-xray-eu/dynos', headers=headers)
+        time.sleep(550)
 
 # 启动check_and_delete线程
 check_thread = threading.Thread(target=check_and_delete)
@@ -42,8 +39,12 @@ with open(file_path, "r") as f:
 
 
 
+last_intervention_time = time.time()
+
 # 定义下载函数
 def download_video(link):
+    global last_intervention_time  # 引用全局变量
+
     link = link.strip()  # 去掉行末的换行符
     if random.randint(0, 2) == 0:
         # 不使用代理
@@ -56,6 +57,12 @@ def download_video(link):
     retry = 20
     while retry > 0:
         try:
+            # 判断是否需要干预下载
+            if time.time() - last_intervention_time >= 100:  
+                print("\033[1;31mIntervening download...\033[0m")
+                time.sleep(6) #暂停n秒下载
+                last_intervention_time = time.time()
+
             response = requests.get(link, proxies={"http": proxy, "https": proxy}, verify=True)
             if response.status_code == 200:
                 data = response.json()
