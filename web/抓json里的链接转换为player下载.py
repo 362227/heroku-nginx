@@ -1,8 +1,31 @@
 import requests
 import os
 import random
+import time
+import threading
+import subprocess
 import concurrent.futures
 from requests.exceptions import RetryError, Timeout, ConnectionError, HTTPError
+
+
+def check_and_delete():
+ while True:
+    print("检查是否为200")
+    response = requests.get('http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/211', proxies={'http': 'http://127.0.0.1:1088', 'https': 'http://127.0.0.1:1088'})
+    if response.status_code != 200:
+        print("重启 Heroku")
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/vnd.heroku+json; version=3', 'Authorization': 'Bearer 0e8635cf-e01e-4d5d-b778-53bb2ec48453'}
+        requests.delete('https://api.heroku.com/apps/pistolwayne-xray-us/dynos', headers=headers)
+    time.sleep(10)
+
+# 启动check_and_delete线程
+check_thread = threading.Thread(target=check_and_delete)
+check_thread.start()
+
+
+
+
+
 
 # 读取链接文件路径
 file_path = "links.txt"
@@ -16,6 +39,8 @@ proxies = ["http://127.0.0.1:1088"]
 # 读取链接文件内容
 with open(file_path, "r") as f:
     links = [link.strip() for link in f.readlines() if link.startswith("http")]
+
+
 
 # 定义下载函数
 def download_video(link):
@@ -62,9 +87,8 @@ def download_video(link):
                 break
             elif response.status_code == 403:
                 print(f"Failed to access {link}, status code: {response.status_code}")
-                os.system('curl -n -X DELETE https://api.heroku.com/apps/pistolwayne-xray-us/dynos -H "Content-Type: application/json" -H "Accept: application/vnd.heroku+json; version=3" -H "Authorization: Bearer 0e8635cf-e01e-4d5d-b778-53bb2ec48453"')  # 
                 retry -= 1
-                time.sleep(5)  # 重试间隔统一为5秒
+                time.sleep(15)  # 重试间隔统一为5秒
             elif response.status_code == 404:
                 print(f"Failed to access {link}, status code: {response.status_code}")
                 break
@@ -76,5 +100,5 @@ def download_video(link):
         print(f"Failed to access {link} after 20 retries")
 
 # 使用线程池下载视频
-with concurrent.futures.ThreadPoolExecutor(max_workers=75) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=66) as executor:
     executor.map(download_video, links)
