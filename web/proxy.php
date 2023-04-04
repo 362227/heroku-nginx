@@ -207,7 +207,7 @@ $uri = $data['video']['share_url'];
  
 
 else if (strstr($result, "This video does not exist.")) {
-     echo $id."为404为404为404为404为404为404"; 
+     echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/
 }
 
 else
