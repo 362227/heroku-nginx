@@ -25,7 +25,6 @@ urls = [
     "https://vimeo362227-24.onrender.com",
     "https://vimeo362227-26.onrender.com",
     "https://vimeo362227-28.onrender.com",
-    "https://vimeo362227-29.onrender.com",
     "https://vimeo362227-30.onrender.com",
     "https://vimeo362227-32.onrender.com",
     "https://vimeo362227-34.onrender.com",
