@@ -156,7 +156,8 @@ $uri = $data['video']['share_url'];
  
  
  else if (strstr($result, "This video does not exist.")) {
-     echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id;  //404不管三七二十一全部返回https://vimeo.com/api/oembed.json?url=https://vimeo.com/
+     echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id."
+     out=".$id;  #404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/
 }
  
 else {  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
