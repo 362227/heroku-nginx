@@ -5,11 +5,25 @@ $t1 = microtime(true);
 
 ini_set('display_errors','off');
 date_default_timezone_set('PRC');
+$link=$_GET["link"]; 
 $url=$_GET["url"]; 
 $ref=$_GET["ref"]; 
 $token=$_GET["token"];
 $name=$_GET["name"];
 $org=$_GET["org"];
+
+
+if  (strstr($link, "http")){ 
+    
+    echo shell_exec("curl -L \"$link\" ");
+    exit;
+}
+
+
+
+
+
+
 
 $id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url); 
 //echo $id;
