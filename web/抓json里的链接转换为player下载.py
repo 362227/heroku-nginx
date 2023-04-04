@@ -11,7 +11,7 @@ prefix = "http://pistolwayne001php.herokuapp.com/%E5%88%B7vimeo%E8%B7%B3%E8%BD%A
 # 下载保存路径
 download_path = "downloaded_videos/"
 # 代理地址列表 links.txt
-proxies = ["http://127.0.0.1:1083", "http://127.0.0.1:1088", "http://127.0.0.1:1083", "http://127.0.0.1:1088", None]
+proxies = ["http://127.0.0.1:1088"]
 
 # 读取链接文件内容
 with open(file_path, "r") as f:
@@ -76,5 +76,5 @@ def download_video(link):
         print(f"Failed to access {link} after 20 retries")
 
 # 使用线程池下载视频
-with concurrent.futures.ThreadPoolExecutor(max_workers=80) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=75) as executor:
     executor.map(download_video, links)
