@@ -62,7 +62,7 @@ def download_video(link):
                 break
             elif response.status_code == 403:
                 print(f"Failed to access {link}, status code: {response.status_code}")
-                os.system('echo 被ban了')  # 
+                os.system('curl -n -X DELETE https://api.heroku.com/apps/pistolwayne-xray-us/dynos -H "Content-Type: application/json" -H "Accept: application/vnd.heroku+json; version=3" -H "Authorization: Bearer 0e8635cf-e01e-4d5d-b778-53bb2ec48453"')  # 
                 retry -= 1
                 time.sleep(5)  # 重试间隔统一为5秒
             elif response.status_code == 404:
