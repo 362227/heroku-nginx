@@ -88,7 +88,7 @@ def download_video(link):
             elif response.status_code == 403:
                 print(f"Failed to access {link}, status code: {response.status_code}")
                 retry -= 1
-                time.sleep(15)  # 重试间隔统一为5秒
+                time.sleep(15)  # 重试间隔为15秒
             elif response.status_code == 404:
                 print(f"Failed to access {link}, status code: {response.status_code}")
                 break
