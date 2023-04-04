@@ -2,8 +2,8 @@
 $url=$_GET["url"]; 
 
 
-// 读取文件中的所有行
-$lines = file('urls.txt');
+// 读取所有行
+$lines = shell_exec("curl -L https://crowncloud.362227.top/rss/urls.txt");
 
 // 随机选择一个行号
 $random_key = array_rand($lines);
