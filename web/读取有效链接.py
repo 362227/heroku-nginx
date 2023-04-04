@@ -9,7 +9,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 # 需要尝试的链接列表
 
 urls = [
-    "https://无效.onrender.com/404.php?这是无效链接，别删，让这个代码能循环", 
+    "https://github.c/qodnh/?这是无效链接，让这个代码能无效循环", 
     "https://vimeo362227.onrender.com",
     "https://vimeo362227-2.onrender.com",
     "https://vimeo362227-4.onrender.com",
