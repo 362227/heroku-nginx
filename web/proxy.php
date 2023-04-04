@@ -105,46 +105,46 @@ $uri = $data['video']['share_url'];
 
 
 
-$array = array( "https://www.colorcollective.com", 
-"https://www.treyfanjoy.com/", 
-"http://www.pulsefilms.com", 
-"https://boyinthecastle.com", 
-"http://www.mathieuplainfosse.com", 
-"https://www.els.tv", 
-"https://www.finalcut-edit.com", 
-"https://the-quarry.co.uk",
-"https://therapystudios.com", 
-"http://www.chrisroebuck.tv",
-"https://blackdogfilms.com",
-"http://malloybrothers.com/",
-"http://www.305films.com", 
-"https://electrictheatre.tv", 
-"http://www.benzene.paris/",
-"https://www.tenthree.co.uk",
-"https://alexanderhammer.com/",
-"https://samuelbayer.com/",
-"http://www.davidbaumeditor.com",
-"https://ways-means.co",
-"https://http://trimediting.com",
-"https://makemakeentertainment.com",
-"http://www.jonasakerlund.com",
-"http://www.romanwhite.com",
-"https://www.kaisaul.com",
-"https://coffeeand.tv/",
-"https://visionfilmco.com",
-"https://www.schemeengine.com",
-"https://believemedia.com",
-"http://www.resetcontent.com",
-"https://modernpost.com/", 
-"https://www.lane-casting.com" ); 
+$array = array( " https://www.colorcollective.com", 
+" https://www.treyfanjoy.com/", 
+" https://www.pulsefilms.com", 
+" https://boyinthecastle.com", 
+" https://www.mathieuplainfosse.com", 
+" https://www.els.tv", 
+" https://www.finalcut-edit.com", 
+" https://the-quarry.co.uk",
+" https://therapystudios.com", 
+" https://www.chrisroebuck.tv",
+" https://blackdogfilms.com",
+" https://malloybrothers.com/",
+" https://www.305films.com", 
+" https://electrictheatre.tv", 
+" https://www.benzene.paris/",
+" https://www.tenthree.co.uk",
+" https://alexanderhammer.com/",
+" https://samuelbayer.com/",
+" https://www.davidbaumeditor.com",
+" https://ways-means.co",
+" https://http://trimediting.com",
+" https://makemakeentertainment.com",
+" https://www.jonasakerlund.com",
+" https://www.romanwhite.com",
+" https://www.kaisaul.com",
+" https://coffeeand.tv/",
+" https://visionfilmco.com",
+" https://www.schemeengine.com",
+" https://believemedia.com",
+" https://www.resetcontent.com",
+" https://modernpost.com/", 
+" https://www.lane-casting.com" ); 
 
 
 $array_chunked = array_chunk($array, ceil(count($array) / 4));
 
 $array1 = $array_chunked[0];
 $array2 = $array_chunked[1];
-$array1 = $array_chunked[2];
-$array2 = $array_chunked[3];
+$array3 = $array_chunked[2];
+$array4 = $array_chunked[3];
 
 
 
@@ -164,11 +164,13 @@ $array2 = $array_chunked[3];
 
 $loop_count = count($array) / 4;
 for ($i = 0; $i < $loop_count; $i++) {
-  $ref1 = $array1[$i];
-  $ref2 = $array2[$i];
-  $ref3 = $array3[$i];
-  $ref4 = $array4[$i];
-  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer $ref1 & curl https://player.vimeo.com/video/$id --referer $ref2 & curl https://player.vimeo.com/video/$id --referer $ref3 & curl https://player.vimeo.com/video/$id --referer $ref4";
+  $ref1 = $array1[$i];$ref1 = empty($ref1) ? "无效" : $ref1;
+  $ref2 = $array2[$i];$ref2 = empty($ref2) ? "无效" : $ref2;
+  $ref3 = $array3[$i];$ref3 = empty($ref3) ? "无效" : $ref3;
+  $ref4 = $array4[$i];$ref4 = empty($ref4) ? "无效" : $ref4;
+  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer$ref1 & curl https://player.vimeo.com/video/$id --referer$ref2 & curl https://player.vimeo.com/video/$id --referer$ref3 & curl https://player.vimeo.com/video/$id --referer$ref4
+  ";
+  echo $curl_cmd;
   $result = shell_exec($curl_cmd);
   
 
