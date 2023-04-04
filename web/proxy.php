@@ -207,7 +207,8 @@ $uri = $data['video']['share_url'];
  
 
 else if (strstr($result, "This video does not exist.")) {
-     echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/
+     echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id."
+     out=".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/
 }
 
 else
