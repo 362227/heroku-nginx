@@ -15,7 +15,9 @@ $org=$_GET["org"];
 
 if  (strstr($link, "http")){ 
     
-    echo shell_exec("curl -L \"$link\" ");
+    $res = shell_exec("curl -L \"$link\" ");
+    $res = preg_replace('/^$|.*You Have been banned.*/',$_SERVER['HTTP_HOST'].' 抓hash时出错'.$link, $res); 
+    echo $res;
     exit;
 }
 
