@@ -3,6 +3,14 @@ num=$1
 
 curl -L https://crowncloud.362227.top/remote/data/%E5%90%88%E5%B9%B6$num"000000"-$num"999999".log.404.txt > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt
 
+filesize=$(stat -c%s "oembed链接合并$num000000-$num999999.log.404.txt")
+
+# 如果文件小于100KB，则停止运行
+if [ $filesize -lt 102400 ]; then
+  echo "File is too small. Exiting."
+  exit 1
+fi
+
 aria2c --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt" --file-allocation=none --max-concurrent-downloads=13 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ --max-download-result=20000000
 
 
