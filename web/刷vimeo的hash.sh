@@ -11,7 +11,7 @@ if [ $filesize -lt 102400 ]; then
   exit 1
 fi
 
-aria2c --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt" --file-allocation=none --max-concurrent-downloads=20 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ --max-download-result=20000000
+aria2c --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt" --file-allocation=none --max-concurrent-downloads=24 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ --max-download-result=20000000
 
 
 
