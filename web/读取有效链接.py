@@ -256,9 +256,9 @@ while True:
                     return None  # 返回None表示成功
                 else:
                     print(f'{url} returned {response.status_code}')
-                    if retry < 6:
+                    if retry < 5:
                         retry += 1
-                        print(f'{url} retrying {retry}/6')
+                        print(f'{url} retrying {retry}/5')
                     else:
                         break
             except requests.exceptions.RequestException as e:
@@ -278,7 +278,7 @@ while True:
             pass
 
     # 将成功的链接写入文件
-    if len(successful_urls) >= 40:
+    if len(successful_urls) >= 70:
         with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
             for url in successful_urls:
                 f.write(url + '\n')
