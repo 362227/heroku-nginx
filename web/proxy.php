@@ -147,12 +147,10 @@ $array = array( " https://www.colorcollective.com",
 " https://www.lane-casting.com" ); 
 
 
-$array_chunked = array_chunk($array, ceil(count($array) / 3));
+$array_chunked = array_chunk($array, ceil(count($array) / 2));
 
 $array1 = $array_chunked[0];
 $array2 = $array_chunked[1];
-$array3 = $array_chunked[2];
-
 
 
 
@@ -170,12 +168,11 @@ $array3 = $array_chunked[2];
     
 
 
-$loop_count = count($array) / 3;
+$loop_count = count($array) / 2;
 for ($i = 0; $i < $loop_count; $i++) {
   $ref1 = $array1[$i];$ref1 = empty($ref1) ? "无效" : $ref1;
   $ref2 = $array2[$i];$ref2 = empty($ref2) ? "无效" : $ref2;
-  $ref3 = $array3[$i];$ref3 = empty($ref3) ? "无效" : $ref3;
-  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer$ref1 & curl https://player.vimeo.com/video/$id --referer$ref2 & curl https://player.vimeo.com/video/$id --referer$ref3 
+  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer$ref1 & curl https://player.vimeo.com/video/$id --referer$ref2
   ";
   echo $curl_cmd;
   $result = shell_exec($curl_cmd);
