@@ -1,5 +1,8 @@
 import requests
 import os
+import re
+import sys
+import json
 import random
 import time
 import threading
@@ -8,14 +11,25 @@ import concurrent.futures
 from requests.exceptions import RetryError, Timeout, ConnectionError, HTTPError
 
 
+
+
+
+
+proxies = {
+    "http": sys.argv[1]
+}
+
+
+
 def check_and_delete():
  while True:
     print("检查是否为200")
-    response = requests.get('http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/211', proxies={'http': 'http://127.0.0.1:1088', 'https': 'http://127.0.0.1:1088'})
-    if response.status_code != 200:
+    response = requests.get('http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/211', proxies=proxies)
+    if response.status_code == 403 or response.status_code == 429 or response.status_code == 503 or response.status_code == 000:
         print("重启 Heroku")
+        #curl -n -X DELETE https://api.heroku.com/apps/x362227/dynos -H "Content-Type: application/json" -H "Accept: application/vnd.heroku+json; version=3" -H "Authorization: Bearer 14042630-f7f9-4adf-a33a-892a7c25a075" 
         headers = {'Content-Type': 'application/json', 'Accept': 'application/vnd.heroku+json; version=3', 'Authorization': 'Bearer 0e8635cf-e01e-4d5d-b778-53bb2ec48453'}
-        requests.delete('https://api.heroku.com/apps/pistolwayne-xray-us/dynos', headers=headers)
+        requests.delete('https://api.heroku.com/apps/pistolwayne-xray-eu/dynos', headers=headers)
     time.sleep(10)
 
 # 启动check_and_delete线程
@@ -26,37 +40,31 @@ check_thread.start()
 
 
 
-
 # 读取链接文件路径
-file_path = "links.txt"
+file_path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并802000000-802999999.log.404.txt"
 # 修改后的链接前缀
 prefix = "http://pistolwayne001php.herokuapp.com/%E5%88%B7vimeo%E8%B7%B3%E8%BD%AC%E5%9C%B0%E5%9D%80.php?url=https://player.vimeo.com/video/"
 # 下载保存路径
 download_path = "downloaded_videos/"
 # 代理地址列表 links.txt
-proxies = ["http://127.0.0.1:1088"]
 
-# 读取链接文件内容
+
+# 读取后一半的内容
 with open(file_path, "r") as f:
-    links = [link.strip() for link in f.readlines() if link.startswith("http")]
+    lines = f.readlines()
+    total_lines = len(lines)
+    links = [link.strip() for i, link in enumerate(lines) if link.startswith("http") and i >= total_lines // 2]
+
 
 
 
 # 定义下载函数
 def download_video(link):
     link = link.strip()  # 去掉行末的换行符
-    if random.randint(0, 2) == 0:
-        # 不使用代理
-        proxy = random.choice(proxies)
-        #proxy = None
-    else:
-        # 随机选择一个代理
-        #proxy = None
-        proxy = random.choice(proxies)
     retry = 20
     while retry > 0:
         try:
-            response = requests.get(link, proxies={"http": proxy, "https": proxy}, verify=True)
+            response = requests.get(link, proxies={"http": sys.argv[1], "https": sys.argv[1]}, verify=True)
             if response.status_code == 200:
                 data = response.json()
                 uri = data.get("uri", "")
