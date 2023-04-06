@@ -249,7 +249,7 @@ while True:
         retry = 0
         while True:
             try:
-                response = requests.get(url, timeout=10)
+                response = requests.get(url, timeout=25)
                 if response.status_code == 200:
                     print(f'{url} returned 200')
                     successful_urls.append(url)
@@ -271,14 +271,14 @@ while True:
             time.sleep(1)  # 等待1秒后重试
 
     # 使用线程池并发请求
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=80) as executor:
         futures = [executor.submit(request_url, url) for url in urls]
         # 等待所有请求完成
         for _ in as_completed(futures):
             pass
 
     # 将成功的链接写入文件
-    if len(successful_urls) >= 70:
+    if len(successful_urls) >= 63:
         with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
             for url in successful_urls:
                 f.write(url + '\n')
