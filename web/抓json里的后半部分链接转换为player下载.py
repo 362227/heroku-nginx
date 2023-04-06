@@ -28,7 +28,7 @@ def check_and_delete():
     if response.status_code == 403 or response.status_code == 429 or response.status_code == 503 or response.status_code == 000:
         print("重启 Heroku")
         #curl -n -X DELETE https://api.heroku.com/apps/x362227/dynos -H "Content-Type: application/json" -H "Accept: application/vnd.heroku+json; version=3" -H "Authorization: Bearer 14042630-f7f9-4adf-a33a-892a7c25a075" 
-        headers = {'Content-Type': 'application/json', 'Accept': 'application/vnd.heroku+json; version=3', 'Authorization': 'Bearer 0e8635cf-e01e-4d5d-b778-53bb2ec48453'}
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/vnd.heroku+json; version=3', 'Authorization': 'Bearer '+ sys.argv[3] }
         requests.delete('https://api.heroku.com/apps/' + sys.argv[2] + '/dynos', headers=headers)
     time.sleep(10)
 
