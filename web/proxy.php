@@ -177,7 +177,7 @@ for ($i = 0; $i < $loop_count; $i++) {
   $ref3 = $array3[$i];$ref3 = empty($ref3) ? "无效" : $ref3;
   $curl_cmd = "curl https://player.vimeo.com/video/$id --referer$ref1 & curl https://player.vimeo.com/video/$id --referer$ref2 & curl https://player.vimeo.com/video/$id --referer$ref3 
   ";
-  echo $curl_cmd;
+ // echo $curl_cmd;
   $result = shell_exec($curl_cmd);
   
 
