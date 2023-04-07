@@ -7,8 +7,8 @@ python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -n
 #python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/替换为onrender链接.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接01.txt
 #python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/替换为onrender链接.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt
 
-$2 aria2c --all-proxy 127.0.0.1:1083 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接01.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log" 
-$3 aria2c --all-proxy 127.0.0.1:1083 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
+$2 aria2c --all-proxy 127.0.0.1:1083 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接01.txt" --file-allocation=none --max-concurrent-downloads=600 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log" 
+$3 aria2c --all-proxy 127.0.0.1:1083 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt" --file-allocation=none --max-concurrent-downloads=600 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/02 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
 
 
 #python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/从log文件提取有ref的链接.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt
