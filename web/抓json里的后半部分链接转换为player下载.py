@@ -41,12 +41,19 @@ check_thread.start()
 
 
 # 读取链接文件路径
-file_path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并802000000-802999999.log.404.txt"
+#file_path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并802000000-802999999.log.404.txt"
+file_paths = glob.glob('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并*.log.404.txt')
+
+if len(file_paths) == 1:
+    file_path = file_paths[0]
+
+
 # 修改后的链接前缀
 prefix = "http://pistolwayne001php.herokuapp.com/%E5%88%B7vimeo%E8%B7%B3%E8%BD%AC%E5%9C%B0%E5%9D%80.php?url=https://player.vimeo.com/video/"
 # 下载保存路径
-download_path = "downloaded_videos/"
-# 代理地址列表 links.txt
+os.system ("mkdir -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash/")
+download_path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash/"
+
 
 
 # 读取后一半的内容
