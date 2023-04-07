@@ -121,38 +121,41 @@ $uri = $data['video']['share_url'];
 
 
 
-$array = array( " https://www.colorcollective.com", 
-" https://www.treyfanjoy.com/", 
-" https://www.pulsefilms.com", 
-" https://boyinthecastle.com", 
-" https://www.mathieuplainfosse.com", 
-" https://www.els.tv", 
-" https://www.finalcut-edit.com", 
-" https://the-quarry.co.uk",
-" https://therapystudios.com", 
-" https://www.chrisroebuck.tv",
-" https://blackdogfilms.com",
-" https://malloybrothers.com/",
-" https://www.305films.com", 
-" https://electrictheatre.tv", 
-" https://www.benzene.paris/",
-" https://www.tenthree.co.uk",
-" https://alexanderhammer.com/",
-" https://samuelbayer.com/",
-" https://www.davidbaumeditor.com",
-" https://ways-means.co",
-" https://http://trimediting.com",
-" https://makemakeentertainment.com",
-" https://www.jonasakerlund.com",
-" https://www.romanwhite.com",
-" https://www.kaisaul.com",
-" https://coffeeand.tv/",
-" https://visionfilmco.com",
-" https://www.schemeengine.com",
-" https://believemedia.com",
-" https://www.resetcontent.com",
-" https://modernpost.com/", 
-" https://www.lane-casting.com" ); 
+$array = array( "erer=https://www.colorcollective.com", 
+"erer=https://www.treyfanjoy.com/", 
+"erer=https://www.pulsefilms.com", 
+"erer=https://boyinthecastle.com", 
+"erer=https://www.mathieuplainfosse.com", 
+"erer=https://www.els.tv", 
+"erer=https://www.finalcut-edit.com", 
+"erer=https://the-quarry.co.uk",
+"erer=https://therapystudios.com", 
+"erer=https://www.chrisroebuck.tv",
+"erer=https://blackdogfilms.com",
+"erer=https://malloybrothers.com/",
+"erer=https://www.305films.com", 
+"erer=https://electrictheatre.tv", 
+"erer=https://www.benzene.paris/",
+"erer=https://www.tenthree.co.uk",
+"erer=https://alexanderhammer.com/",
+"erer=https://samuelbayer.com/",
+"erer=https://www.davidbaumeditor.com",
+"erer=https://ways-means.co",
+"erer=https://http://trimediting.com",
+"erer=https://makemakeentertainment.com",
+"erer=https://www.jonasakerlund.com",
+"erer=https://www.romanwhite.com",
+"erer=https://www.kaisaul.com",
+"erer=https://coffeeand.tv/",
+"erer=https://visionfilmco.com",
+"erer=https://www.schemeengine.com",
+"erer=https://believemedia.com",
+"erer=https://www.resetcontent.com",
+"erer=https://modernpost.com/", 
+"erer=https://tenthplanet.net",
+"erer=https://www.themill.com",
+"erer=https://somesuch.co/", 
+"erer=https://www.lane-casting.com" ); 
 
 
 $array_chunked = array_chunk($array, ceil(count($array) / 3));
@@ -183,7 +186,7 @@ for ($i = 0; $i < $loop_count; $i++) {
   $ref1 = $array1[$i];$ref1 = empty($ref1) ? "无效" : $ref1;
   $ref2 = $array2[$i];$ref2 = empty($ref2) ? "无效" : $ref2;
   $ref3 = $array3[$i];$ref3 = empty($ref3) ? "无效" : $ref3;
-  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer$ref1 & curl https://player.vimeo.com/video/$id --referer$ref2 & curl https://player.vimeo.com/video/$id --referer$ref3 
+  $curl_cmd = "wget -qO- --ref$ref1 https://player.vimeo.com/video/$id  & wget -qO- --ref$ref2 https://player.vimeo.com/video/$id & wget -qO- --ref$ref3 https://player.vimeo.com/video/$id3 
   ";
  // echo $curl_cmd;
   $result = shell_exec($curl_cmd);
@@ -225,12 +228,12 @@ $uri = $data['video']['share_url'];
 
 else if (strstr($result, "This video does not exist.")) {
      echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id."
-     out=".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/
+     out=".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/$id
 }
 
 else
 
-{  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
+{  //如果不是403，也不包含avc_url，那就是其他的了，比如完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
    
     if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) { $result = preg_replace('/[\s\S]*/','', $result);}//如果有验证码或者被封，则输出为空
     $result = str_replace($result, '103622271036222710362227103622271036222710362227', $result); //只要出现字符，就全部替换成10362227
