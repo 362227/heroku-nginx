@@ -214,7 +214,7 @@ $uri = $data['video']['share_url'];
    
 }
   if (!strstr($result, "avc_url")){
-      echo $id."有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref"; 
+      echo $id."有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref"; 
      }
 
  
