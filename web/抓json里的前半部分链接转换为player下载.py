@@ -51,7 +51,7 @@ if len(file_paths) == 1:
 # 修改后的链接前缀
 prefix = "http://pistolwayne001php.herokuapp.com/%E5%88%B7vimeo%E8%B7%B3%E8%BD%AC%E5%9C%B0%E5%9D%80.php?url=https://player.vimeo.com/video/"
 # 下载保存路径
-os.system (mkdir -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash/)
+os.system ("mkdir -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash/")
 download_path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash/"
 
 
