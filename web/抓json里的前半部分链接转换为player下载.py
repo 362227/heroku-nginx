@@ -42,8 +42,10 @@ check_thread.start()
 
 # 读取链接文件路径
 #file_path = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并802000000-802999999.log.404.txt"
-file_name = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并*.log.404.txt"
-for file_path in glob.glob(file_name):
+file_paths = glob.glob('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并*.log.404.txt')
+
+if len(file_paths) == 1:
+    file_path = file_paths[0]
 
 
 # 修改后的链接前缀
