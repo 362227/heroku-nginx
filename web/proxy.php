@@ -136,11 +136,11 @@ $array = array( "erer=https://www.colorcollective.com",
 "erer=https://www.lane-casting.com" ); 
 
 
-$array_chunked = array_chunk($array, ceil(count($array) / 2));
+$array_chunked = array_chunk($array, ceil(count($array) / 3));
 
 $array1 = $array_chunked[0];
 $array2 = $array_chunked[1];
-
+$array3 = $array_chunked[2];
 
 
 
@@ -157,11 +157,12 @@ $array2 = $array_chunked[1];
     
 
 
-$loop_count = count($array) / 2;
+$loop_count = count($array) / 3;
 for ($i = 0; $i < $loop_count; $i++) {
   $ref1 = $array1[$i];$ref1 = empty($ref1) ? "无效" : $ref1;
   $ref2 = $array2[$i];$ref2 = empty($ref2) ? "无效" : $ref2;
-  $curl_cmd = "wget -qO- --ref$ref1 https://player.vimeo.com/video/$id  & wget -qO- --ref$ref2 https://player.vimeo.com/video/$id 
+  $ref3 = $array3[$i];$ref3 = empty($ref3) ? "无效" : $ref3;
+  $curl_cmd = "wget -qO- --ref$ref1 https://player.vimeo.com/video/$id  & wget -qO- --ref$ref2 https://player.vimeo.com/video/$id & wget -qO- --ref$ref3 https://player.vimeo.com/video/$id 
   ";
  // echo $curl_cmd;
   $result = shell_exec($curl_cmd);
