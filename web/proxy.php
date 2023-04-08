@@ -1,5 +1,5 @@
 <?php
-// https://*****.onrender.com/vimeo.php， onrender下载这个proxy1.php并重命名为oldvimeo.php
+// https://*****.onrender.com/vimeo.php， onrender下载这个proxy.php并重命名为vimeo.php
 $t1 = microtime(true);
 
 
@@ -121,25 +121,39 @@ $uri = $data['video']['share_url'];
 
 
 
-$array = array( 
-"https://www.petgorilla.com/"  ,
-  "http://malloybrothers.com/" ,
-  "http://alexanderhammer.com/"  ,
-  "http://ways-means.co" ,
-  "http://www.romanwhite.com" ,
-  "https://www.ntropic.com/" , 
-  "http://coffeeand.tv" ,
-  "http://believemedia.com" ,
-  "http://modernpost.com" ,
-  "http://www.treyfanjoy.com/" ); 
+$array = array( "erer=https://www.colorcollective.com", 
+"erer=https://www.treyfanjoy.com/", 
+"erer=https://www.pulsefilms.com", 
+"erer=https://boyinthecastle.com", 
+"erer=https://www.mathieuplainfosse.com", 
+"erer=https://www.finalcut-edit.com", 
+"erer=https://therapystudios.com", 
+"erer=https://www.305films.com", 
+"erer=https://electrictheatre.tv", 
+"erer=https://www.tenthree.co.uk",
+"erer=https://samuelbayer.com/",
+"erer=https://www.davidbaumeditor.com",
+"erer=https://ways-means.co",
+"erer=https://trimediting.com",
+"erer=https://makemakeentertainment.com",
+"erer=https://www.jonasakerlund.com",
+"erer=https://www.romanwhite.com",
+"erer=https://www.kaisaul.com",
+"erer=https://coffeeand.tv/",
+"erer=https://visionfilmco.com",
+"erer=https://www.schemeengine.com",
+"erer=https://believemedia.com",
+"erer=https://www.resetcontent.com",
+"erer=https://modernpost.com/", 
+"erer=https://tenthplanet.net" ); 
 
 
-$array_chunked = array_chunk($array, ceil(count($array) / 2));
+
+$array_chunked = array_chunk($array, ceil(count($array) / 3));
 
 $array1 = $array_chunked[0];
 $array2 = $array_chunked[1];
-
-
+$array3 = $array_chunked[2];
 
 
 
@@ -156,12 +170,14 @@ $array2 = $array_chunked[1];
     
 
 
-$loop_count = count($array) / 2;
+$loop_count = count($array) / 3;
 for ($i = 0; $i < $loop_count; $i++) {
   $ref1 = $array1[$i];$ref1 = empty($ref1) ? "无效" : $ref1;
   $ref2 = $array2[$i];$ref2 = empty($ref2) ? "无效" : $ref2;
-  $curl_cmd = "curl https://player.vimeo.com/video/$id --referer$ref1 & curl https://player.vimeo.com/video/$id --referer$ref2 ";
-  echo $curl_cmd;
+  $ref3 = $array3[$i];$ref3 = empty($ref3) ? "无效" : $ref3;
+  $curl_cmd = "wget -qO- --ref$ref1 https://player.vimeo.com/video/$id  & wget -qO- --ref$ref2 https://player.vimeo.com/video/$id & wget -qO- --ref$ref3 https://player.vimeo.com/video/$id 
+  ";
+ // echo $curl_cmd;
   $result = shell_exec($curl_cmd);
   
 
@@ -190,7 +206,7 @@ $uri = $data['video']['share_url'];
    
 }
   if (!strstr($result, "avc_url")){
-      echo $id."有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref"; 
+      echo $id."有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref"; 
      }
 
  
@@ -201,15 +217,15 @@ $uri = $data['video']['share_url'];
 
 else if (strstr($result, "This video does not exist.")) {
      echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id."
-     out=".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/
+     out=".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/$id
 }
 
 else
 
-{  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
+{  //如果不是403，也不包含avc_url，那就是其他的了，比如完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
    
     if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) { $result = preg_replace('/[\s\S]*/','', $result);}//如果有验证码或者被封，则输出为空
-    $result = str_replace($result, '103622271036222710362227103622271036222710362227', $result); //只要出现字符，就全部替换成10362227
+    $result = str_replace($result, '103622271036222710362227103622271036222710362227103622271036222710362227103622271036222710362227103622271036222710362227103622271036222710362227', $result); //只要出现字符，就全部替换成10362227
 
     echo $result;}
 }
