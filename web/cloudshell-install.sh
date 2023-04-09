@@ -1,4 +1,4 @@
-docker run -p 8080:80 dorowu/ubuntu-desktop-lxde-vnc
+docker run -p 8080:80 dorowu/ubuntu-desktop-lxde-vnc &
 
 sudo mkdir -p /mnt/d/
 sudo chmod a+rwx  -R /mnt/d
