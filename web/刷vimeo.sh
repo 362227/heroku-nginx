@@ -9,7 +9,7 @@ python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -
 
 
 FILE_PATH="/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
-LINES_PER_BATCH=200000
+LINES_PER_BATCH=400000
 TOTAL_LINES=$(wc -l $FILE_PATH | awk '{print $1}')
 BATCHES=$((TOTAL_LINES/LINES_PER_BATCH))
 
@@ -17,7 +17,7 @@ for ((i=0;i<$BATCHES;i++)); do
     start=$((i*LINES_PER_BATCH+1))
     end=$(((i+1)*LINES_PER_BATCH))
     sed -n "$start,${end}p" $FILE_PATH > batch_$i.txt
-    aria2c --all-proxy 127.0.0.1:1083  --referer=http://friendlondon.tv - -i batch_$i.txt --file-allocation=none --max-concurrent-downloads=1 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
+    aria2c --all-proxy 127.0.0.1:1083  --referer=http://friendlondon.tv - -i batch_$i.txt --file-allocation=none --max-concurrent-downloads=620 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
     rm batch_$i.txt
 done
 
