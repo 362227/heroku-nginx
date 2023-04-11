@@ -9,7 +9,7 @@ ulimit -n 2048
 
 
 FILE_PATH="/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
-LINES_PER_BATCH=400000
+LINES_PER_BATCH=700000
 TOTAL_LINES=$(wc -l $FILE_PATH | awk '{print $1}')
 BATCHES=$((TOTAL_LINES/LINES_PER_BATCH))
 
