@@ -105,6 +105,8 @@ urls = [
     "https://ellie034.onrender.com",
     "https://ellie036.onrender.com",
     "https://ellie038.onrender.com",
+    "https://ellie040.onrender.com",
+    "https://ellie042.onrender.com",
     "https://kai006.onrender.com",
 ]
 
