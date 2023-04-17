@@ -8,7 +8,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
 # 需要尝试的链接列表
 
-
+'''
 #奇数
 urls = [
     "https://github.c/qodnh/?这是无效链接，让这个代码能无限循环", 
@@ -141,9 +141,9 @@ urls = [
     "https://ellie103.onrender.com",
     "https://kai005.onrender.com",
 ]
-
-
 '''
+
+
 #偶数
 urls = [
     "https://github.c/qodnh/?这是无效链接，让这个代码能无限循环", 
@@ -276,7 +276,7 @@ urls = [
     "https://ellie104.onrender.com",
     "https://kai006.onrender.com",
 ]
-'''
+
 
 
 '''
