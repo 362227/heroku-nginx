@@ -293,7 +293,7 @@ while True:
         retry = 0
         while True:
             try:
-                response = requests.get(url, timeout=25)
+                response = requests.get(url, timeout=15)
                 if response.status_code == 200:
                     print(f'{url} returned 200')
                     successful_urls.append(url)
@@ -322,7 +322,7 @@ while True:
             pass
 
     # 将成功的链接写入文件
-    if len(successful_urls) >= 63:
+    if len(successful_urls) >= 90:
         with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
             for url in successful_urls:
                 f.write(url + '\n')
