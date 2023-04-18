@@ -6,11 +6,7 @@ sed -i 's/^http/https:\/\/crowncloud.362227.top\/rss\/刷vimeojson跳转地址.p
 
 filesize=$(stat -c%s "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并${num}000000-${num}999999.log.404.txt")
 
-# 如果文件小于100KB，则停止运行
-if [ $filesize -lt 102400 ]; then
-  echo "File is too small. Exiting."
-  exit 1
-fi
+
 
 aria2c --all-proxy 127.0.0.1:1083 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt" --file-allocation=none --max-concurrent-downloads=40 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ --max-download-result=20000000
 
