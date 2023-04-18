@@ -20,7 +20,7 @@ echo 提取json里的hash链接并转化player（https://player.vimeo.com/video/
 python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/提取json里的hash链接player.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash待提取链接 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash链接player.txt
 
 
-aria2c  --all-proxy 127.0.0.1:1083 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash链接player.txt" --file-allocation=none --max-concurrent-downloads=180 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash --max-download-result=20000000 
+aria2c  --all-proxy 127.0.0.1:1083 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash链接player.txt" --file-allocation=none --max-concurrent-downloads=480 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash --max-download-result=20000000 
 
 
 #python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/从log文件提取有ref的链接.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt
