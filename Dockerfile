@@ -5,7 +5,7 @@ ENV LC_ALL C.UTF-8
 RUN echo "C.UTF-8 UTF-8" > /etc/locale.gen
 
 RUN apt-get update
-RUN apt-get install -y libicu-dev xz-utils git python python3 libgmp-dev unzip ffmpeg tor zip aria2 mediainfo
+RUN apt-get install -y libicu-dev xz-utils git python python3 libgmp-dev unzip ffmpeg tor zip mediainfo
 
 
 
