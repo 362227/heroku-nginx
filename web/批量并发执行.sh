@@ -6,8 +6,7 @@ MAX_WORKERS=$1
 # Define a function to upload a file
 function upload_file {
     file=$1
-    $2 fake115uploader -e --oss-proxy http://127.0.0.1:1083 -c 2596786305585036490 -u "$file" || $2 fake115uploader -e --oss-proxy http://127.0.0.1:1083 -c 2596786305585036490  -parts-num 37 -m "$file"
-    fake115uploader -e  -c 2596786305585036490 -u "$file" || fake115uploader -e -c 2596786305585036490  -parts-num 37 -m "$file"
+    fake115uploader -e --oss-proxy http://127.0.0.1:1083 -c 2596786305585036490 -u "$file" || fake115uploader -e --oss-proxy http://127.0.0.1:1083 -c 2596786305585036490  -parts-num 37 -m "$file"
 }
 
 # Export the upload_file function so that it can be used by xargs
