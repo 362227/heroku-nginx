@@ -36,7 +36,7 @@ echo 合并为大文件hash
 find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash"  -type f -name "*" | xargs sed 'a\' > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash大文件
 
 echo 提取合并为大文件hash里的403链接
-grep -E '^.{1,7}$' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash大文件 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash403纯链接
+grep -a -E '^.{1,7}$' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash大文件 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash403纯链接
 
 
 echo 提取最终数据$num"000000"-$num"999999".hash
