@@ -11,7 +11,7 @@ $dir = dirname("/var/www/html/tx/");
 
 $path = "/var/www/html/tx/";
 
-$html = shell_exec("find $path -maxdepth 1 -size +1M -type f ! -name \"*-Master-*\" "); //获取文件名
+$html = shell_exec("find $path -maxdepth 1 -size +1M -type f ! -name \"*-Master-*\" -type f ! -name \"*-YouTube-*\"  "); //获取文件名
 echo $html;
 //exit;
 
@@ -26,7 +26,7 @@ if (preg_match_all($regex_link, $html, $filenames) ) {
         $ext = preg_replace('/(.*)(\.[\s\S]{2,5}$)/','$2', $filename);
         $ext = preg_replace('/\r|\n/','', $ext);
         
-        $videoc = system("export LANG=zh_CN.UTF-8 && mediainfo \"--Inform=Video;%Width%x%Height%%ScanType%-%Format%%CodecID%\,\"  \"$filename\" "); //获取视频编码
+        $videoc = shell_exec("cd $path && mediainfo \"--Inform=Video;%Width%x%Height%%ScanType%-%Format%%CodecID%\"  \"$filename\" "); //获取音频编码
         $videoc = preg_replace('/\r|\n/','', $videoc);
         $audioc = shell_exec("cd $path && mediainfo \"--Inform=Audio;%Format%%Format_Profile%\"  \"$filename\" "); //获取音频编码
         $audioc = preg_replace('/\r|\n/','', $audioc);
@@ -116,12 +116,9 @@ $str77="ProResap4x";
 $str78="AP4X";
 $str79="MPEG-4 VisualXVID";
 $str80="XVID";
-$str81=",-TX).";
-$str82="-TX).";
-$str83=",).";
-$str84=").";
   
-         $newfilename = str_replace( array("$str1","$str3","$str5","$str7","$str9","$str11","$str13","$str15","$str17","$str19","$str21","$str23","$str25","$str27","$str29","$str31","$str33","$str35","$str37","$str39","$str41","$str43","$str45","$str47","$str49","$str51","$str53","$str55","$str57","$str59","$str61","$str63","$str65","$str67","$str69","$str71","$str73","$str75","$str77","$str79","$str81","$str83"), array("$str2","$str4","$str6","$str8","$str10","$str12","$str14","$str16","$str18","$str20","$str22","$str24","$str26","$str28","$str30","$str32","$str34","$str36","$str38","$str40","$str42","$str44","$str46","$str48","$str50","$str52","$str54","$str56","$str58","$str60","$str62","$str64","$str66","$str68","$str70","$str72","$str74","$str76","$str78","$str80","$str82","$str84"),$newfilename);
+         $newfilename = str_replace( array("$str1","$str3","$str5","$str7","$str9","$str11","$str13","$str15","$str17","$str19","$str21","$str23","$str25","$str27","$str29","$str31","$str33","$str35","$str37","$str39","$str41","$str43","$str45","$str47","$str49","$str51","$str53","$str55","$str57","$str59","$str61","$str63","$str65","$str67","$str69","$str71","$str73","$str75","$str77","$str79"), array("$str2","$str4","$str6","$str8","$str10","$str12","$str14","$str16","$str18","$str20","$str22","$str24","$str26","$str28","$str30","$str32","$str34","$str36","$str38","$str40","$str42","$str44","$str46","$str48","$str50","$str52","$str54","$str56","$str58","$str60","$str62","$str64","$str66","$str68","$str70","$str72","$str74","$str76","$str78","$str80"),$newfilename);
+        
         
         
         
