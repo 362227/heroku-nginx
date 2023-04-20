@@ -52,7 +52,16 @@ urls = [
     "https://amazoon4.goodyahellya.repl.co",
     "https://amazoon5.goodyahellya.repl.co",
     "https://amazoon6.goodyahellya.repl.co",
-
+    "https://yaheyyahey1.doyathing3.repl.co",
+    "https://yaheyyahey2.doyathing3.repl.co",
+    "https://yaheyyahey3.doyathing3.repl.co",
+    "https://yaheyyahey4.doyathing3.repl.co",
+    "https://yaheyyahey5.doyathing3.repl.co",
+    "https://yaheyyahey6.doyathing3.repl.co",
+    
+    
+    
+    
     "https://google1.iyiyi.repl.co",
     "https://google2.iyiyi.repl.co",
     "https://google3.iyiyi.repl.co",
