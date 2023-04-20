@@ -578,5 +578,5 @@ while True:
     # 休眠一段时间后再次尝试
     print("一轮结束")
     print(len(successful_urls))
-    time.sleep(5)
+    time.sleep(30)
     os.system('clear')
