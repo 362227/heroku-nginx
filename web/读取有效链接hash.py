@@ -8,6 +8,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
 # 需要尝试的链接列表
 urls = [
+    "https://replitt1.15651618096.无效.co",
     "https://replitt1.15651618096.repl.co",
     "https://replitt2.15651618096.repl.co",
     "https://replitt3.15651618096.repl.co",
