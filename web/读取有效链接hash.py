@@ -227,7 +227,7 @@ while True:
             time.sleep(1)  # 等待1秒后重试
 
     # 使用线程池并发请求
-    with ThreadPoolExecutor(max_workers=80) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(request_url, url) for url in urls]
         # 等待所有请求完成
         for _ in as_completed(futures):
