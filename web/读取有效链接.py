@@ -163,6 +163,26 @@ urls = [
     "https://zywfttnabp-4.zywfttnabp.repl.co",
     "https://zywfttnabp-5.zywfttnabp.repl.co",
     "https://zywfttnabp-6.zywfttnabp.repl.co",
+    "https://bruqtp-1.bruqtp.repl.co",
+    "https://bruqtp-2.bruqtp.repl.co",
+    "https://bruqtp-3.bruqtp.repl.co",
+    "https://bruqtp-4.bruqtp.repl.co",
+    "https://bruqtp-5.bruqtp.repl.co",
+    "https://bruqtp-6.bruqtp.repl.co",
+    "https://nsgnipqrwke-1.nsgnipqrwke.repl.co",
+    "https://nsgnipqrwke-2.nsgnipqrwke.repl.co",
+    "https://nsgnipqrwke-3.nsgnipqrwke.repl.co",
+    "https://nsgnipqrwke-4.nsgnipqrwke.repl.co",
+    "https://nsgnipqrwke-5.nsgnipqrwke.repl.co",
+    "https://nsgnipqrwke-6.nsgnipqrwke.repl.co",
+    "https://sovj2weiosjke-1.sovj2weiosjke.repl.co",
+    "https://sovj2weiosjke-2.sovj2weiosjke.repl.co",
+    "https://sovj2weiosjke-3.sovj2weiosjke.repl.co",
+    "https://sovj2weiosjke-4.sovj2weiosjke.repl.co",
+    "https://sovj2weiosjke-5.sovj2weiosjke.repl.co",
+    "https://sovj2weiosjke-6.sovj2weiosjke.repl.co",
+    
+    
 ]    
 
 
