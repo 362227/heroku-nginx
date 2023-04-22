@@ -235,7 +235,7 @@ while True:
             pass
 
     # 将成功的链接写入文件
-    if len(filtered_urls) >120:
+    if len(filtered_urls) >140:
         with open('urls.txt', 'a') as f:
             for url in filtered_urls:
                 f.write(url + '\n')
