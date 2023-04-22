@@ -196,18 +196,20 @@ urls = [
 ] 
 
 while True:
-    # 记录成功的链接和失败的链接
+    # 记录成功的链接和包含“811977669”的链接
     successful_urls = []
-    failed_urls = []
+    filtered_urls = []
 
     def request_url(url):
         retry = 0
         while True:
             try:
-                response = requests.get(url, timeout=15)
+                response = requests.get(f'{url}/vimeo.php?link=http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/811977669', timeout=15)
                 if response.status_code == 200:
                     print(f'{url} returned 200')
                     successful_urls.append(url)
+                    if '811977669' in str(response.content):
+                        filtered_urls.append(url)
                     return None  # 返回None表示成功
                 else:
                     print(f'{url} returned {response.status_code}')
@@ -233,27 +235,19 @@ while True:
             pass
 
     # 将成功的链接写入文件
-    if len(successful_urls) >= 11:
-        with open('urls.txt', 'w') as f:
-            for url in successful_urls:
+    if len(filtered_urls) >120:
+        with open('urls.txt', 'a') as f:
+            for url in filtered_urls:
                 f.write(url + '\n')
-        break
-    else:
-        print('Successful URLs less than 11, skipped writing to file.')
-        # 将失败的链接加入urls列表中，继续下一轮尝试
-        failed_urls = [url for url in urls if url not in successful_urls]
-        urls = successful_urls
+        print("以下链接未成功写入urls.txt:")
+        print(set(urls) - set(successful_urls))
 
     # 如果所有链接都成功，则退出循环
     if set(successful_urls) == set(urls):
         print("All URLs succeeded!")
         break
 
-    # 输出未成功的链接
-    print(f"Failed URLs: {failed_urls}")
-
     # 休眠一段时间后再次尝试
     print("一轮结束")
     print(len(successful_urls))
     time.sleep(4)
-    os.system('clear')
