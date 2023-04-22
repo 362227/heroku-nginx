@@ -236,7 +236,7 @@ while True:
 
     # 将成功的链接写入文件
     if len(filtered_urls) >140:
-        with open('urls.txt', 'a') as f:
+        with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'a') as f:
             for url in filtered_urls:
                 f.write(url + '\n')
         print("以下链接未成功写入urls.txt:")
