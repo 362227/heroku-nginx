@@ -196,51 +196,41 @@ urls = [
 ] 
 
 while True:
-    # 记录成功的链接和包含“811977669”的链接
-    successful_urls = []
-    filtered_urls = []
+    # 记录成功的链接和未成功写入txt的链接
+    successful_urls, unsuccessful_urls = [], []
 
     def request_url(url):
-        retry = 0
-        while True:
-            try:
-                response = requests.get(f'{url}/vimeo.php?link=http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/811977669', timeout=15)
-                if response.status_code == 200:
-                    print(f'{url} returned 200')
-                    successful_urls.append(url)
-                    if '811977669' in str(response.content):
-                        filtered_urls.append(url)
-                    return None  # 返回None表示成功
-                else:
-                    print(f'{url} returned {response.status_code}')
-                    if retry < 5:
-                        retry += 1
-                        print(f'{url} retrying {retry}/5')
-                    else:
-                        break
-            except requests.exceptions.RequestException as e:
-                print(f'{url} failed: {e}')
-                if retry < 6:
-                    retry += 1
-                    print(f'{url} retrying {retry}/6')
-                else:
-                    break
-            time.sleep(1)  # 等待1秒后重试
+        new_url = f"{url}/vimeo.php?link=http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/811977669"
+        try:
+            response = requests.get(new_url, timeout=30)
+            if response.status_code == 200 and b"811977669" in response.content:
+                print(f'{url} succeeded')
+                successful_urls.append(url)
+            else:
+                print(f'{url} failed')
+                unsuccessful_urls.append(url)
+        except requests.exceptions.RequestException:
+            print(f'{url} failed')
+            unsuccessful_urls.append(url)
 
     # 使用线程池并发请求
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=80) as executor:
         futures = [executor.submit(request_url, url) for url in urls]
         # 等待所有请求完成
-        for _ in as_completed(futures):
+        for _ in concurrent.futures.as_completed(futures):
             pass
 
     # 将成功的链接写入文件
-    if len(filtered_urls) >140:
-        with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'a') as f:
-            for url in filtered_urls:
+    if len(successful_urls) >= 1:
+        with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
+            for url in successful_urls:
                 f.write(url + '\n')
-        print("以下链接未成功写入urls.txt:")
-        print(set(urls) - set(successful_urls))
+    else:
+        print('No successful URLs this round.')
+
+    # 输出未成功写入txt的链接
+    if unsuccessful_urls:
+        print("The following URLs were not successfully written to file:", ", ".join(unsuccessful_urls))
 
     # 如果所有链接都成功，则退出循环
     if set(successful_urls) == set(urls):
@@ -248,6 +238,5 @@ while True:
         break
 
     # 休眠一段时间后再次尝试
-    print("一轮结束")
-    print(len(successful_urls))
-    time.sleep(20)
+    print("One round finished, retrying...")
+    time.sleep(4)  # 休眠4秒后再次尝试
