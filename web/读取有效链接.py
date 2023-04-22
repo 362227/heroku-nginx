@@ -639,7 +639,7 @@ while True:
             pass
 
     # 将成功的链接写入文件
-    if len(successful_urls) >= 90:
+    if len(successful_urls) >= 120:
         with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
             for url in successful_urls:
                 f.write(url + '\n')
