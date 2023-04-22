@@ -1,7 +1,8 @@
 import requests
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
+
 
 # 代理
 proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
