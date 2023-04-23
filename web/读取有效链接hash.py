@@ -193,6 +193,18 @@ urls = [
     "https://otbdylgngzhwxyl-4.otbdylgngzhwxyl.repl.co",
     "https://otbdylgngzhwxyl-5.otbdylgngzhwxyl.repl.co",
     "https://otbdylgngzhwxyl-6.otbdylgngzhwxyl.repl.co",
+    "https://kfmbpjpjesgu-1.kfmbpjpjesgu.repl.co",
+    "https://kfmbpjpjesgu-2.kfmbpjpjesgu.repl.co",
+    "https://kfmbpjpjesgu-3.kfmbpjpjesgu.repl.co",
+    "https://kfmbpjpjesgu-4.kfmbpjpjesgu.repl.co",
+    "https://kfmbpjpjesgu-5.kfmbpjpjesgu.repl.co",
+    "https://kfmbpjpjesgu-6.kfmbpjpjesgu.repl.co",
+    "https://mxsfgnoixer-1.mxsfgnoixer.repl.co",
+    "https://mxsfgnoixer-2.mxsfgnoixer.repl.co",
+    "https://mxsfgnoixer-3.mxsfgnoixer.repl.co",
+    "https://mxsfgnoixer-4.mxsfgnoixer.repl.co",
+    "https://mxsfgnoixer-5.mxsfgnoixer.repl.co",
+    "https://mxsfgnoixer-6.mxsfgnoixer.repl.co",
     
 ] 
 
