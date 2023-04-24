@@ -248,16 +248,16 @@ while True:
                     return None  # 返回None表示成功
                 else:
                     print(f'{new_url} returned {response.status_code}')
-                    if retry < 5:
+                    if retry < 4:
                         retry += 1
-                        print(f'{new_url} retrying {retry}/5')
+                        print(f'{new_url} retrying {retry}/4')
                     else:
                         break
             except requests.exceptions.RequestException as e:
                 print(f'{new_url} failed: {e}')
-                if retry < 6:
+                if retry < 4:
                     retry += 1
-                    print(f'{new_url} retrying {retry}/6')
+                    print(f'{new_url} retrying {retry}/4')
                 else:
                     break
             time.sleep(1)  # 等待1秒后重试
