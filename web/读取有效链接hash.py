@@ -223,7 +223,12 @@ urls = [
     "https://znxcrawynkg-4.znxcrawynkg.repl.co",
     "https://znxcrawynkg-5.znxcrawynkg.repl.co",
     "https://znxcrawynkg-6.znxcrawynkg.repl.co",
-    
+    "https://dvipdrxrifxqq-1.dvipdrxrifxqq.repl.co",
+    "https://dvipdrxrifxqq-2.dvipdrxrifxqq.repl.co",
+    "https://dvipdrxrifxqq-3.dvipdrxrifxqq.repl.co",
+    "https://dvipdrxrifxqq-4.dvipdrxrifxqq.repl.co",
+    "https://dvipdrxrifxqq-5.dvipdrxrifxqq.repl.co",
+    "https://dvipdrxrifxqq-6.dvipdrxrifxqq.repl.co",
     
 ] 
 
