@@ -205,6 +205,25 @@ urls = [
     "https://mxsfgnoixer-4.mxsfgnoixer.repl.co",
     "https://mxsfgnoixer-5.mxsfgnoixer.repl.co",
     "https://mxsfgnoixer-6.mxsfgnoixer.repl.co",
+    "https://tocviuwifjiaie-1.tocviuwifjiaie.repl.co",
+    "https://tocviuwifjiaie-2.tocviuwifjiaie.repl.co",
+    "https://tocviuwifjiaie-3.tocviuwifjiaie.repl.co",
+    "https://tocviuwifjiaie-4.tocviuwifjiaie.repl.co",
+    "https://tocviuwifjiaie-5.tocviuwifjiaie.repl.co",
+    "https://tocviuwifjiaie-6.tocviuwifjiaie.repl.co",
+    "https://uqefmnntxyleey-1.uqefmnntxyleey.repl.co",
+    "https://uqefmnntxyleey-2.uqefmnntxyleey.repl.co",
+    "https://uqefmnntxyleey-3.uqefmnntxyleey.repl.co",
+    "https://uqefmnntxyleey-4.uqefmnntxyleey.repl.co",
+    "https://uqefmnntxyleey-5.uqefmnntxyleey.repl.co",
+    "https://uqefmnntxyleey-6.uqefmnntxyleey.repl.co",
+    "https://znxcrawynkg-1.znxcrawynkg.repl.co",
+    "https://znxcrawynkg-2.znxcrawynkg.repl.co",
+    "https://znxcrawynkg-3.znxcrawynkg.repl.co",
+    "https://znxcrawynkg-4.znxcrawynkg.repl.co",
+    "https://znxcrawynkg-5.znxcrawynkg.repl.co",
+    "https://znxcrawynkg-6.znxcrawynkg.repl.co",
+    
     
 ] 
 
