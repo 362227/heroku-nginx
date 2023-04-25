@@ -17,7 +17,7 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/" -maxde
 
 
 echo 提取json里的hash链接并转化player（https://player.vimeo.com/video/459308754?h=96d00201ea）
-python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/提取json里的hash链接player.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash待提取链接 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash链接player.txt
+python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/提取json里的hash链接player.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash待提取链接 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash链接player.txt
 
 
 aria2c  --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".hash链接player.txt" --file-allocation=none --max-concurrent-downloads=650 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/hash --max-download-result=20000000 
