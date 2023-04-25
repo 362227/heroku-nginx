@@ -15,7 +15,7 @@ $org=$_GET["org"];
 
 if  (strstr($link, "http")){ 
     
-    $res = shell_exec("curl -L \"$link\" ");
+    $res = shell_exec("curl -m 30 --connect-timeout 30 -L \"$link\" ");
     $res = preg_replace('/^$|.*You Have been banned.*/',$_SERVER['HTTP_HOST'].' 抓hash时出错'.$link, $res); 
     echo $res;
     exit;
@@ -33,7 +33,7 @@ $id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url);
 
 //如果是hash链接
 if (strstr($url, "?h=")){    
-      $result = shell_exec("curl $url "); 
+      $result = shell_exec("curl -m 30 --connect-timeout 30 $url "); 
 
 
 $res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
