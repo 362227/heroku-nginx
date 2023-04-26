@@ -106,7 +106,12 @@ urls = [
     "https://hikitiki4.doyathing6.repl.co",
     "https://hikitiki5.doyathing6.repl.co",
     "https://hikitiki6.doyathing6.repl.co",
- 
+    "https://felley1.doyathing7890.repl.co",
+    "https://felley2.doyathing7890.repl.co",
+    "https://felley3.doyathing7890.repl.co",
+    "https://felley4.doyathing7890.repl.co",
+    "https://felley5.doyathing7890.repl.co",
+    "https://felley6.doyathing7890.repl.co",
 
     
     "https://google1.iyiyi.repl.co",
