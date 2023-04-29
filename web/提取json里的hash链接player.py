@@ -13,4 +13,4 @@ for filename in glob.glob(path):
         matches = re.finditer(pattern, file)
         
         for m in matches:
-            print('http://362227.top/rss/刷vimeo跳转地址.php?url=https://player.vimeo.com/video/' + m.group('id') + "?h=" + m.group('hash') + '\n        out=' + m.group('id'))
+            print('http://crowncloud.362227.top/rss/刷vimeo跳转地址.php?url=https://player.vimeo.com/video/' + m.group('id') + "?h=" + m.group('hash') + '\n        out=' + m.group('id'))
