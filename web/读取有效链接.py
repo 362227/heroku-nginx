@@ -4,7 +4,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 代理
-proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
+proxy = {'http': 'http://127.0.0.1:1083', 'https': 'http://127.0.0.1:1083'}
 
 # 需要尝试的链接列表
 
@@ -297,7 +297,7 @@ while True:
         retry = 0
         while True:
             try:
-                response = requests.get(url, timeout=15)
+                response = requests.get(url, timeout=15,proxies=proxy)
                 if response.status_code == 200:
                     print(f'{url} returned 200')
                     successful_urls.append(url)
