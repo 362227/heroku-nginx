@@ -2,7 +2,7 @@
 num=$1
 
 python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -n $num -t /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
-ulimit -n 2048
+ulimit -n 4096
 
 #python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/替换为onrender链接.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接01.txt
 #python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/替换为onrender链接.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt
