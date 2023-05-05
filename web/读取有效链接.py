@@ -247,7 +247,7 @@ while True:
             try:
                 new_url = f"{url}/vimeo.php?link=https://player.vimeo.com/video/211"
                 response = requests.get(new_url, timeout=15)
-                if response.status_code == 200 and 'avc_url' in response.text:
+                if response.status_code == 200 and 'gutierrez' in response.text:
                     print(f'{new_url} returned 200')
                     successful_urls.append(url)
                     return None  # 返回None表示成功
