@@ -48,7 +48,7 @@ $uri = $data['video']['share_url'];
     
    
    
- if (strstr($result, "avc_url")){
+ if (strstr($result, "thumbnail")){
      
      
   echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
@@ -162,7 +162,7 @@ $array3 = $array_chunked[2];
 
 //新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法
 
- if (strstr($result, "avc_url")){
+ if (strstr($result, "thumbnail")){
      
      
   echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
@@ -188,7 +188,7 @@ for ($i = 0; $i < $loop_count; $i++) {
     
     
     
-    if (strstr($result, "avc_url")){
+    if (strstr($result, "thumbnail")){
 
 $res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
@@ -207,7 +207,7 @@ $uri = $data['video']['share_url'];
     }
    
 }
-  if (!strstr($result, "avc_url")){
+  if (!strstr($result, "thumbnail")){
       echo $id."有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref"; 
      }
 
