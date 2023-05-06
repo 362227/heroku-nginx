@@ -39,6 +39,7 @@ if (strstr($url, "?h=")){
 $res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
+$title1 = preg_replace('/[\s\S]*?\<title\>(.+?))\<\/title\>[\s\S]*/','$1', $result);
 $title = $data['video']['title'];
 $author_name = $data['video']['owner']['name']; 
 $account_type = $data['video']['owner']['account_type']; 
@@ -51,7 +52,7 @@ $uri = $data['video']['share_url'];
  if (strstr($result, "thumbnail")){
      
      
-  echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+  echo  'title>'.$title1.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
 }else if (strstr($result, "this video cannot be played here") ){  //如果出现403
  
   $url = preg_replace('/player\.|video\//','', $url);
@@ -108,6 +109,7 @@ if ($org == 1 ) {echo $result; exit;} //如果url添加&org=1，则输出原始�
 $res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
+$title1 = preg_replace('/[\s\S]*?\<title\>(.+?))\<\/title\>[\s\S]*/','$1', $result);
 $title = $data['video']['title'];
 $author_name = $data['video']['owner']['name']; 
 $account_type = $data['video']['owner']['account_type']; 
@@ -165,7 +167,7 @@ $array3 = $array_chunked[2];
  if (strstr($result, "thumbnail")){
      
      
-  echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+  echo  'title>'.$title1.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
 }else if (strstr($result, "this video cannot be played here") ){  //如果出现403
     
     
@@ -193,6 +195,7 @@ for ($i = 0; $i < $loop_count; $i++) {
 $res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
+$title1 = preg_replace('/[\s\S]*?\<title\>(.+?))\<\/title\>[\s\S]*/','$1', $result);
 $title = $data['video']['title'];
 $author_name = $data['video']['owner']['name']; 
 $account_type = $data['video']['owner']['account_type']; 
@@ -201,7 +204,7 @@ $thumbnail_url = $data['video']['thumbs']['base'];
 $uri = $data['video']['share_url']; 
 
 
-        echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+        echo  'title>'.$title1.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
       break; 
    
     }
