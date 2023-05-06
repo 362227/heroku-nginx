@@ -39,7 +39,7 @@ if (strstr($url, "?h=")){
 $res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
-$title1 = preg_replace('/[\s\S]*?\<title\>(.+?))\<\/title\>[\s\S]*/','$1', $result);
+$title1 = preg_replace('/[\s\S]*?\<title\>(.+?)\<\/title\>[\s\S]*/','$1', $result);
 $title = $data['video']['title'];
 $author_name = $data['video']['owner']['name']; 
 $account_type = $data['video']['owner']['account_type']; 
