@@ -52,7 +52,7 @@ $uri = $data['video']['share_url'];
  if (strstr($result, "thumbnail")){
      
      
-  echo  'title>'.$title1.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+  echo  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
 }else if (strstr($result, "this video cannot be played here") ){  //如果出现403
  
   $url = preg_replace('/player\.|video\//','', $url);
@@ -167,7 +167,7 @@ $array3 = $array_chunked[2];
  if (strstr($result, "thumbnail")){
      
      
-  echo  'title>'.$title1.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+  echo  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
 }else if (strstr($result, "this video cannot be played here") ){  //如果出现403
     
     
@@ -204,7 +204,7 @@ $thumbnail_url = $data['video']['thumbs']['base'];
 $uri = $data['video']['share_url']; 
 
 
-        echo  'title>'.$title1.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
+        echo  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
       break; 
    
     }
