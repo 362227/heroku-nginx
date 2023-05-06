@@ -84,3 +84,6 @@ curl https://362227.top/rss/file.php?text=$txt
 
 txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"  https://api.anonfiles.com/upload  | grep  '"full"' | sed 's/\\//g' | sed -nE 's/.*"full": "([^"]*)".*/\1/p' )
 curl https://362227.top/rss/file.php?text=$txt 
+
+txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"  https://api.anonfiles.com/upload  | grep  '"full"' | sed 's/\\//g' | sed -nE 's/.*"full": "([^"]*)".*/\1/p' )
+curl https://362227.top/rss/file.php?text=$txt 
