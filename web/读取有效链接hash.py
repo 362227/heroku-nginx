@@ -253,22 +253,22 @@ while True:
                     return None  # 返回None表示成功
                 else:
                     print(f'{new_url} returned {response.status_code}')
-                    if retry < 4:
+                    if retry < 2:
                         retry += 1
-                        print(f'{new_url} retrying {retry}/4')
+                        print(f'{new_url} retrying {retry}/2')
                     else:
                         break
             except requests.exceptions.RequestException as e:
                 print(f'{new_url} failed: {e}')
-                if retry < 4:
+                if retry < 2:
                     retry += 1
-                    print(f'{new_url} retrying {retry}/4')
+                    print(f'{new_url} retrying {retry}/2')
                 else:
                     break
             time.sleep(1)  # 等待1秒后重试
 
     # 使用线程池并发请求
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=20) as executor:
         futures = [executor.submit(request_url, url) for url in urls]
         # 等待所有请求完成
         for _ in as_completed(futures):
