@@ -186,6 +186,12 @@ urls = [
     "https://ihowwkwqztb-4--ihowwkwqztb.repl.co",
     "https://ihowwkwqztb-5--ihowwkwqztb.repl.co",
     "https://ihowwkwqztb-6--ihowwkwqztb.repl.co", 
+    "https://envvcjqwbpat-1--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-2--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-3--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-4--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-5--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-6--envvcjqwbpat.repl.co", 
 ] 
 
 
