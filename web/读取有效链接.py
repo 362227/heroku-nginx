@@ -86,7 +86,16 @@ urls = [
     "https://crisp8--doyathing33.repl.co",
     "https://crisp9--doyathing33.repl.co",
     "https://crisp10--doyathing33.repl.co",
-    
+    "https://jkjl1--doyathing77.repl.co",
+    "https://jkjl2--doyathing77.repl.co",
+    "https://jkjl3--doyathing77.repl.co",
+    "https://jkjl4--doyathing77.repl.co",
+    "https://jkjl5--doyathing77.repl.co",
+    "https://jkjl6--doyathing77.repl.co",
+    "https://jkjl7--doyathing77.repl.co",
+    "https://jkjl8--doyathing77.repl.co",
+    "https://jkjl9--doyathing77.repl.co",
+    "https://jkjl10--doyathing77.repl.co",
     
     "https://txfzubvpwz-1--txfzubvpwz.repl.co",
     "https://txfzubvpwz-2--txfzubvpwz.repl.co",
