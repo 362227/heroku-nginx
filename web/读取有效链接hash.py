@@ -245,6 +245,10 @@ urls = [
     "https://kkdrff-4--kkdrff.repl.co",
     "https://kkdrff-5--kkdrff.repl.co",
     "https://kkdrff-6--kkdrff.repl.co",  
+    "https://kkdrff-7--kkdrff.repl.co",
+    "https://kkdrff-8--kkdrff.repl.co",
+    "https://kkdrff-9--kkdrff.repl.co",
+    "https://kkdrff-10--kkdrff.repl.co",  
     "https://rruwseukn-1--rruwseukn.repl.co",
     "https://rruwseukn-2--rruwseukn.repl.co",
     "https://rruwseukn-3--rruwseukn.repl.co",
@@ -317,6 +321,10 @@ urls = [
     "https://envvcjqwbpat-4--envvcjqwbpat.repl.co",
     "https://envvcjqwbpat-5--envvcjqwbpat.repl.co",
     "https://envvcjqwbpat-6--envvcjqwbpat.repl.co", 
+    "https://envvcjqwbpat-7--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-8--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-9--envvcjqwbpat.repl.co",
+    "https://envvcjqwbpat-10--envvcjqwbpat.repl.co", 
 
 #分割线
     "https://replitt1.15651618096.无效.co",
