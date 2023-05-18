@@ -9,6 +9,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
 
 urls = [
+    "https://kacey1--doyathing9.无效2023-05-18.co",
     "https://kacey1--doyathing9.repl.co",
     "https://kacey2--doyathing9.repl.co",
     "https://kacey3--doyathing9.repl.co",
