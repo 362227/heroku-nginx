@@ -337,7 +337,9 @@ urls = [
     "https://envvcjqwbpat-8--envvcjqwbpat.repl.co",
     "https://envvcjqwbpat-9--envvcjqwbpat.repl.co",
     "https://envvcjqwbpat-10--envvcjqwbpat.repl.co", 
+]
 
+"""
 #分割线
     "https://replitt1.15651618096.无效.co",
     "https://replitt1.15651618096.repl.co",
@@ -622,7 +624,7 @@ urls = [
     "https://dvipdrxrifxqq-6.dvipdrxrifxqq.repl.co",
     
 ] 
-
+"""
 
 while True:
     # 记录成功的链接
