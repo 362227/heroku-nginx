@@ -621,7 +621,7 @@ while True:
         while True:
             try:
                 new_url = f"{url}/vimeo.php?link=http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/780837850"
-                response = requests.get(new_url, timeout=15)
+                response = requests.get(new_url, timeout=8)
                 if response.status_code == 200 and '780837850' in response.text:
                     print(f'{new_url} returned 200')
                     successful_urls.append(url)
