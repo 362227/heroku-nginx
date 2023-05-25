@@ -123,15 +123,7 @@ $uri = $data['video']['share_url'];
 
 $array = array( 
 "https://www.petgorilla.com/"  ,
-  "http://malloybrothers.com/" ,
-  "http://alexanderhammer.com/"  ,
-  "http://ways-means.co" ,
-  "http://www.romanwhite.com" ,
-  "https://www.ntropic.com/" , 
-  "http://coffeeand.tv" ,
-  "http://believemedia.com" ,
-  "http://modernpost.com" ,
-  "http://www.treyfanjoy.com/" ); 
+  "http://malloybrothers.com/"  ); 
 
 
 $array_chunked = array_chunk($array, ceil(count($array) / 2));
