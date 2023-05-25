@@ -31,48 +31,7 @@ $id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url);
 //echo $id;
 //exit;
 
-//如果是hash链接
-if (strstr($url, "?h=")){    
-      $result = shell_exec("curl $url "); 
 
-
-$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
-$data = json_decode($res, true);
-
-$title = $data['video']['title'];
-$author_name = $data['video']['owner']['name']; 
-$account_type = $data['video']['owner']['account_type']; 
-$duration = $data['video']['duration']; 
-$thumbnail_url = $data['video']['thumbs']['base']; 
-$uri = $data['video']['share_url']; 
-    
-   
-   
- if (strstr($result, "avc_url")){
-     
-     
-  echo  'title>'.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" >';
-}else if (strstr($result, "this video cannot be played here") ){  //如果出现403
- 
-  $url = preg_replace('/player\.|video\//','', $url);
-  $url = preg_replace('/\?h\=/','/', $url);
-  echo $url; 
-    
-}
-}
-
-
-
-
-
-
-
-
-
-
-
-//如果是非hash链接
-else {
 
 $ch = curl_init();
 
@@ -103,12 +62,6 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
 $result = curl_exec($ch);
 
-if ($org == 1 ) {echo $result; exit;} //如果url添加&org=1，则输出原始内容
-
-
-
-
-
 
 
 
@@ -118,41 +71,20 @@ if ($org == 1 ) {echo $result; exit;} //如果url添加&org=1，则输出原始�
 
 //新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法
 
- if (strstr($result, "avc_url")){
-     
-     
-  echo  '';
-}else if (strstr($result, "this video cannot be played here") ){  //如果出现403
-    
-    
-    
-
-  echo  '';
-  
-  
- 
- 
-}
-
- 
-
-else if (strstr($result, "This video does not exist.")) {
+if (strstr($result, "This video does not exist.")) {
      echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id."
      out=".$id;  //404不管三七二十一全部反馈https://vimeo.com/api/oembed.json?url=https://vimeo.com/
 }
 
-else
+else {
 
-{  //如果不是403，也不包含avc_url，那就是其他的了，比如404、完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
-   
-    if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) { $result = preg_replace('/[\s\S]*/','', $result);}//如果有验证码或者被封，则输出为空
-    $result = str_replace($result, '103622271036222710362227103622271036222710362227', $result); //只要出现字符，就全部替换成10362227
-
-    echo $result;}
+ exit;
+  
+  
 }
+
+ 
 
 
 $t2 = microtime(true);
 //echo '程序耗时'.round($t2-$t1,3).'秒';
-
-exit;
