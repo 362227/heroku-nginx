@@ -37,9 +37,9 @@ fi
 #IP=( "https://trimediting.com/"  "https://somesuch.co/ " "https://www.petgorilla.com/"  "http://malloybrothers.com/" "http://alexanderhammer.com/"  "http://ways-means.co" "http://www.romanwhite.com" ); IP1=( "http://loucloutercasting.com/" "https://www.themill.com/"  "https://www.ntropic.com/"  "http://coffeeand.tv" "http://believemedia.com" "http://modernpost.com" "http://www.treyfanjoy.com/" ) ; for i in "${IP[@]}";do aria2c  --referer=$i -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=500 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done & for i1 in "${IP1[@]}";do aria2c  --referer=$i1 -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/有ref的链接.txt" --file-allocation=none --max-concurrent-downloads=494 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/ref; done  &
 
 
-echo 下载失败的链接
-python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/从log文件提取下载失败的链接.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/遗漏文件链接合并.txt
-aria2c - --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/遗漏文件链接合并.txt" --file-allocation=none --max-concurrent-downloads=200 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/遗漏文件 --max-download-result=1000
+#echo 下载失败的链接
+#python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/从log文件提取下载失败的链接.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/遗漏文件链接合并.txt
+#aria2c - --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/遗漏文件链接合并.txt" --file-allocation=none --max-concurrent-downloads=200 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/遗漏文件 --max-download-result=1000
 
 
 
