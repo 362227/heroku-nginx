@@ -71,7 +71,7 @@ echo 提取hash链接
 #python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/正则预处理.py -t /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"
 
 echo 提取404
-egrep -i 'out=|oembed'  /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999" > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".log.404.txt
+egrep -i 'out=|oembed'  /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999" > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt
 
 
 txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".log.404.txt  https://api.anonfiles.com/upload  | grep  '"full"' | sed 's/\\//g' | sed -nE 's/.*"full": "([^"]*)".*/\1/p' )
