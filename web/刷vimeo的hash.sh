@@ -3,7 +3,7 @@ num=$1
 ulimit -n 2048
 
 #aria2c -x16 https://crowncloud.362227.top/remote/data/%E5%90%88%E5%B9%B6$num"000000"-$num"999999".log.404.txt -c --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据 -o oembed链接合并$num"000000"-$num"999999".log.404.txt
-sed -i 's/^https/https:\/\/362227.top\/rss\/刷vimeojson跳转地址.php?url=http/g'  /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt
+sed -i 's/^http/https:\/\/362227.top\/rss\/刷vimeojson跳转地址.php?url=http/g'  /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并$num"000000"-$num"999999".log.404.txt
 
 filesize=$(stat -c%s "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/oembed链接合并${num}000000-${num}999999.log.404.txt")
 
