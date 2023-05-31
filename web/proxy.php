@@ -35,8 +35,8 @@ $id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url);
 if (strstr($url, "?h=")){    
       $result = shell_exec("curl --max-time 30 --speed-time 10 --speed-limit 10 -m 30 --connect-timeout 30 $url "); 
 
-
-$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
+    
+$res = preg_replace('/[\s\S]*<script>window.playerConfig = (.*)<\/script>[\s\S]*/','$1', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
 $title1 = preg_replace('/[\s\S]*?\<title\>([\s\S]*?)\<\/title\>[\s\S]*/','$1', $result);
@@ -106,7 +106,7 @@ $result = curl_exec($ch);
 
 if ($org == 1 ) {echo $result; exit;} //如果url添加&org=1，则输出原始内容
 
-$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
+$res = preg_replace('/[\s\S]*<script>window.playerConfig = (.*)<\/script>[\s\S]*/','$1', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
 $title1 = preg_replace('/[\s\S]*?\<title\>([\s\S]*?)\<\/title\>[\s\S]*/','$1', $result);
@@ -191,8 +191,8 @@ for ($i = 0; $i < $loop_count; $i++) {
     
     
     if (strstr($result, "thumbnail")){
-
-$res = preg_replace('/[\s\S]*window.playerConfig \= |    var fullscreenSupported[\s\S]*/','', $result); //删除无效数据，提取json数据
+        
+$res = preg_replace('/[\s\S]*<script>window.playerConfig = (.*)<\/script>[\s\S]*/','$1', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
 $title1 = preg_replace('/[\s\S]*?\<title\>([\s\S]*?)\<\/title\>[\s\S]*/','$1', $result);
