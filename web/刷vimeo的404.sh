@@ -77,4 +77,4 @@ egrep -i 'out=|oembed'  /mnt/d/常用/vimeo/传统方法刷-下载后再处理�
 txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".log.404.txt  https://api.anonfiles.com/upload  | grep  '"full"' | sed 's/\\//g' | sed -nE 's/.*"full": "([^"]*)".*/\1/p' )
 curl https://362227.top/rss/file.php?text=$txt 
 
-sudo bash 刷vimeo的hash.sh $num
+curl -L https://github.com/gdhdhdh1441414/heroku-nginx-php-tor/raw/main/web/%E5%88%B7vimeo%E7%9A%84hash.sh | sudo bash
