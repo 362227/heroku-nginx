@@ -1,6 +1,4 @@
 <?php
-$num=$_GET["num"]; 
-shell_exec("echo $num= >  /dev/null ");
 // https://*****.onrender.com/vimeo.php， onrender下载这个proxy.php并重命名为vimeo.php
 $t1 = microtime(true);
 
