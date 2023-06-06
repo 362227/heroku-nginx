@@ -227,7 +227,7 @@ urls = [
     "katie5.jujujus1.repl.co",
     "katie6.jujujus1.repl.co",
     "katie7.jujujus1.repl.co",
-    "katie8.jujujus1.repl.co",",
+    "katie8.jujujus1.repl.co",
     "katie9.jujujus1.repl.co",
     "katie10.jujujus1.repl.co",
 
