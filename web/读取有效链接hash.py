@@ -100,7 +100,16 @@ urls = [
     "https://kchu8.ladymamalade9.repl.co",
     "https://kchu9.ladymamalade9.repl.co",
     "https://kchu10.ladymamalade9.repl.co",
-
+    "https://a1293a1.peekbeek.repl.co",
+    "https://a1293a2.peekbeek.repl.co",
+    "https://a1293a3.peekbeek.repl.co",
+    "https://a1293a4.peekbeek.repl.co",
+    "https://a1293a5.peekbeek.repl.co",
+    "https://a1293a6.peekbeek.repl.co",
+    "https://a1293a7.peekbeek.repl.co",
+    "https://a1293a8.peekbeek.repl.co",
+    "https://a1293a9.peekbeek.repl.co",
+    "https://a1293a10.peekbeek.repl.co",
 
     "https://rgttta-1.rgttta.repl.co",
     "https://rgttta-2.rgttta.repl.co",
