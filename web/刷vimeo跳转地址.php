@@ -3,7 +3,7 @@ $url=$_GET["url"];
 
 
 // 读取所有行
-$lines = explode("\n", shell_exec("curl -L https://crowncloud.362227.top/rss/urls.txt"));
+$lines = explode("\n", shell_exec("curl -L https://362227.top/rss/urls.txt"));
 
 // 随机选择一个行号
 $random_key = array_rand($lines);
