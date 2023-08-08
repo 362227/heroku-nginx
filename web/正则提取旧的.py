@@ -23,7 +23,7 @@ for filename in glob.glob(path):
       file1 = f.read()
 
     # 使用正则表达式匹配相应的内容, 使用findall匹配，返回列表类型，但是属于字符数组
-      file1 = re.findall(r'(title.+?[^a-zA-Z])(prores|vfx|The *Streets|Kasabian|Katie* Melua|Katy *B|Kate *Nash|Kate *Bush|Pj *Harvey|Foals|Royal *Blood|Mcfly|Mcbusted|Busted|Imogen *Heap|Ellis\-Bextor|Stereophonics|Sugababes|Girls *Aloud|Atomic *Kitten|Olly *Murs)([^a-z].+?from )(.+?<\/title>.+?)(\"duration\"\:[0-9]{3,}\,)(.+?account\_type\"\:\")(未知|business|pro|plus|premium|enterprise|live\_premium)(\".*)', file1,re.I)
+      file1 = re.findall(r'(title.+?[^a-zA-Z])(prores|vfx|The *Streets|Kasabian|Katie* Melua|Katy *B|Kate *Nash|Kate *Bush|Pj *Harvey|Foals|Royal *Blood|Mcfly|Mcbusted|Busted|Imogen *Heap|Ellis\-Bextor|Stereophonics|Sugababes|Girls *Aloud|Atomic *Kitten|Olly *Murs)([^a-z].+?from )(.+?<\/title>.+?)(\"duration\"\:[0-9]{3,}\,)(.+?account\_type\"\:\")(未知|custom|business|pro|plus|premium|enterprise|live\_premium)(\".*)', file1,re.I)
 print("<br><br><br><h1>艺人</h1><br>")
 for item1 in file1:
     print(item1)
