@@ -4,8 +4,8 @@ num=$1
 python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -n $num -t /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
 ulimit -n 2048
 
-#python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/替换为onrender链接.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接01.txt
-#python /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/替换为onrender链接.py /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接02.txt
+sed -i 's/https:\/\/crowncloud\.362227\.top/https:\/\/362227\.top/g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
+#sed -i 's/https:\/\/362227\.top/https:\/\/crowncloud\.362227\.top/g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
 
 
 FILE_PATH="/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
