@@ -87,11 +87,11 @@ sed -i 's|"\(https:\/\/vimeo\.com[^"]*\)"|<a href="\1" target="_blank">\1</a>|g'
 echo 删除重复行
 awk '!seen[$0]++' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".html  > tmpfile && mv tmpfile /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".html
 
-txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".html  https://api.anonfiles.com/upload  | grep  '"full"' | sed 's/\\//g' | sed -nE 's/.*"full": "([^"]*)".*/\1/p')
+txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999".html  https://store1.gofile.io/uploadFile | jq -r '.data.downloadPage + "#" + .data.fileName')
 curl https://362227.top/rss/file.php?text=$txt 
 
-txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"  https://api.anonfiles.com/upload  | grep  '"full"' | sed 's/\\//g' | sed -nE 's/.*"full": "([^"]*)".*/\1/p' )
+txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999"  https://store1.gofile.io/uploadFile | jq -r '.data.downloadPage + "#" + .data.fileName' )
 curl https://362227.top/rss/file.php?text=$txt 
 
-txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"  https://api.anonfiles.com/upload  | grep  '"full"' | sed 's/\\//g' | sed -nE 's/.*"full": "([^"]*)".*/\1/p' )
+txt=$(curl  -F file=@/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"  https://store1.gofile.io/uploadFile | jq -r '.data.downloadPage + "#" + .data.fileName' )
 curl https://362227.top/rss/file.php?text=$txt 
