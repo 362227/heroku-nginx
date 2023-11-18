@@ -125,6 +125,7 @@ $uri = $data['video']['share_url'];
 
 $array = array( "https://www.colorcollective.com", 
 "https://blackdogfilms.com/",  
+"https://aviddiva.com/",           
 "https://www.dearcut.com/",          
 "https://iconoclast.tv",  
 "https://themill.com",  
