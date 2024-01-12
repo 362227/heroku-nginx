@@ -111,14 +111,14 @@ while True:
             pass
 
     # 将成功的链接写入文件
-    if len(successful_urls) >= 140:
+    if len(successful_urls) >= 50:
         with open('/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/urls.txt', 'w') as f:
             for url in successful_urls:
                 f.write(url + '\n')
         print("以下链接未成功写入urls.txt:")
         print(set(urls) - set(successful_urls))
     else:
-        print('Successful URLs less than 40, skipped writing to file.')
+        print('Successful URLs less than 50, skipped writing to file.')
 
     # 如果所有链接都成功，则退出循环
     if set(successful_urls) == set(urls):
