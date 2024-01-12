@@ -5,7 +5,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # 代理
-proxy = {'http': 'http://127.0.0.1:1083', 'https': 'http://127.0.0.1:1083'}
+proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
+
 
 urls = [
     "https://kacey1--doyathing9.无效2023-05-18.co",
@@ -72,7 +73,6 @@ urls = [
 ] 
 
 
-
 while True:
     # 记录成功的链接
     successful_urls = []
@@ -81,9 +81,9 @@ while True:
         retry = 0
         while True:
             try:
-                new_url = f"{url}/vimeo.php?link=https://player.vimeo.com/video/211"
+                new_url = f"{url}/vimeo.php?link=http://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/780837850"
                 response = requests.get(new_url, timeout=8)
-                if response.status_code == 200 and 'gutierrez' in response.text:
+                if response.status_code == 200 and '780837850' in response.text:
                     print(f'{new_url} returned 200')
                     successful_urls.append(url)
                     return None  # 返回None表示成功
