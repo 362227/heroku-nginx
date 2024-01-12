@@ -16,7 +16,7 @@ for filename in glob.glob(path):
 for item in file:
    # print(item)
     #filename = m.group(1) + filename2
-    print('https://crowncloud.362227.top/rss/刷vimeo跳转地址.php?url=https://player.vimeo.com/video/' + item + '\n        out=' + item)
+    print('https://362227.top/rss/刷vimeo跳转地址.php?url=https://player.vimeo.com/video/' + item + '\n        out=' + item)
 
     
 
