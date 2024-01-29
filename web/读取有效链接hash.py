@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 代理
 proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
-'''
+
 #奇数
 urls = [
     "https://github.c/qodnh/?这是无效链接，让这个代码能无限循环", 
@@ -140,7 +140,7 @@ urls = [
     "https://ellie103.onrender.com",
     "https://kai005.onrender.com",
 ]
-'''
+
 
 '''
 #偶数
