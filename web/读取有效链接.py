@@ -12,7 +12,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 urls = [
     "https://github.c/qodnh/?这是无效链接，让这个代码能无限循环", 
     "https://dc328d28-ef61-4e36-9b6d-040bb1384e09-00-3bjxvzmdvu0yu.sisko.replit.dev",
-    "https://0c92fe09-72ff-45c1-9fa4-e5b4e51ad53c-00-11vqtgma08u4p.pike.replit.dev",
+    "https://967d667b-f766-445e-a4dd-6cfaf4814e98-00-2srpxx0jsejis.pike.replit.dev",
     "https://109ef66c-c2f0-4345-8d15-47333a179e2e-00-1q1wc7w4fmtnq.sisko.replit.dev",
     "https://1616325f-23ff-469e-ba6a-1227e6bc9155-00-14uiu4b8ug72l.sisko.replit.dev",
     "https://b2a7c1ca-37cc-4f02-9656-8bd00e662f3f-00-39r5sxr4czym3.pike.replit.dev",
