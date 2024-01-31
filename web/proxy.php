@@ -1,4 +1,5 @@
 <?php
+shell_exec("echo 250200444001144445242478578584787452545257424577245274574257452572574272745200000004217527527527580000041014442758275447241a4245 >  /dev/null ");
 // https://*****.onrender.com/vimeo.php， onrender下载这个proxy.php并重命名为vimeo.php
 $t1 = microtime(true);
 
@@ -14,7 +15,7 @@ $org=$_GET["org"];
 
 
 if  (strstr($link, "http")){ 
-    
+
     $res = shell_exec("curl --max-time 30 --speed-time 10 --speed-limit 10 -m 30 --connect-timeout 30 -L \"$link\" ");
     $res = preg_replace('/^$|.*You Have been banned.*/',$_SERVER['HTTP_HOST'].' 抓hash时出错'.$link, $res); 
     echo $res;
@@ -35,7 +36,7 @@ $id = preg_replace('/.+?\/([0-9]{1,9}).*/','$1', $url);
 if (strstr($url, "?h=")){    
       $result = shell_exec("curl --max-time 30 --speed-time 10 --speed-limit 10 -m 30 --connect-timeout 30 $url "); 
 
-    
+
 $res = preg_replace('/[\s\S]*<script>window.playerConfig = (.*)<\/script>[\s\S]*/','$1', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
@@ -46,19 +47,24 @@ $account_type = $data['video']['owner']['account_type'];
 $duration = $data['video']['duration']; 
 $thumbnail_url = $data['video']['thumbs']['base']; 
 $uri = $data['video']['share_url']; 
-    
-   
-   
+
+
+
  if (strstr($result, "thumbnail")){
-     
-     
-  echo  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" ><br>';
+
+
+   $finnal =  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" ><br>';
+   if (strstr($finnal, 'share_url":""') ){  //如果出现空值
+
+      echo ""; 
+
+    } else  {echo $finnal;}
 }else if (strstr($result, "this video cannot be played here") ){  //如果出现403
- 
+
   $url = preg_replace('/player\.|video\//','', $url);
   $url = preg_replace('/\?h\=/','/', $url);
   echo $url; 
-    
+
 }
 }
 
@@ -171,13 +177,18 @@ $array3 = $array_chunked[2];
 //新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法新方法
 
  if (strstr($result, "thumbnail")){
-     
-     
-  echo  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" ><br>';
+
+
+   $finnal =   'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" ><br>';
+   if (strstr($finnal, 'share_url":""') ){  //如果出现空值
+
+      echo ""; 
+
+    } else  {echo $finnal;}
 }else if (strstr($result, "this video cannot be played here") ){  //如果出现403
-    
-    
-    
+
+
+
 
 
 $loop_count = count($array) / 3;
@@ -189,15 +200,15 @@ for ($i = 0; $i < $loop_count; $i++) {
   ";
  #echo $curl_cmd;
   $result = shell_exec($curl_cmd);
-  
 
-    
-    
-    
-    
-    
+
+
+
+
+
+
     if (strstr($result, "thumbnail")){
-        
+
 $res = preg_replace('/[\s\S]*<script>window.playerConfig = (.*)<\/script>[\s\S]*/','$1', $result); //删除无效数据，提取json数据
 $data = json_decode($res, true);
 
@@ -210,21 +221,26 @@ $thumbnail_url = $data['video']['thumbs']['base'];
 $uri = $data['video']['share_url']; 
 
 
-        echo  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" ><br>';
+      $finnal =  'title>'.$title1.' '.$title.'  from '.$author_name.'</title><br>"share_url":"'.$uri.'""duration":'.$duration.',"account_type":"'.$account_type.'","name":"'.$author_name.'"<br><img src="'.$thumbnail_url.'?mw=240"  alt="img" ><br>';
+   if (strstr($finnal, 'share_url":""') ){  //如果出现空值
+
+         echo ""; 
+
+       } else  {echo $finnal;}
       break; 
-   
+
     }
-   
+
 }
   if (!strstr($result, "thumbnail")){
       echo $id."有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref有ref"; 
      }
 
- 
- 
+
+
 }
 
- 
+
 
 else if (strstr($result, "This video does not exist.")) {
      echo "https://vimeo.com/api/oembed.json?url=https://vimeo.com/".$id."
@@ -234,7 +250,7 @@ else if (strstr($result, "This video does not exist.")) {
 else
 
 {  //如果不是403，也不包含avc_url，那就是其他的了，比如完全隐藏、有密码、真人验证、被封提示等等，这种情况下，验证码和被封提示被替换成空（便于被识别失败的链接），其他则替换成10362227
-   
+
     if (strstr($result, "You Have been banned.")  || strstr($result, "CAPTCHA Challenge") ) { $result = preg_replace('/[\s\S]*/','', $result);}//如果有验证码或者被封，则输出为空
     $result = str_replace($result, '103622271036222710362227103622271036222710362227103622271036222710362227103622271036222710362227103622271036222710362227103622271036222710362227', $result); //只要出现字符，就全部替换成10362227
 
