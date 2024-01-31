@@ -105,6 +105,18 @@ urls = [
     "https://50bd63d3-17bd-4f91-b147-5c87e141077d-00-mslx4s2jealp.worf.replit.dev",
     "https://742ce08a-6796-4fb6-9023-0262538f9faf-00-2vsa8rurouqw4.worf.replit.dev",
     "https://a14107fb-33b2-4e56-9884-1904099eb160-00-2agx836ew090e.spock.replit.dev",
+
+    #orbiicccgtzga@hotmail.com
+    "https://4155d8b3-fe11-4575-9652-b9eab8b26f9d-00-68mrkr4u1kcf.picard.replit.dev",
+    "https://82e4f3fa-69f2-4c76-8eaa-b532a67623e9-00-rigg9io7oxjn.kirk.replit.dev",
+    "https://96bea6b4-00f1-4390-8f3b-6204250c43ef-00-eti48o136to2.janeway.replit.dev",
+    "https://14d28362-c62d-439a-aade-af59f9fbccc9-00-1vjqo8hg8qwm9.worf.replit.dev",
+    "https://20ac6be4-4f1d-4552-8de7-66ec0a7c02ba-00-9u4crwsx6gf5.spock.replit.dev",#5
+    "https://5457d67b-f9bc-4d5e-b97b-27aef6399939-00-2pq7apt74aj7b.riker.replit.dev",
+    "https://b4ff5a22-661e-46d5-8c34-46bddd4ab02f-00-1jul0u7422fcr.spock.replit.dev",
+    "https://3735921b-4874-41b5-b582-8d1ae8686008-00-21ugqf2on9y8f.kirk.replit.dev",
+    "https://8f22a3c2-a86a-4969-a36e-ca757ddec6fa-00-2xtgcw8mz5e0f.spock.replit.dev",
+    "https://59a562ca-48fd-42c7-8779-7e2ce5a90533-00-in2zbepmh843.riker.replit.dev",
 ]
 
 
