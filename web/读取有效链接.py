@@ -33,6 +33,18 @@ urls = [
     "https://c392e103-b1b5-42ed-853f-2c36877b6dfd-00-d57wjynhoa0t.riker.replit.dev",
     "https://baa350c4-f211-403a-b9b7-2324a3e633a8-00-y2b4n59p5vm6.kirk.replit.dev",
     "https://544cfef0-0123-4989-aa2f-038afa0ceb78-00-qp5ysznr8te7.kirk.replit.dev",
+
+    #pizvjdeewlfzt@hotmail.com
+    "https://95ba45ed-1939-442f-93bc-c5267c0de320-00-1u9jmnq7kdpmr.worf.replit.dev",
+    "https://215d2ca8-cfcd-4839-8b07-b8ef6ab56493-00-2x68rh8htefn1.picard.replit.dev",
+    "https://ae7d2c78-8cb3-4666-a485-feb2263697d2-00-kjvkp6yl7vws.worf.replit.dev",
+    "https://d40547c6-043e-4b30-ac97-2685d4bf1d13-00-1lwg41prwc0sl.kirk.replit.dev",
+    "https://e24f0172-82a3-45b2-88e9-7d3f49cfea6a-00-36keftxll3h66.worf.replit.dev",#5
+    "https://1e52d4ba-2224-4b07-a512-2900c75389fd-00-17rkamgufgafo.spock.replit.dev",
+    "https://13db71ee-3d92-4fab-9edd-242e1c4e83d3-00-2kkfxsqcief8e.picard.replit.dev",
+    "https://1f9fc906-b151-48ea-b2a3-6f60e8410618-00-3euraaw2tz1zm.janeway.replit.dev",
+    "https://c7605d2f-e5e1-44b8-88d3-4533e6d4a41a-00-2nle1ckc67358.worf.replit.dev",
+    "https://66f0929d-0d27-4acd-b2e1-ca55113816cd-00-38xjxwqruff4d.worf.replit.dev",
    
 ]
 
