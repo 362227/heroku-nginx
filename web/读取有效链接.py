@@ -439,7 +439,7 @@ while True:
                 print(f'{url} failed: {e}')
                 if retry < 3:
                     retry += 1
-                    print(f'{url} retrying {retry}/6')
+                    print(f'{url} retrying {retry}/3')
                 else:
                     break
             time.sleep(1)  # 等待1秒后重试
