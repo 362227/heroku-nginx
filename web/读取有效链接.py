@@ -117,6 +117,18 @@ urls = [
     "https://3735921b-4874-41b5-b582-8d1ae8686008-00-21ugqf2on9y8f.kirk.replit.dev",
     "https://8f22a3c2-a86a-4969-a36e-ca757ddec6fa-00-2xtgcw8mz5e0f.spock.replit.dev",
     "https://59a562ca-48fd-42c7-8779-7e2ce5a90533-00-in2zbepmh843.riker.replit.dev",
+
+    #uuffmnvpu@hotmail.com
+    "https://b1ecf04e-b85f-4945-be89-e97e4d6ab283-00-3v0gkjwdms7jl.picard.replit.dev",
+    "https://d8965640-df94-4735-904e-ad0654c8b7d7-00-mrltuudktx8u.kirk.replit.dev",
+    "https://84d89a03-c4b5-40d9-a4d2-f53995fc0aa5-00-g5xx70jk75s.riker.replit.dev",
+    "https://a73d11a2-de13-490a-837c-b8ea8175dc93-00-knz1cinyb1ga.picard.replit.dev",
+    "https://5a78fb1f-9874-4fc3-82d3-c56de7406504-00-3ot2an6e6utus.worf.replit.dev",#5
+    "https://ec4e62d6-20d7-440e-b2a4-97491698792e-00-1hx6nv5qei6qt.spock.replit.dev",
+    "https://a812dd20-ea83-457e-81af-221e1270bb42-00-knnxud4bz5sk.kirk.replit.dev",
+    "https://6c283523-17e7-4303-b615-9f5dd29a19f6-00-2zs92afsi76ms.kirk.replit.dev",
+    "https://60a6f559-143e-42c2-8d7f-699b01a7e750-00-2vtv8zpj981bu.janeway.replit.dev",
+    "https://bfe5e200-1d32-407e-9008-7ecbae18c64f-00-331kbhc3dynlr.kirk.replit.dev",
 ]
 
 
