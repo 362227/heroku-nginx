@@ -10,127 +10,68 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 
 
 urls = [
-    "https://github.c/qodnh/?这是无效链接，让这个代码能无限循环", 
-    "https://dc328d28-ef61-4e36-9b6d-040bb1384e09-00-3bjxvzmdvu0yu.sisko.replit.dev",
-    "https://967d667b-f766-445e-a4dd-6cfaf4814e98-00-2srpxx0jsejis.pike.replit.dev",
-    "https://109ef66c-c2f0-4345-8d15-47333a179e2e-00-1q1wc7w4fmtnq.sisko.replit.dev",
-    "https://1616325f-23ff-469e-ba6a-1227e6bc9155-00-14uiu4b8ug72l.sisko.replit.dev",
-    "https://b2a7c1ca-37cc-4f02-9656-8bd00e662f3f-00-39r5sxr4czym3.pike.replit.dev",
-    "https://b9dc0bd1-a377-4b49-b51f-0ee53c458d30-00-3cko837imdl1x.pike.replit.dev", #006
-    "https://418d13b4-66ab-447d-bc84-2f55955eb0a0-00-1ansofx0xaop3.pike.replit.dev",
-    "https://0cd68126-a42c-4462-98f0-0772bdf5a633-00-3evk3tcly5ul6.pike.replit.dev",
-    "https://690a829d-6ec1-4398-9135-74d6a47797fb-00-erbdketagsxu.sisko.replit.dev",
-    "https://08dfa419-1e33-4304-8090-34b45898e918-00-2o5pwozmgmibl.sisko.replit.dev",#010
-
-    #rgttta@hotmail.com
-    "https://27a01819-dbc5-4bd3-8af4-86c227ba0e36-00-2h7tnbhr7ijub.kirk.replit.dev", #001
-    "https://31a3a53d-2421-4a52-a3be-5dc7a46a8489-00-1j81lajxerd0n.kirk.replit.dev",
-    "https://f822e367-500f-49de-8a3f-6f10a05799b7-00-2s73nnxsieubn.worf.replit.dev",
-    "https://1e16f377-3769-41ec-a08c-e9d0fcd8209b-00-3d1n7rthu0xw.spock.replit.dev",
-    "https://5d9b9b13-e024-4a5d-b903-0550152c670c-00-2e18itco2z3af.kirk.replit.dev",#005
-    "https://3e90728b-899e-49e3-8771-8af5e984cb12-00-2mzs0vh65m0cd.picard.replit.dev",
-    "https://613fa021-f42a-4951-9dcb-d5a1e95204f0-00-iyamzl49wkys.kirk.replit.dev",
-    "https://c392e103-b1b5-42ed-853f-2c36877b6dfd-00-d57wjynhoa0t.riker.replit.dev",
-    "https://baa350c4-f211-403a-b9b7-2324a3e633a8-00-y2b4n59p5vm6.kirk.replit.dev",
-    "https://544cfef0-0123-4989-aa2f-038afa0ceb78-00-qp5ysznr8te7.kirk.replit.dev",
-
-    #pizvjdeewlfzt@hotmail.com
-    "https://95ba45ed-1939-442f-93bc-c5267c0de320-00-1u9jmnq7kdpmr.worf.replit.dev",
-    "https://215d2ca8-cfcd-4839-8b07-b8ef6ab56493-00-2x68rh8htefn1.picard.replit.dev",
-    "https://ae7d2c78-8cb3-4666-a485-feb2263697d2-00-kjvkp6yl7vws.worf.replit.dev",
-    "https://d40547c6-043e-4b30-ac97-2685d4bf1d13-00-1lwg41prwc0sl.kirk.replit.dev",
-    "https://e24f0172-82a3-45b2-88e9-7d3f49cfea6a-00-36keftxll3h66.worf.replit.dev",#5
-    "https://1e52d4ba-2224-4b07-a512-2900c75389fd-00-17rkamgufgafo.spock.replit.dev",
-    "https://13db71ee-3d92-4fab-9edd-242e1c4e83d3-00-2kkfxsqcief8e.picard.replit.dev",
-    "https://1f9fc906-b151-48ea-b2a3-6f60e8410618-00-3euraaw2tz1zm.janeway.replit.dev",
-    "https://c7605d2f-e5e1-44b8-88d3-4533e6d4a41a-00-2nle1ckc67358.worf.replit.dev",
-    "https://66f0929d-0d27-4acd-b2e1-ca55113816cd-00-38xjxwqruff4d.worf.replit.dev",
-
-    #lzywgycaew@hotmail.com
-    "https://992b88f7-448a-40dd-8edb-046daf62a172-00-bocw5tm8ihqj.kirk.replit.dev",
-    "https://7e6162f1-6dc8-40ac-a9d8-cf1b96e55f6b-00-1sm8wncgr4exb.worf.replit.dev",
-    "https://48765636-6863-4060-8a4e-4c1e27ca854c-00-nspvgig715ah.picard.replit.dev",
-    "https://1cbcae3c-bced-45c8-9748-dc2d4177bddb-00-30amd4ifl2s5k.janeway.replit.dev",
-    "https://7a024403-b62b-4c0c-8ab0-a25dec4930eb-00-n30alnzyv0lh.spock.replit.dev",#5
-    "https://6f195e37-2ec0-4e74-96af-7ab526678c8a-00-3p58xlsbehz8f.kirk.replit.dev",
-    "https://f5e9888a-f148-4393-b227-a000deb762e8-00-3gyx1jukys308.spock.replit.dev",
-    "https://85b7dd15-7ccc-4d66-92c2-34cfb6aecd38-00-wx411c8gq7tg.worf.replit.dev",
-    "https://9e23479a-749b-4997-8b50-29dc4e5dc67c-00-1sw5o080h0ypx.worf.replit.dev",
-    "https://2555c905-f039-4fc5-973f-5b8b5b420ab9-00-1w2maf8vk8i7u.spock.replit.dev",
-
-    #mfuvqyfavxlzawd@hotmail.com
-    "https://38b7a5e5-bc37-4881-a783-5d0b8dc85cf8-00-12l15nr4egv35.kirk.replit.dev",
-    "https://20f5ed90-1a12-4c4b-a64f-57477653129b-00-3u07duawa2xuv.riker.replit.dev",
-    "https://66056477-b0b8-4fbb-9446-ba11c4a7a440-00-2yo2207cx32eo.kirk.replit.dev",
-    "https://4fafde8f-7c60-421d-8f56-050b2e65add3-00-2cgsl1zlw54wk.worf.replit.dev",
-    "https://f7bf33b9-ad1e-4e06-8132-473711c9eb05-00-2icywl6l3ole6.janeway.replit.dev",#5
-    "https://43f2b847-c456-4090-9930-71df65294e4e-00-28pniimli10s4.kirk.replit.dev",
-    "https://8b62b4d4-8c3e-4724-8d00-e1618f6e3bbe-00-1jl87p9f3u6il.picard.replit.dev",
-    "https://b054cd15-f4d9-4c57-a36c-0c0299f6b29e-00-vnjzaf5q0cou.janeway.replit.dev",
-    "https://dc8706eb-8358-4853-abef-3713618b3232-00-whn89afw9v51.picard.replit.dev",
-    "https://4e22895e-cdd2-4b69-84e2-b5f52d6efd1d-00-2v8n8b2paqsku.janeway.replit.dev",
-
-    #tygtuocnwfsszf@hotmail.com
-    "https://eae4bf65-df1e-4c64-97a8-2b40e1aceeab-00-18uhft6lrhtk.picard.replit.dev",
-    "https://d1266bf0-9620-4944-8dd1-714461128c5c-00-3k0ddwhnu5ls8.kirk.replit.dev",
-    "https://555d69a4-10c1-4a74-8b40-870b8ab6ef02-00-1m7gkudmnic39.spock.replit.dev",
-    "https://ee592219-ba0e-4e70-a04f-6b259554793a-00-kxgs5pybfyx2.kirk.replit.dev",
-    "https://278701eb-116a-4737-9e2b-b054056048e2-00-2bndcgv9sum83.spock.replit.dev",#5
-    "https://ee0962e7-edbd-4e26-8ab0-7b35f2c0865b-00-3q6jrgmptu03a.kirk.replit.dev",
-    "https://a4bd5faa-dbb1-491f-bdc8-4c668b3699f6-00-1nbxlvsfgs4y5.picard.replit.dev",
-    "https://c854cbe6-86d5-408c-a9ca-5169ce4a3559-00-1syq16bbhxjp1.janeway.replit.dev",
-    "https://b4cd3024-6e38-42f9-a1c1-0e0e0dd6d454-00-2bxogubyaae5z.kirk.replit.dev",
-    "https://9fe59190-1672-4c8c-9af0-e0470ce6dc6b-00-2n9gr9uf7knqw.picard.replit.dev",
-
-    #uegmuovbuwlryff@hotmail.com
-    "https://9f6c8605-8a24-448c-a157-76332d558ec8-00-g1rrdbq6h4w0.picard.replit.dev",
-    "https://2d7dba58-7fed-4ffa-bd12-29a468c10bf7-00-3doi0m1syy8z8.spock.replit.dev",
-    "https://ccb24536-06e2-47dc-ad1a-5a3989ef0854-00-3iz3idwyltr1r.riker.replit.dev",
-    "https://7781076a-71af-456f-95a1-d02a4a8152f1-00-2pqtfbeeizywu.picard.replit.dev",
-    "https://e38b3898-00ac-4f1c-98f1-0858fce8956d-00-7wxez792ig1e.spock.replit.dev",#5
-    "https://b47952d0-e1cf-4e11-9ba7-c601176a56fc-00-2xmjowg7p2zom.kirk.replit.dev",
-    "https://f751ceab-864e-4973-b109-0c5b67c3ba00-00-kxf184gajppu.kirk.replit.dev",
-    "https://99512786-f679-4ace-9578-d11c82acca87-00-127isyxtc5wp8.kirk.replit.dev",
-    "https://3cb55a40-547a-40bc-9223-33900102f6be-00-3u2v9v1m6zcnf.kirk.replit.dev",
-    "https://f7f28c01-5c68-49a4-a2a9-db7d80fd4aa8-00-24ipbfglxefsv.kirk.replit.dev",
-
-    #mbvcjq@hotmail.com
-    "https://ab81e36a-a53f-4fef-83df-f67f4bf042b2-00-2y7572qjyl42c.worf.replit.dev",
-    "https://b80182f0-f249-4ec8-a266-43c376eadd36-00-200ul6v5pa9ig.kirk.replit.dev",
-    "https://9ac4b2c4-e0d0-46d1-916f-78475c1622f0-00-yqatz1s7vtg2.riker.replit.dev",
-    "https://1dd3ce7a-d4cb-4838-b7a8-4f836460a62d-00-viblyftsxrfu.worf.replit.dev",
-    "https://6f316de2-20cc-48eb-9fd7-298667d0009e-00-1dgoylbh0boy2.kirk.replit.dev",#5
-    "https://884f63f2-e1c8-4d47-8e04-00666668d4f7-00-1zks0e8slj008.spock.replit.dev",
-    "https://d2f87ca5-0107-4711-86d4-839560e34f19-00-jg8pqez6qk5v.janeway.replit.dev",
-    "https://50bd63d3-17bd-4f91-b147-5c87e141077d-00-mslx4s2jealp.worf.replit.dev",
-    "https://742ce08a-6796-4fb6-9023-0262538f9faf-00-2vsa8rurouqw4.worf.replit.dev",
-    "https://a14107fb-33b2-4e56-9884-1904099eb160-00-2agx836ew090e.spock.replit.dev",
-
-    #orbiicccgtzga@hotmail.com
-    "https://4155d8b3-fe11-4575-9652-b9eab8b26f9d-00-68mrkr4u1kcf.picard.replit.dev",
-    "https://82e4f3fa-69f2-4c76-8eaa-b532a67623e9-00-rigg9io7oxjn.kirk.replit.dev",
-    "https://96bea6b4-00f1-4390-8f3b-6204250c43ef-00-eti48o136to2.janeway.replit.dev",
-    "https://14d28362-c62d-439a-aade-af59f9fbccc9-00-1vjqo8hg8qwm9.worf.replit.dev",
-    "https://20ac6be4-4f1d-4552-8de7-66ec0a7c02ba-00-9u4crwsx6gf5.spock.replit.dev",#5
-    "https://5457d67b-f9bc-4d5e-b97b-27aef6399939-00-2pq7apt74aj7b.riker.replit.dev",
-    "https://b4ff5a22-661e-46d5-8c34-46bddd4ab02f-00-1jul0u7422fcr.spock.replit.dev",
-    "https://3735921b-4874-41b5-b582-8d1ae8686008-00-21ugqf2on9y8f.kirk.replit.dev",
-    "https://8f22a3c2-a86a-4969-a36e-ca757ddec6fa-00-2xtgcw8mz5e0f.spock.replit.dev",
-    "https://59a562ca-48fd-42c7-8779-7e2ce5a90533-00-in2zbepmh843.riker.replit.dev",
-
-    #uuffmnvpu@hotmail.com
-    "https://b1ecf04e-b85f-4945-be89-e97e4d6ab283-00-3v0gkjwdms7jl.picard.replit.dev",
-    "https://d8965640-df94-4735-904e-ad0654c8b7d7-00-mrltuudktx8u.kirk.replit.dev",
-    "https://84d89a03-c4b5-40d9-a4d2-f53995fc0aa5-00-g5xx70jk75s.riker.replit.dev",
-    "https://a73d11a2-de13-490a-837c-b8ea8175dc93-00-knz1cinyb1ga.picard.replit.dev",
-    "https://5a78fb1f-9874-4fc3-82d3-c56de7406504-00-3ot2an6e6utus.worf.replit.dev",#5
-    "https://ec4e62d6-20d7-440e-b2a4-97491698792e-00-1hx6nv5qei6qt.spock.replit.dev",
-    "https://a812dd20-ea83-457e-81af-221e1270bb42-00-knnxud4bz5sk.kirk.replit.dev",
-    "https://6c283523-17e7-4303-b615-9f5dd29a19f6-00-2zs92afsi76ms.kirk.replit.dev",
-    "https://60a6f559-143e-42c2-8d7f-699b01a7e750-00-2vtv8zpj981bu.janeway.replit.dev",
-    "https://bfe5e200-1d32-407e-9008-7ecbae18c64f-00-331kbhc3dynlr.kirk.replit.dev",
-]
-
+    "https://kacey1--doyathing9.无效2023-05-18.co",
+    "https://myphp-1.vercel.app/api",
+    "https://myphp-2.vercel.app/api",
+    "https://myphp-3.vercel.app/api",
+    "https://myphp-4.vercel.app/api",
+    "https://myphp-5.vercel.app/api",
+    "https://myphp-6.vercel.app/api",
+    "https://myphp-7.vercel.app/api",
+    "https://myphp-8.vercel.app/api",
+    "https://myphp-9.vercel.app/api",
+    "https://myphp-10.vercel.app/api",
+    "https://myphp-11.vercel.app/api",
+    "https://myphp-12.vercel.app/api",
+    "https://myphp-13.vercel.app/api",
+    "https://myphp-14.vercel.app/api",
+    "https://myphp-15.vercel.app/api",
+    "https://myphp-16.vercel.app/api",
+    "https://myphp-17.vercel.app/api",
+    "https://myphp-18.vercel.app/api",
+    "https://myphp-19.vercel.app/api",
+    "https://myphp-20.vercel.app/api",
+    "https://myphp-21.vercel.app/api",
+    "https://myphp-22.vercel.app/api",
+    "https://myphp-23.vercel.app/api",
+    "https://myphp-24.vercel.app/api",
+    "https://myphp-25.vercel.app/api",
+    "https://myphp-26.vercel.app/api",
+    "https://myphp-27.vercel.app/api",
+    "https://myphp-28.vercel.app/api",
+    "https://myphp-29.vercel.app/api",
+    "https://myphp-30.vercel.app/api",
+    "https://myphp-31.vercel.app/api",
+    "https://myphp-32.vercel.app/api",
+    "https://myphp-33.vercel.app/api",
+    "https://myphp-34.vercel.app/api",
+    "https://myphp-35.vercel.app/api",
+    "https://myphp-36.vercel.app/api",
+    "https://myphp-37.vercel.app/api",
+    "https://myphp-38.vercel.app/api",
+    "https://myphp-39.vercel.app/api",
+    "https://myphp-40.vercel.app/api",
+    "https://myphp-41.vercel.app/api",
+    "https://myphp-42.vercel.app/api",
+    "https://myphp-43.vercel.app/api",
+    "https://myphp-44.vercel.app/api",
+    "https://myphp-45.vercel.app/api",
+    "https://myphp-46.vercel.app/api",
+    "https://myphp-47.vercel.app/api",
+    "https://myphp-48.vercel.app/api",
+    "https://myphp-49.vercel.app/api",
+    "https://myphp-50.vercel.app/api",
+    "https://myphp-51.vercel.app/api",
+    "https://myphp-52.vercel.app/api",
+    "https://myphp-53.vercel.app/api",
+    "https://myphp-54.vercel.app/api",
+    "https://myphp-55.vercel.app/api",
+    "https://myphp-56.vercel.app/api",
+    "https://myphp-57.vercel.app/api",
+    "https://myphp-58.vercel.app/api",
+    "https://myphp-59.vercel.app/api",
+    "https://myphp-60.vercel.app/api",
+] 
 
 
 
