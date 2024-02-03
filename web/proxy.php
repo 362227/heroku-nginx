@@ -14,6 +14,18 @@ $name=$_GET["name"];
 $org=$_GET["org"];
 
 
+
+if  (strstr($link, "ip")){ 
+
+    $res = shell_exec("curl ifconfig.me ");
+
+    echo $res;
+    exit;
+}
+
+
+
+
 if  (strstr($link, "http")){ 
 
     $res = shell_exec("curl --max-time 30 --speed-time 10 --speed-limit 10 -m 30 --connect-timeout 30 -L \"$link\" ");
