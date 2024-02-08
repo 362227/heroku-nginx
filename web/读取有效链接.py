@@ -9,6 +9,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 # 需要尝试的链接列表
 
 urls_text = """
+https://kacey1--doyathing9.无效2023-05-18.co
 https://various-colorful-epoxy.glitch.me
 https://marked-tin-organ.glitch.me
 https://jazzy-vivid-scallion.glitch.me
