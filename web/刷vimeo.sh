@@ -15,7 +15,7 @@ sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo
 insert_text="  https-proxy=127.0.0.1:1083"
 
 # 每个插入间隔
-insert_interval=1000
+insert_interval=500
 
 # 逐行读取输入文件，处理后输出到输出文件
 awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
