@@ -4,7 +4,8 @@ num=$1
 python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -n $num -t /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
 ulimit -n 2048
 
-sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
+sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt
+
 
 
 
@@ -19,27 +20,21 @@ insert_interval=1000
 awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
     BEGIN {
         count = 0
-        block_start = 1
-        block_end = insert_interval
     }
     {
         if ($0 ~ /out=/) {
             count++
-            if (count >= block_start && count <= block_end) {
+            if (count % (2 * insert_interval) <= insert_interval) {
                 print $0
                 print insert_text
             } else {
                 print $0
             }
-            if (count == block_end) {
-                block_start = block_end + 1
-                block_end = block_start + insert_interval - 1
-            }
         } else {
             print $0
         }
     }
-' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接output_file.txt"
+' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
 
 
 
