@@ -8,6 +8,31 @@ sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo
 
 
 
+# 插入的内容
+insert_text="  https-proxy=127.0.0.1083"
+
+# 每个插入间隔
+insert_interval=1000
+
+# 计数器初始化
+count=0
+
+# 逐行读取输入文件，处理后输出到输出文件
+awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
+    {
+        print $0
+        if ($0 ~ /out=/) {
+            count++
+            if (count % insert_interval == 0) {
+                print insert_text
+            }
+        }
+    }
+'/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt  > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接output_file.txt
+
+
+
+
 
 FILE_PATH="/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
 LINES_PER_BATCH=$(($(wc -l < $FILE_PATH)/4 + 1))  # 计算每部分的行数
