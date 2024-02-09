@@ -12,9 +12,9 @@ sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo
 
 
 # 第一个插入的内容
-insert_text_1="https-proxy=127.0.0.1:1083"
+insert_text_1="  https-proxy=127.0.0.1:1083"
 # 第二个插入的内容
-insert_text_2="https-proxy=127.0.0.1:1084"
+insert_text_2="  https-proxy=127.0.0.1:1084"
 # 第三个插入的内容（空内容）
 insert_text_3=" "
 
