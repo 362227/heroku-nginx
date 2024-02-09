@@ -74,15 +74,6 @@ https://typhoon-pickled-crayfish.glitch.me
 # Split the multi-line string into individual hash values
 urls = urls_text.strip().split("\n")
 
-# Define the pattern for the URLs
-pattern = r"(https://\S+\.glitch\.me)"
-
-# Define the replacement string
-#replacement = r"\1/vimeo.php?stream=\1"
-replacement = r"\1/"
-
-# Apply the regex substitution to each URL
-urls = [re.sub(pattern, replacement, url) for url in urls]
 
 
 
