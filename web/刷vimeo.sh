@@ -11,25 +11,33 @@ sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo
 
 
 
-# 插入的内容
-insert_text="  https-proxy=127.0.0.1:1083"
+# 第一个插入的内容
+insert_text_1="https-proxy=127.0.0.1:1083"
+# 第二个插入的内容
+insert_text_2="https-proxy=127.0.0.1:1084"
+# 第三个插入的内容（空内容）
+insert_text_3=" "
 
 # 每个插入间隔
-insert_interval=500
+insert_interval=1000
 
 # 逐行读取输入文件，处理后输出到输出文件
-awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
+awk -v insert_text_1="$insert_text_1" -v insert_text_2="$insert_text_2" -v insert_text_3="$insert_text_3" -v insert_interval="$insert_interval" '
     BEGIN {
         count = 0
     }
     {
         if ($0 ~ /out=/) {
             count++
-            if (count % (2 * insert_interval) <= insert_interval) {
+            if (count % (3 * insert_interval) <= insert_interval) {
                 print $0
-                print insert_text
+                print insert_text_1
+            } else if (count % (3 * insert_interval) > insert_interval && count % (3 * insert_interval) <= 2 * insert_interval) {
+                print $0
+                print insert_text_2
             } else {
                 print $0
+                print insert_text_3
             }
         } else {
             print $0
