@@ -1,4 +1,38 @@
 <?php
+function url_origin( $s, $use_forwarded_host = false )
+{
+    $ssl      = ( ! empty( $s['HTTPS'] ) && $s['HTTPS'] == 'on' );
+    $sp       = strtolower( $s['SERVER_PROTOCOL'] );
+    $protocol = substr( $sp, 0, strpos( $sp, '/' ) ) . ( ( $ssl ) ? 's' : '' );
+    $port     = $s['SERVER_PORT'];
+    $port     = ( ( ! $ssl && $port=='80' ) || ( $ssl && $port=='443' ) ) ? '' : ':'.$port;
+    $host     = ( $use_forwarded_host && isset( $s['HTTP_X_FORWARDED_HOST'] ) ) ? $s['HTTP_X_FORWARDED_HOST'] : ( isset( $s['HTTP_HOST'] ) ? $s['HTTP_HOST'] : null );
+    $host     = isset( $host ) ? $host : $s['SERVER_NAME'] . $port;
+    return $protocol . '://' . $host;
+}
+
+function full_url( $s, $use_forwarded_host = false )
+{
+    return url_origin( $s, $use_forwarded_host ) . $s['REQUEST_URI'];
+}
+
+$absolute_url = full_url( $_SERVER );
+
+
+
+$stream=$_GET["stream"]; 
+
+if  (strstr($stream, "http")){ 
+      $url = preg_replace('/.*stream\=(.*)/','$1', $absolute_url);
+    $res = shell_exec("curl -L \"$url\" ");
+
+    echo $res;
+    exit;
+}
+
+
+
+
 shell_exec("echo 250200444001144445242478578584787452545257424577245274574257452572574272745200000004217527527527580000041014442758275447241a4245 >  /dev/null ");
 // https://*****.onrender.com/vimeo.php， onrender下载这个proxy.php并重命名为vimeo.php
 $t1 = microtime(true);
