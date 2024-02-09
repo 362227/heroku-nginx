@@ -75,7 +75,7 @@ https://typhoon-pickled-crayfish.glitch.me
 urls = urls_text.strip().split("\n")
 
 # Define the pattern for the URLs
-pattern = r"(https://\S+)\.glitch\.me"
+pattern = r"(https://\S+\.glitch\.me)"
 
 # Define the replacement string
 replacement = r"\1/vimeo.php?stream=\1"
