@@ -4,20 +4,21 @@ num=$1
 python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.py -n $num -t /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
 ulimit -n 2048
 
-sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt
+sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
+
 
 
 
 
 
 # 插入的内容
-insert_text="  https-proxy=127.0.0.1:1083"
+insert_text="https-proxy=127.0.0.1:1083"
 
 # 每个插入间隔
 insert_interval=1000
 
-# 逐行读取输入文件，处理后输出到输出文件
-awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
+# 使用 awk 在原始文件中直接进行编辑
+awk -i inplace -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
     BEGIN {
         count = 0
     }
@@ -34,7 +35,7 @@ awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
             print $0
         }
     }
-' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
+' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
 
 
 
