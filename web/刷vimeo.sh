@@ -37,7 +37,7 @@ awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
     }
 ' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt"
 
-mv "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
+#mv "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
 
 
 
