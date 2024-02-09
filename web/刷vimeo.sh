@@ -11,41 +11,6 @@ sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo
 
 
 
-# 第一个插入的内容
-insert_text_1="  https-proxy=127.0.0.1:1083"
-# 第二个插入的内容
-insert_text_2="  https-proxy=127.0.0.1:1084"
-# 第三个插入的内容（空内容）
-insert_text_3=" "
-
-# 每个插入间隔
-insert_interval=1000
-
-# 逐行读取输入文件，处理后输出到输出文件
-awk -v insert_text_1="$insert_text_1" -v insert_text_2="$insert_text_2" -v insert_text_3="$insert_text_3" -v insert_interval="$insert_interval" '
-    BEGIN {
-        count = 0
-    }
-    {
-        if ($0 ~ /out=/) {
-            count++
-            if (count % (3 * insert_interval) <= insert_interval) {
-                print $0
-                print insert_text_1
-            } else if (count % (3 * insert_interval) > insert_interval && count % (3 * insert_interval) <= 2 * insert_interval) {
-                print $0
-                print insert_text_2
-            } else {
-                print $0
-                print insert_text_3
-            }
-        } else {
-            print $0
-        }
-    }
-' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt" > "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt"
-
-mv "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接0.txt"  "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
 
 
 
@@ -59,7 +24,7 @@ for ((i=0;i<$BATCHES;i++)); do
     start=$((i*LINES_PER_BATCH+1))
     end=$(((i+1)*LINES_PER_BATCH))
     sed -n "$start,${end}p" $FILE_PATH > batch_$i.txt
-    aria2c --check-certificate=false --referer=http://friendlondon.tv -i batch_$i.txt --file-allocation=none --max-concurrent-downloads=320 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
+    aria2c --all-proxy 127.0.0.1:1084 --check-certificate=false --referer=http://friendlondon.tv -i batch_$i.txt --file-allocation=none --max-concurrent-downloads=320 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
     rm batch_$i.txt
 done
 
@@ -68,7 +33,7 @@ if [ $((BATCHES*LINES_PER_BATCH)) -lt $TOTAL_LINES ]; then
     start=$((BATCHES*LINES_PER_BATCH+1))
     end=$TOTAL_LINES
     sed -n "$start,${end}p" $FILE_PATH > batch_$BATCHES.txt
-    aria2c --check-certificate=false --referer=http://friendlondon.tv -i batch_$BATCHES.txt --file-allocation=none --max-concurrent-downloads=320 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log" 
+    aria2c --all-proxy 127.0.0.1:1084 --check-certificate=false --referer=http://friendlondon.tv -i batch_$BATCHES.txt --file-allocation=none --max-concurrent-downloads=320 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log" 
     rm batch_$BATCHES.txt
 fi
 
@@ -81,7 +46,7 @@ fi
 
 echo 下载失败的链接
 python3 /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/从log文件提取下载失败的链接.py > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/遗漏文件链接合并.txt
-aria2c - --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/遗漏文件链接合并.txt" --file-allocation=none --max-concurrent-downloads=100 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/遗漏文件 --max-download-result=1000
+aria2c --all-proxy 127.0.0.1:1084 --referer=http://friendlondon.tv --check-certificate=false -i "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/遗漏文件链接合并.txt" --file-allocation=none --max-concurrent-downloads=100 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/遗漏文件 --max-download-result=1000
 
 
 
