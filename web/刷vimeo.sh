@@ -9,7 +9,7 @@ sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo
 
 
 # 插入的内容
-insert_text="  https-proxy=127.0.0.1083"
+insert_text="  https-proxy=127.0.0.1:1083"
 
 # 每个插入间隔
 insert_interval=1000
