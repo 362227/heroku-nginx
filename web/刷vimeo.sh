@@ -11,14 +11,17 @@ sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo
 
 
 
+# 临时文件
+temp_file=$(mktemp)
+
 # 插入的内容
 insert_text="  https-proxy=127.0.0.1:1083"
 
 # 每个插入间隔
 insert_interval=1000
 
-# 使用 awk 在原始文件中直接进行编辑
-awk -i inplace -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
+# 逐行读取输入文件，处理后输出到临时文件
+awk -v insert_text="$insert_text" -v insert_interval="$insert_interval" '
     BEGIN {
         count = 0
     }
@@ -35,7 +38,10 @@ awk -i inplace -v insert_text="$insert_text" -v insert_interval="$insert_interva
             print $0
         }
     }
-' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
+' "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt" > "$temp_file"
+
+# 将临时文件覆盖原始文件
+mv "$temp_file" "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
 
 
 
