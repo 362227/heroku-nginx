@@ -2,7 +2,7 @@ import random
 import os
 
 # 定义需要替换的字符串和替换后的四个 URL
-search_string = "https://362227.top/rss刷vimeo跳转地址.php?url="
+search_string = "http://362227.top/rss刷vimeo跳转地址.php?url="
 
 urls_text = """
 https://various-colorful-epoxy.glitch.me
