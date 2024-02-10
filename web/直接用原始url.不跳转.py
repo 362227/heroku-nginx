@@ -82,7 +82,7 @@ with open(input_file, "r") as f_in, open(temp_file, "w") as f_out:
         new_line = line.replace(search_string, replace_string)
 
         # 只在包含 "vimeo.php" 的行的结尾添加 &ref=http://friendlondon.tv，并将结果写入新文件
-        if "vimeo.php" in new_line:
+        if "vimeo.php" in new_line and "&ref=http://friendlondon.tv" not in new_line:
             new_line = new_line.strip() + "&ref=http://friendlondon.tv\n"
         else:
             new_line = new_line.strip() + "\n"
