@@ -7,7 +7,7 @@ ulimit -n 2048
 sed -i 's|https://crowncloud.362227.top|http://362227.top|g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt
 
 
-
+python /mnt/d/常用/vimeo/直接用原始url.不跳转.py
 
 
 
