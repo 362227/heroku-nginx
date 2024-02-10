@@ -2,7 +2,7 @@ import random
 import os
 
 # 定义需要替换的字符串和替换后的四个 URL
-search_string = "https://362227.top/rss/刷vimeo跳转地址单个ref.php?url="
+search_string = "https://362227.top/rss刷vimeo跳转地址.php?url="
 
 urls_text = """
 https://various-colorful-epoxy.glitch.me
@@ -69,7 +69,9 @@ https://typhoon-pickled-crayfish.glitch.me
 replace_strings = [url.strip() + "/vimeo.php?url=" for url in urls_text.split("\n") if url.strip()]
 
 input_file = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
-output_file = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链接.txt"
+output_file = input_file  # 使用相同的文件名进行覆盖
+
+# 使用临时文件名
 temp_file = "temp_output.txt"
 
 with open(input_file, "r") as f_in, open(temp_file, "w") as f_out:
@@ -78,13 +80,20 @@ with open(input_file, "r") as f_in, open(temp_file, "w") as f_out:
         replace_string = random.choice(replace_strings)
         # 替换字符串
         new_line = line.replace(search_string, replace_string)
+
         # 只在包含 "vimeo.php" 的行的结尾添加 &ref=http://friendlondon.tv，并将结果写入新文件
         if "vimeo.php" in new_line:
             new_line = new_line.strip() + "&ref=http://friendlondon.tv\n"
         else:
             new_line = new_line.strip() + "\n"
+            new_line = new_line.replace("out=", "  out=")
         f_out.write(new_line)
 
-# 复制临时文件内容到原始文件
+# 关闭文件，确保缓冲区被刷新
+f_in.close()
+f_out.close()
+
+# 使用 os.replace() 函数将临时文件覆盖原始文件
 os.replace(temp_file, input_file)
+
 print("替换完成，结果已覆盖原始文件", input_file)
