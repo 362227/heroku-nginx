@@ -69,6 +69,21 @@ https://cherry-trusted-acapella.glitch.me
 https://dandelion-obsidian-torta.glitch.me
 https://resolute-tropical-guava.glitch.me
 https://typhoon-pickled-crayfish.glitch.me
+https://cyclic-aged-slip.glitch.me
+https://boggy-fog-hosta.glitch.me
+https://succinct-efficient-eye.glitch.me
+https://thin-congruous-salesman.glitch.me
+https://sustaining-platinum-trombone.glitch.me
+https://acidic-motley-pail.glitch.me
+https://complete-scintillating-silkworm.glitch.me
+https://sophisticated-alert-spleen.glitch.me
+https://quilled-supreme-soybean.glitch.me
+https://selective-attractive-hardhat.glitch.me
+https://relieved-granite-panther.glitch.me
+https://prairie-furry-help.glitch.me
+https://rounded-deserted-alloy.glitch.me
+https://amber-mammoth-pot.glitch.me
+https://faceted-gamy-pomegranate.glitch.me
 """
 
 # Split the multi-line string into individual hash values
