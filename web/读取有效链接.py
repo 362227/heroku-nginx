@@ -84,6 +84,37 @@ https://prairie-furry-help.glitch.me
 https://rounded-deserted-alloy.glitch.me
 https://amber-mammoth-pot.glitch.me
 https://faceted-gamy-pomegranate.glitch.me
+https://handy-coffee-vole.glitch.me
+https://stupendous-pouncing-chill.glitch.me
+https://concrete-maddening-ragdoll.glitch.me
+https://bold-different-unicorn.glitch.me
+https://kind-orange-contraption.glitch.me
+https://indigo-iris-dill.glitch.me
+https://lean-steel-behavior.glitch.me
+https://jumpy-habitual-twist.glitch.me
+https://north-cooked-hardhat.glitch.me
+https://mewing-shaded-chard.glitch.me
+https://sly-bloom-sphere.glitch.me
+https://miniature-atom-mask.glitch.me
+https://celestial-blossom-donut.glitch.me
+https://tasteful-nettle-shamrock.glitch.me
+https://sun-electric-crown.glitch.me
+https://plain-quark-mimosa.glitch.me
+https://graceful-dorian-bathtub.glitch.me
+https://innovative-wandering-whip.glitch.me
+https://cumbersome-agreeable-log.glitch.me
+https://cuddly-wandering-reward.glitch.me
+https://navy-intriguing-mortarboard.glitch.me
+https://wirehaired-maddening-mitten.glitch.me
+https://ruddy-amazing-conchoraptor.glitch.me
+https://amazing-valley-silence.glitch.me
+https://beautiful-agate-cayenne.glitch.me
+https://snow-glass-rate.glitch.me
+https://sapphire-beryl-snapper.glitch.me
+https://freckle-fabulous-food.glitch.me
+https://puzzled-glacier-cone.glitch.me
+https://outstanding-garrulous-flyaway.glitch.me
+https://vine-ionian-bandicoot.glitch.me
 """
 
 # Split the multi-line string into individual hash values
