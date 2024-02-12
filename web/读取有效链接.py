@@ -10,6 +10,7 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 # 需要尝试的链接列表
 
 urls_text = """
+http://various-colorful-epoxy.gli111tch.me
 http://various-colorful-epoxy.glitch.me
 http://marked-tin-organ.glitch.me
 http://jazzy-vivid-scallion.glitch.me
