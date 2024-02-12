@@ -10,7 +10,6 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 # 需要尝试的链接列表
 
 urls_text = """
-https://kacey1--doyathing9.无效2023-05-18.co
 http://various-colorful-epoxy.glitch.me
 http://marked-tin-organ.glitch.me
 http://jazzy-vivid-scallion.glitch.me
@@ -113,8 +112,43 @@ http://snow-glass-rate.glitch.me
 http://sapphire-beryl-snapper.glitch.me
 http://freckle-fabulous-food.glitch.me
 http://puzzled-glacier-cone.glitch.me
+http://messy-swift-furniture.glitch.me
 http://outstanding-garrulous-flyaway.glitch.me
+http://slender-heady-replace.glitch.me
 http://vine-ionian-bandicoot.glitch.me
+http://thankful-shard-cathedral.glitch.me
+http://holistic-quilt-coneflower.glitch.me
+http://comfortable-flicker-hamburger.glitch.me
+http://adjoining-adaptive-ranunculus.glitch.me
+http://unleashed-blossom-knee.glitch.me
+http://salty-concise-harrier.glitch.me
+http://honeysuckle-purrfect-exception.glitch.me
+http://abounding-sudsy-growth.glitch.me
+http://tide-roomy-busby.glitch.me
+http://hickory-humdrum-hose.glitch.me
+http://swamp-piquant-clownfish.glitch.me
+http://private-north-bread.glitch.me
+http://alkaline-grave-queen.glitch.me
+http://glossy-tattered-pawpaw.glitch.me
+http://infrequent-dune-handball.glitch.me
+http://ribbon-auspicious-trampoline.glitch.me
+http://cerulean-sticky-riverbed.glitch.me
+http://nimble-bristle-cell.glitch.me
+http://heady-opposite-subway.glitch.me
+http://distinct-nervous-side.glitch.me
+http://quartz-grateful-consonant.glitch.me
+http://plucky-lavender-hippopotamus.glitch.me
+http://unleashed-brick-thought.glitch.me
+http://oasis-stream-vise.glitch.me
+http://unmarred-verdant-soybean.glitch.me
+http://diligent-fluffy-work.glitch.me
+http://protective-obsidian-anemone.glitch.me
+http://rebel-majestic-eoraptor.glitch.me
+http://southern-season-gecko.glitch.me
+http://mirage-massive-tadpole.glitch.me
+http://bumpy-crystalline-nation.glitch.me
+http://bristle-hickory-macadamia.glitch.me
+http://military-parallel-dive.glitch.me
 """
 
 # Split the multi-line string into individual hash values
