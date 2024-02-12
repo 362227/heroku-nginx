@@ -24,7 +24,7 @@ for ((i=0;i<$BATCHES;i++)); do
     start=$((i*LINES_PER_BATCH+1))
     end=$(((i+1)*LINES_PER_BATCH))
     sed -n "$start,${end}p" $FILE_PATH > batch_$i.txt
-    aria2c --all-proxy 127.0.0.1:1083   --retry-on-403 --retry-wait=5 --max-tries=15000 --check-certificate=false --referer=http://friendlondon.tv -i batch_$i.txt --file-allocation=none --max-concurrent-downloads=160 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
+    aria2c --all-proxy 127.0.0.1:1083   --retry-on-403 --retry-wait=5 --max-tries=15 --check-certificate=false --referer=http://friendlondon.tv -i batch_$i.txt --file-allocation=none --max-concurrent-downloads=160 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log"
     rm batch_$i.txt
 done
 
@@ -33,7 +33,7 @@ if [ $((BATCHES*LINES_PER_BATCH)) -lt $TOTAL_LINES ]; then
     start=$((BATCHES*LINES_PER_BATCH+1))
     end=$TOTAL_LINES
     sed -n "$start,${end}p" $FILE_PATH > batch_$BATCHES.txt
-    aria2c --all-proxy 127.0.0.1:1083   --retry-on-403 --retry-wait=5 --max-tries=15000 --check-certificate=false --referer=http://friendlondon.tv -i batch_$BATCHES.txt --file-allocation=none --max-concurrent-downloads=160 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log" 
+    aria2c --all-proxy 127.0.0.1:1083   --retry-on-403 --retry-wait=5 --max-tries=15 --check-certificate=false --referer=http://friendlondon.tv -i batch_$BATCHES.txt --file-allocation=none --max-concurrent-downloads=160 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/temp/01 --max-download-result=20000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/合并$num"000000"-$num"999999.log" 
     rm batch_$BATCHES.txt
 fi
 
