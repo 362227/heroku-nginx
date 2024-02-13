@@ -10,10 +10,11 @@ proxy = {'http': 'http://127.0.0.1:1086', 'https': 'http://127.0.0.1:1086'}
 # 需要尝试的链接列表
 
 urls_text = """
-http://various-colorful-epoxy.gli111tch.me
+http://1111111various-colorful-epoxy.gli111tch.me
 https://various-colorful-epoxy.glitch.me
 https://marked-tin-organ.glitch.me
 https://jazzy-vivid-scallion.glitch.me
+https://incredible-superb-eyeliner.glitch.me
 https://classy-fuzzy-turkey.glitch.me
 https://confirmed-stone-chef.glitch.me
 https://mellow-shell-lip.glitch.me
@@ -21,7 +22,8 @@ https://gelatinous-subdued-holiday.glitch.me
 https://lightning-marmalade-straw.glitch.me
 https://pouncing-expensive-fern.glitch.me
 https://versed-fresh-soldier.glitch.me
-https://cloudy-soft-thought.glitch.me
+https://twilight-spotted-backbone.glitch.me
+https://savory-gelatinous-paw.glitch.me
 https://octagonal-upbeat-strand.glitch.me
 https://sharp-remarkable-stoat.glitch.me
 https://coffee-serious-menu.glitch.me
@@ -29,15 +31,24 @@ https://gregarious-crawling-egg.glitch.me
 https://meadow-early-town.glitch.me
 https://false-guiltless-echinacea.glitch.me
 https://candy-laced-vacuum.glitch.me
+https://pacific-psychedelic-celestite.glitch.me
 https://intriguing-various-echinacea.glitch.me
+https://deadpan-spectacular-fuschia.glitch.me
 https://unique-turquoise-acoustic.glitch.me
+https://fancy-opaque-horse.glitch.me
 https://heather-chartreuse-forsythia.glitch.me
 https://teal-agreeable-wrench.glitch.me
+https://feather-chief-nape.glitch.me
 https://bald-caterwauling-leo.glitch.me
+https://tinted-butternut-respect.glitch.me
+https://cherry-crawling-route.glitch.me
+https://bald-caterwauling-leo.glitch.me 
 https://sphenoid-gleaming-terrier.glitch.me
 https://curved-phrygian-pillow.glitch.me
 https://sugared-magical-rudbeckia.glitch.me
+https://cooked-quilted-chimpanzee.glitch.me
 https://foamy-probable-viper.glitch.me
+https://holy-lydian-wednesday.glitch.me
 https://sophisticated-industrious-silkworm.glitch.me
 https://private-stream-baboon.glitch.me
 https://snow-pineapple-powder.glitch.me
@@ -205,6 +216,30 @@ https://lightning-bloom-teller.glitch.me
 https://scratched-humdrum-yew.glitch.me
 https://dapper-brash-licorice.glitch.me
 https://likeable-luxuriant-bergamot.glitch.me
+https://momentous-placid-point.glitch.me
+https://invited-deciduous-caution.glitch.me
+https://tidy-curious-plaster.glitch.me
+https://soapy-wood-aspen.glitch.me
+https://bottlenose-typical-spider.glitch.me
+https://abounding-hypnotic-plum.glitch.me
+https://tan-ambitious-anteater.glitch.me
+https://tiny-spectacled-television.glitch.me
+https://abstracted-worried-hope.glitch.me
+https://denim-dazzling-stool.glitch.me
+https://stitch-flaxen-molecule.glitch.me
+https://tourmaline-sticky-sloop.glitch.me
+https://raspy-brass-eyeliner.glitch.me
+https://jeweled-humorous-battery.glitch.me
+https://fanatical-rust-meteorite.glitch.me
+https://zippy-congruous-cockroach.glitch.me
+https://immediate-bow-skull.glitch.me
+https://furry-snapdragon-belt.glitch.me
+https://wool-sugared-battery.glitch.me
+https://frosted-handsome-oboe.glitch.me
+https://responsible-hail-iron.glitch.me
+https://heady-unequaled-hide.glitch.me
+https://square-pouncing-twist.glitch.me
+https://cut-evening-salmon.glitch.me
 """
 
 # Split the multi-line string into individual hash values
