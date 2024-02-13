@@ -199,6 +199,13 @@ https://lightning-bloom-teller.glitch.me
 https://scratched-humdrum-yew.glitch.me
 https://dapper-brash-licorice.glitch.me
 https://likeable-luxuriant-bergamot.glitch.me
+https://momentous-placid-point.glitch.me
+https://invited-deciduous-caution.glitch.me
+https://tidy-curious-plaster.glitch.me
+https://soapy-wood-aspen.glitch.me
+https://bottlenose-typical-spider.glitch.me
+https://abounding-hypnotic-plum.glitch.me
+
 """
 
 # 构建替换字符串列表
