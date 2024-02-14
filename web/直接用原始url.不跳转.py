@@ -243,7 +243,7 @@ input_file = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据/链�
 output_file = input_file  # 使用相同的文件名进行覆盖
 
 # 使用临时文件名
-temp_file = "temp_output.txt"
+temp_file = "/mnt/d/常用/vimeo/temp_output.txt"
 
 with open(input_file, "r") as f_in, open(temp_file, "w") as f_out:
     for line in f_in:
