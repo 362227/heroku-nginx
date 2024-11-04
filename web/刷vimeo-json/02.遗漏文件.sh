@@ -11,7 +11,7 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 
-aria2c --all-proxy 127.0.0.1:1080   --check-certificate=false -i "遗漏文件链接合并.txt" --file-allocation=none --max-concurrent-downloads=220 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/非ref  --max-download-result=1000000  | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并遗漏-${num}000000-${num}999999.log
+aria2c  --referer=http://friendlondon.tv   --check-certificate=false -i "遗漏文件链接合并.txt" --file-allocation=none --max-concurrent-downloads=220 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/非ref  --max-download-result=1000000  | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并遗漏-${num}000000-${num}999999.log
 
 
 
