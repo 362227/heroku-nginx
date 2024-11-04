@@ -1,7 +1,7 @@
 #!/bin/bash
 #cd "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json" && bash 01.主文件.sh
 
-num=786
+num=$1
 python 链接.py -n ${num} -t 链接01.txt
 python 链接.py -n ${num} -t 链接02.txt
 
