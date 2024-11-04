@@ -3,7 +3,7 @@ LANG=zh_CN.GB18030
 LANGUAGE=zh_CN.GB18030:zh_CN.GB2312:zh_CN
 export LANG LANGUAGE
 #记得去修改文本
-num=797
+num=$1
 #--all-proxy 127.0.0.1:8100
 mkdir -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏
 echo 删除所有片段遗漏${num}000000-${num}999999
