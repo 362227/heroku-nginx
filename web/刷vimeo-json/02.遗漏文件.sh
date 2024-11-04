@@ -4,7 +4,7 @@ LANGUAGE=zh_CN.GB18030:zh_CN.GB2312:zh_CN
 export LANG LANGUAGE
 #记得去修改文本
 num=$1
-#--all-proxy 127.0.0.1:8100
+# --referer=http://friendlondon.tv 
 mkdir -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏
 echo 删除所有片段遗漏${num}000000-${num}999999
 find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏"  -type f -name "*" -delete
@@ -32,34 +32,26 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 
-
 IP=( 
-"https://visualcreatures.com"
-"https://www.gwenghelid.com"
-"http://www.colorcollective.com"
+"https://iconoclast.tv/"
+"https://www.themill.com"
  "http://www.treyfanjoy.com/" 
-"http://www.pulsefilms.com"
  "http://boyinthecastle.com"
  "http://www.mathieuplainfosse.com"
- "http://www.lutimedia.com"
- "http://moxiepictures.com"
- "http://www.els.tv" 
-"http://sesler.com"
  "http://contrast.tv" 
 "http://www.finalcut-edit.com"
- "http://the-quarry.co.uk" 
-"http://therapystudios.com"
- "http://www.chrisroebuck.tv" 
 "http://blackdogfilms.com"
  "http://malloybrothers.com/" 
 "http://www.305films.com"
- "http://www.company3.com"
  "http://electrictheatre.tv" 
+ "https://www.xo.film" 
+"https://caviar.tv"
+"http://www.tenthree.co.uk" 
+
+
   ) 
 
-IP1=( "http://www.benzene.paris/" 
-"http://friendlondon.tv" 
-"http://www.tenthree.co.uk" 
+IP1=( 
 "http://alexanderhammer.com/" 
 "http://samuelbayer.com/" 
 "http://www.davidbaumeditor.com"
@@ -69,9 +61,7 @@ IP1=( "http://www.benzene.paris/"
  "http://www.jonasakerlund.com"
  "http://www.romanwhite.com"
  "http://www.pulsefilms.com"
- "http://www.kaisaul.com"
  "http://coffeeand.tv/" 
- "http://visionfilmco.com"
  "http://www.schemeengine.com"
  "http://believemedia.com"
  "http://www.resetcontent.com"
@@ -79,8 +69,8 @@ IP1=( "http://www.benzene.paris/"
  "http://www.lane-casting.com"
   ) 
 
-for i in "${IP[@]}";do  aria2c  --all-proxy 127.0.0.1:8100 --referer=$i -i "遗漏-有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=150  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref ;  find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref -type f -size -555c -exec rm {} +; done  
-for i1 in "${IP1[@]}";do  aria2c --all-proxy 127.0.0.1:8100 --referer=$i1 -i "遗漏-有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=150  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref ; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref -type f -size -555c -exec rm {} +; done  
+for i in "${IP[@]}";do  aria2c   --referer=http://friendlondon.tv  --referer=$i -i "遗漏-有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=150  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref ;  find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref -type f -size -555c -exec rm {} +; done  
+for i1 in "${IP1[@]}";do  aria2c  --referer=http://friendlondon.tv  --referer=$i1 -i "遗漏-有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=150  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref ; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/遗漏/ref -type f -size -555c -exec rm {} +; done  
 
 
 wait
