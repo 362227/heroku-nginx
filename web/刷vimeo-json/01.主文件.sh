@@ -2,6 +2,8 @@
 #cd "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json" && bash 01.主文件.sh
 
 num=$1
+sed -i 's/%2F/\//g' 链接01.txt
+sed -i 's/%2F/\//g' 链接02.txt
 python 链接.py -n ${num} -t 链接01.txt
 python 链接.py -n ${num} -t 链接02.txt
 
