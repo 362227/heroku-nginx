@@ -37,7 +37,8 @@ def replacetext(search_text,replace_text):
   return "文本已替换"
 
 # 创建一个变量并存储我们要搜索的文本
-search_text = "(?<=out=).*(?=[0-9]{6})|(?<=\.com/).*(?=[0-9]{6})"
+search_text = "(?<=out=).*(?=[0-9]{6})|(?<=.com/).*(?=[0-9]{6})"
+search_text = "(?<=out=).*(?=[0-9]{6})|(?<=video/).*(?=[0-9]{6})"
 
 #创建一个变量并存储我们要更新的文本
 replace_text = numb
