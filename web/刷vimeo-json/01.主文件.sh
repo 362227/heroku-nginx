@@ -88,6 +88,7 @@ wait
 echo 预处理小文件数据，简化数据
 python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 &  python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02
 
+wait
 
 echo 预处理小文件数据，简化数据
 python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref
