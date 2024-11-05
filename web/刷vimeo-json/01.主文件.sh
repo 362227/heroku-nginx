@@ -12,8 +12,8 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 
-aria2c --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=170 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
-aria2c --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=170 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+aria2c --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=300 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 | tee /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+aria2c --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=300 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 | tee -a /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 
 
 
@@ -77,8 +77,8 @@ IP1=(
  "http://www.lane-casting.com"
   ) 
 
-#for i in "${IP[@]}";do  aria2c   --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=150  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref ;  find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
-#for i1 in "${IP1[@]}";do  aria2c  --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --referer=$i1 -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=150  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref ; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
+#for i in "${IP[@]}";do  aria2c   --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=300  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref ;  find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
+#for i1 in "${IP1[@]}";do  aria2c  --referer=http://friendlondon.tv --all-proxy 127.0.0.1:1086  --referer=$i1 -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=300  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref ; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
 
 
 wait
