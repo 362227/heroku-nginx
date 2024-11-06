@@ -6,14 +6,14 @@ python 链接.py -n ${num} -t 链接01.txt
 python 链接.py -n ${num} -t 链接02.txt
 
 
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01"  -type f -name "*" -delete 
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02"  -type f -name "*" -delete
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref"  -type f -name "*" -delete
+#find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01"  -type f -name "*" -delete 
+#find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02"  -type f -name "*" -delete
+#find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref"  -type f -name "*" -delete
 
 
 while true; do [ $(($(date +%s) - $(stat --format=%Y 合并${num}000000-${num}999999.log))) -le 10 ] && tail -n 15 合并${num}000000-${num}999999.log; sleep 5; done & \
-aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
-aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+#aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+#aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 
 
 
@@ -43,17 +43,7 @@ echo 删除指定目录下小于555字节的文件
 
 
 IP=( 
-"https://iconoclast.tv/"
-"https://www.themill.com"
- "http://www.treyfanjoy.com/" 
- "http://boyinthecastle.com"
- "http://www.mathieuplainfosse.com"
- "http://contrast.tv" 
-"http://www.finalcut-edit.com"
-"http://blackdogfilms.com"
- "http://malloybrothers.com/" 
-"http://www.305films.com"
- "http://electrictheatre.tv" 
+
  "https://www.xo.film" 
 "https://caviar.tv"
 "http://www.tenthree.co.uk" 
@@ -65,18 +55,6 @@ IP1=(
 "http://alexanderhammer.com/" 
 "http://samuelbayer.com/" 
 "http://www.davidbaumeditor.com"
- "http://ways-means.co" 
-"http://trimediting.com"
- "http://makemakeentertainment.com"
- "http://www.jonasakerlund.com"
- "http://www.romanwhite.com"
- "http://www.pulsefilms.com"
- "http://coffeeand.tv/" 
- "http://www.schemeengine.com"
- "http://believemedia.com"
- "http://www.resetcontent.com"
- "http://modernpost.com/" 
- "http://www.lane-casting.com"
   ) 
 
 while true; do [ $(($(date +%s) - $(stat --format=%Y ref下载log))) -le 10 ] && tail -n 15 ref下载log; sleep 5; done & \
