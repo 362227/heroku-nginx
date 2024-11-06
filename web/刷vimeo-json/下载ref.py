@@ -7,7 +7,7 @@ import os
 # 文件路径
 file_path = 'links.txt'
 # 下载目录的绝对路径
-download_dir = "C:/downloads"
+download_dir = "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref/"
 # 限制最大并发数
 semaphore = asyncio.Semaphore(200)
 
