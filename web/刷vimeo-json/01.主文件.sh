@@ -2,8 +2,8 @@
 #cd "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json" && bash 01.主文件.sh
 
 num=$1
-#proxy="--all-proxy 127.0.0.1:1086"
-proxy=""
+proxy=$2
+
 
 python 链接.py -n ${num} -t 链接01.txt
 python 链接.py -n ${num} -t 链接02.txt
