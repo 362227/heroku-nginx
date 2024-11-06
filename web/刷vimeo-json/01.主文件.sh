@@ -6,14 +6,14 @@ python 链接.py -n ${num} -t 链接01.txt
 python 链接.py -n ${num} -t 链接02.txt
 
 
-#find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01"  -type f -name "*" -delete 
-#find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02"  -type f -name "*" -delete
-#find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref"  -type f -name "*" -delete
+find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01"  -type f -name "*" -delete 
+find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02"  -type f -name "*" -delete
+find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref"  -type f -name "*" -delete
 
 
 while true; do [ $(($(date +%s) - $(stat --format=%Y 合并${num}000000-${num}999999.log))) -le 10 ] && tail -n 15 合并${num}000000-${num}999999.log; sleep 5; done & \
-#aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
-#aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+aria2c  -x16  --all-proxy 127.0.0.1:1086   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 
 
 
