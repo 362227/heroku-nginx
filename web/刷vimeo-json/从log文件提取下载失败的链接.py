@@ -9,13 +9,14 @@ for filename in glob.glob(path):
       file = f.read()
 
     # 使用正则表达式匹配相应的内容, 使用findall匹配，返回列表类型，但是属于字符数组
-      file = re.findall(r'       0B.*\/([0-9]{6,10}).*', file)  #提取下载速度为0的链接，即有验证码或者网络错误造成失败的链接
- 
-
+      #file = re.findall(r'       0B.*\/([0-9]{6,10}).*', file)  #提取下载速度为0的链接，即有验证码或者网络错误造成失败的链接
+       file = re.findall(r'.*errorCode=(1|22|29) .+?([0-9]{6,10})', file)
+        
 #for item in file:
 for item in file:
    # print(item)
     #filename = m.group(1) + filename2
-    print('https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F' + item + '\n        out=' + item)
+    #print('https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F' + item + '\n        out=' + item)
+     print(f'https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F{item[1]}\n        out={item[1]}')
 
     
