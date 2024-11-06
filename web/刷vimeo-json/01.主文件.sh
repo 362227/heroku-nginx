@@ -32,6 +32,8 @@ grep -rl '240,"video_id' /mnt/d/常用/vimeo/传统方法刷-下载后再处理�
 awk '{sub(/.*\//, "https://player.vimeo.com/video/", $0); print; if (match($0, /[0-9]+$/)) print "        out=" substr($0, RSTART, RLENGTH)}' output.txt >  ${num}000000-${num}999999有密码的player链接的aria2c文本.txt
 
 
+
+
 echo 删除指定目录下小于555字节的文件
 #find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01" -size -555c -delete
 #find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02" -size -555c -delete
