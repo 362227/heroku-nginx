@@ -50,23 +50,23 @@ IP=(
 "https://www.themill.com"
 "http://www.finalcut-edit.com"
 "http://blackdogfilms.com"
- "http://malloybrothers.com/" 
+"http://malloybrothers.com/"
 "http://www.305films.com"
- "http://electrictheatre.tv" 
- "https://www.xo.film" 
-"https://caviar.tv“
-"http://friendlondon.tv" 
-"http://www.tenthree.co.uk" 
-"http://alexanderhammer.com/" 
-"http://samuelbayer.com/" 
- "http://ways-means.co" 
+"http://electrictheatre.tv"
+"https://www.xo.film"
+"https://caviar.tv"
+"http://friendlondon.tv"
+"http://www.tenthree.co.uk"
+"http://alexanderhammer.com/"
+"http://samuelbayer.com/"
+"http://ways-means.co"
 "http://trimediting.com"
- "http://www.jonasakerlund.com"
- "http://coffeeand.tv/" 
- "http://www.resetcontent.com"
- "http://modernpost.com/" 
- "http://www.lane-casting.com"
-  ) 
+"http://www.jonasakerlund.com"
+"http://coffeeand.tv/"
+"http://www.resetcontent.com"
+"http://modernpost.com/"
+"http://www.lane-casting.com"
+)
 
 
 rm -rf ref下载log
