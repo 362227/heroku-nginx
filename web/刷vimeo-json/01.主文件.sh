@@ -15,8 +15,8 @@ python 链接.py -n ${num} -t 链接02.txt
 
 
 while true; do [ $(($(date +%s) - $(stat --format=%Y 合并${num}000000-${num}999999.log))) -le 10 ] && tail -n 15 合并${num}000000-${num}999999.log; sleep 5; done & \
-#aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
-#aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=1700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+#aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+#aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 
 
 
@@ -55,7 +55,7 @@ IP=(
 
 rm -rf ref下载log
 while true; do [ $(($(date +%s) - $(stat --format=%Y ref下载log))) -le 10 ] && tail -n 15 ref下载log; sleep 5; done & \
-for i in "${IP[@]}";do echo "$i"  >> ref下载log;  aria2c  -x16  $proxy    --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=1700  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref >> ref下载log; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
+for i in "${IP[@]}";do echo "$i"  >> ref下载log;  aria2c  -x16  $proxy    --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=700  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref >> ref下载log; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
 
 
 wait
