@@ -26,7 +26,7 @@ aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --chec
 echo 从小文件提取出ref链接
 grep -rl 'domain_status_code":403' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 > output.txt
 grep -rl 'domain_status_code":403' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 >> output.txt
-awk '{sub(/.*\//, "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F", $0); print; if (match($0, /[0-9]+$/)) print "        out=" substr($0, RSTART, RLENGTH)}' output.txt > temp.txt && mv temp.txt 有ref链接的aria2c文本.txt
+awk '{sub(/.*\//, "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F", $0); print; if (match($0, /[0-9]+$/)) print "        out=" substr($0, RSTART, RLENGTH)}' output.txt > temp.txt && mv temp.txt 合并${num}000000-${num}999999有ref链接的aria2c文本.txt
 
 
 echo 从小文件提取出有密码的链接
