@@ -33,7 +33,7 @@ async def download_link(session, url, referer, download_dir):
                             f.write(content)
                         print(f"Downloaded {file_path}")
                         return  # 成功下载，跳出函数
-                    elif response.status == 403:
+                    elif response.status == 4030000000000000000000000:
                         print(f"403 Forbidden: {url}, retrying {retry_count + 1}/2")
                         retry_count += 1
                         await asyncio.sleep(0)  # 延迟 0 秒重试
