@@ -15,8 +15,11 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 while true; do [ $(($(date +%s) - $(stat --format=%Y 合并${num}000000-${num}999999.log))) -le 10 ] && tail -n 15 合并${num}000000-${num}999999.log; sleep 5; done & \
-aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
-aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+python 下载ref.py  -i "链接01.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 
+python 下载ref.py  -i "链接02.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 
+
+#aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+#aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 
 
 
@@ -45,35 +48,44 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 
-IP=( 
-"https://iconoclast.tv/"
-"https://www.themill.com"
-"http://www.finalcut-edit.com"
-"http://blackdogfilms.com"
-"http://malloybrothers.com/"
-"http://www.305films.com"
-"http://electrictheatre.tv"
-"https://www.xo.film"
-"https://caviar.tv"
-"http://friendlondon.tv"
-"http://www.tenthree.co.uk"
-"http://alexanderhammer.com/"
-"http://samuelbayer.com/"
-"http://ways-means.co"
-"http://trimediting.com"
-"http://www.jonasakerlund.com"
-"http://coffeeand.tv/"
-"http://www.resetcontent.com"
-"http://modernpost.com/"
-"http://www.lane-casting.com"
+IP=(
+    "https://iconoclast.tv/"
+    "https://www.themill.com"
+    "http://www.finalcut-edit.com"
+    "http://blackdogfilms.com"
+    "http://malloybrothers.com/"
+    "http://www.305films.com"
+    "http://electrictheatre.tv"
+    "https://www.xo.film"
+    "https://caviar.tv"
+    "http://friendlondon.tv"
+    "http://www.tenthree.co.uk"
+    "http://alexanderhammer.com/"
+    "http://samuelbayer.com/"
+    "http://ways-means.co"
+    "http://trimediting.com"
+    "http://www.jonasakerlund.com"
+    "http://coffeeand.tv/"
+    "http://www.resetcontent.com"
+    "http://modernpost.com/"
+    "http://www.lane-casting.com"
+    "http://www.treyfanjoy.com/"
+    "http://boyinthecastle.com"
+    "http://www.mathieuplainfosse.com"
+    "http://contrast.tv"
+    "http://www.romanwhite.com"
+    "http://www.schemeengine.com"
+    "http://believemedia.com"
+    "https://nickrondeau.com/music"
+    "https://www.davidchecel.com/"
 )
+
 
 
 rm -rf ref下载log
 while true; do [ $(($(date +%s) - $(stat --format=%Y ref下载log))) -le 10 ] && tail -n 15 ref下载log; sleep 5; done & \
 #for i in "${IP[@]}";do echo "$i"  >> ref下载log;  aria2c  -x16  $proxy    --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=500  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref >> ref下载log; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
-for i in "${IP[@]}";do echo "$i"  >> ref下载log;  aria2c  -x16  $proxy    --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=500  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref >> ref下载log; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
-
+for i in "${IP[@]}";do echo "$i"  >> ref下载log;  python 下载ref.py  -i "有ref链接的aria2c文本.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref >> ref下载log; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
 
 
 
@@ -112,6 +124,7 @@ echo "<h3>ISRC、视频格式搜索</h3>" >> /mnt/d/常用/vimeo/传统方法刷
 egrep -a -i '(title>.+?)(3200x1800|4444 |pr422|422hq|bitmax|gbuv|usuv|usum|uswv|usrv|ussm|usatv)(.+? from .+?<\/title>.+?)(\"duration\"\:[0-9]{3,}\,).+?account\_type\"\:\"(?:未知|advanced|starter|standard|custom|business|business_lapsed|pro_lapsed|plus_lapsed|pro|plus|premium|enterprise|live\_premium)(\".*)'  /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并$num"000000"-$num"999999" >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并$num"000000"-$num"999999".html
 
 sed -i 's|"\(https:\/\/vimeo\.com[^"]*\)"|<a href="\1" target="_blank">\1</a>|g' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并$num"000000"-$num"999999".html
+sed -i '/"account_type":"free"/d' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并$num"000000"-$num"999999".html
 
 echo 删除重复行
 awk '!seen[$0]++' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并$num"000000"-$num"999999".html  > tmpfile && mv tmpfile /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并$num"000000"-$num"999999".html
