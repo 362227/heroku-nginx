@@ -7,7 +7,7 @@ import argparse
 import time
 
 # 限制最大并发数
-semaphore = asyncio.Semaphore(200)
+semaphore = asyncio.Semaphore(500)
 
 # 提取链接中的最后连续数字作为文件名
 def extract_filename_from_url(url):
