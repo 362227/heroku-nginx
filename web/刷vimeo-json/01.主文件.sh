@@ -32,7 +32,7 @@ awk '{sub(/.*\//, "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com
 echo 从小文件提取出有密码的链接
 grep -rl '240,"video_id' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 | xargs grep -L 'domain_status_code":403' > output.txt
 grep -rl '240,"video_id' /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 | xargs grep -L 'domain_status_code":403' >> output.txt
-awk '{sub(/.*\//, "https://player.vimeo.com/video/", $0); print; if (match($0, /[0-9]+$/)) print "        out=" substr($0, RSTART, RLENGTH)}' output.txt >  ${num}000000-${num}999999有密码的player链接的aria2c文本.txt
+awk '{sub(/.*\//, "https://player.vimeo.com/video/", $0); print; if (match($0, /[0-9]+$/)) print "        out=" substr($0, RSTART, RLENGTH)}' output.txt >  合并${num}000000-${num}999999有密码的player链接的aria2c文本.txt
 
 
 
@@ -71,25 +71,22 @@ IP=(
 
 rm -rf ref下载log
 while true; do [ $(($(date +%s) - $(stat --format=%Y ref下载log))) -le 10 ] && tail -n 15 ref下载log; sleep 5; done & \
+#for i in "${IP[@]}";do echo "$i"  >> ref下载log;  aria2c  -x16  $proxy    --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=500  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref >> ref下载log; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
 for i in "${IP[@]}";do echo "$i"  >> ref下载log;  aria2c  -x16  $proxy    --referer=$i -i "有ref链接的aria2c文本.txt" --file-allocation=none --max-concurrent-downloads=500  --max-download-result=10000000 --disk-cache=0 --check-certificate=false --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref >> ref下载log; find /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref -type f -size -555c -exec rm {} +; done  
 
 
-wait
 
 
 echo 预处理小文件数据，简化数据
-python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 &  python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02
-
-wait
-
-echo 预处理小文件数据，简化数据
+python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 
+python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02
 python 正则预处理小文件.py -p /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref
 
 
 
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01"  -size +5k -delete
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02"  -size +5k -delete
-find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref"  -size +5k -delete
+find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01"  -type f -name "*.*" -delete
+find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02"  -type f -name "*.*" -delete
+find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/ref"  -type f -name "*.*" -delete
 
 
 
