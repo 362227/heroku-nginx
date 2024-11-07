@@ -15,8 +15,8 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 while true; do [ $(($(date +%s) - $(stat --format=%Y 合并${num}000000-${num}999999.log))) -le 10 ] && tail -n 15 合并${num}000000-${num}999999.log; sleep 5; done & \
-python 下载ref.py  -i "链接01.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 
-python 下载ref.py  -i "链接02.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 
+python 下载ref.py  -i "链接01.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+python 下载ref.py  -i "链接02.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 
 #aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 #aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
