@@ -78,6 +78,9 @@ IP=(
     "http://believemedia.com"
     "https://nickrondeau.com/music"
     "https://www.davidchecel.com/"
+    "https://mjz.com/"
+    "https://somesuch.co/"
+    "https://tenthplanet.net/"
 )
 
 
