@@ -22,7 +22,7 @@ async def download_link(session, url, referer, download_dir):
         os.makedirs(download_dir, exist_ok=True)  # 创建下载目录
 
         retry_count = 0
-        while retry_count <= 2:
+        while retry_count <= 1:
             try:
                 headers = {'Referer': referer}
                 async with session.get(url, headers=headers, timeout=10) as response:
@@ -36,7 +36,7 @@ async def download_link(session, url, referer, download_dir):
                     elif response.status == 403:
                         print(f"403 Forbidden: {url}, retrying {retry_count + 1}/2")
                         retry_count += 1
-                        await asyncio.sleep(2)  # 延迟 2 秒重试
+                        await asyncio.sleep(0)  # 延迟 0 秒重试
                     elif response.status in [404, 429, 503]:
                         print(f"Skipping {url} due to status {response.status}")
                         return  # 跳过此文件
