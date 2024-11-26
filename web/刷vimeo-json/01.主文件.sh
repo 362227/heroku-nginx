@@ -81,6 +81,7 @@ IP=(
     "https://mjz.com/"
     "https://somesuch.co/"
     "https://tenthplanet.net/"
+    "https://www.collider.com.au/"
 )
 
 
