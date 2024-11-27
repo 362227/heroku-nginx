@@ -46,9 +46,11 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 
-
-
 IP=(
+https://www.collider.com.au/ 
+)
+
+IP0000=(
     "https://iconoclast.tv/"
     "https://www.themill.com"
     "http://www.finalcut-edit.com"
