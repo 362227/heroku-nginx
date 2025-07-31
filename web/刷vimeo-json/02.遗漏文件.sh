@@ -1,4 +1,4 @@
-# LANG＝"GB2312"
+# LANG="GB2312"
 LANG=zh_CN.GB18030
 LANGUAGE=zh_CN.GB18030:zh_CN.GB2312:zh_CN
 export LANG LANGUAGE
@@ -47,7 +47,7 @@ IP=(
  "https://www.xo.film" 
 "https://caviar.tv"
 "http://www.tenthree.co.uk" 
-
+"https://favouritecolourblack.co.uk/music-video"
 
   ) 
 
