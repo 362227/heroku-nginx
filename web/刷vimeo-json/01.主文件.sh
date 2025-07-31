@@ -84,6 +84,7 @@ IP=(
     "https://somesuch.co/"
     "https://tenthplanet.net/"
     "https://www.collider.com.au/"
+    "https://favouritecolourblack.co.uk/music-video"
 )
 
 
