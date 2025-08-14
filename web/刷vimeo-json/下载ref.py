@@ -22,8 +22,8 @@ async def download_link(session, url, referer, download_dir):
         os.makedirs(download_dir, exist_ok=True)  # 创建下载目录
 
         retry_count = 0
-        max_retries = 15  # 仅对500/503的最大重试次数
-        while retry_count <= 1:  # 其他错误仍保持最多重试1次
+        max_retries = 16  # 最大重试次数
+        while retry_count <= max_retries:
             try:
                 headers = {'Referer': referer}
                 async with session.get(url, headers=headers, timeout=10) as response:
@@ -34,31 +34,26 @@ async def download_link(session, url, referer, download_dir):
                             f.write(content)
                         print(f"Downloaded {file_path}")
                         return  # 成功下载，跳出函数
-                    elif response.status == 4030000000000000000000000:
-                        print(f"403 Forbidden: {url}, retrying {retry_count + 1}/2")
+                    elif response.status == 500:
+                        print(f"500 Server Error: {url}, retrying {retry_count + 1}/{max_retries}")
                         retry_count += 1
-                        await asyncio.sleep(0)  # 延迟 0 秒重试
-                    elif response.status == 404 or response.status == 429:
+                        await asyncio.sleep(1)  # 延迟1秒重试
+                    elif response.status in [403, 404, 429, 503]:
                         print(f"Skipping {url} due to status {response.status}")
                         return  # 跳过此文件
-                    elif response.status == 503 or response.status == 500:
-                        if retry_count < max_retries:
-                            print(f"Server error {response.status} on {url}, retrying {retry_count + 1}/{max_retries}")
-                            retry_count += 1
-                            await asyncio.sleep(min(2 ** retry_count, 60))  # 指数退避，最大60秒
-                            continue
-                        else:
-                            print(f"Failed to download {url} after {max_retries} retries (status {response.status})")
-                            return
                     else:
                         print(f"Failed to download {url} with status {response.status}")
                         return  # 其他状态码直接跳出
             except Exception as e:
                 print(f"Error downloading {url}: {e}")
-                return  # 遇到错误时直接跳出
+                if retry_count < max_retries:
+                    retry_count += 1
+                    await asyncio.sleep(1)  # 延迟1秒重试
+                else:
+                    return  # 达到最大重试次数后放弃
 
-        # 如果重试超过两次依然是403，则不再下载
-        print(f"Failed to download {url} after 2 retries.")
+        # 如果重试超过最大次数依然是500，则不再下载
+        print(f"Failed to download {url} after {max_retries} retries.")
 
 # 读取链接并进行异步下载
 async def main(file_path, download_dir, referer):
