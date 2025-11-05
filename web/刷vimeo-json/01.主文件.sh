@@ -53,6 +53,7 @@ http://modernpost.com/
 IP=(
     "https://iconoclast.tv/"
     "https://www.themill.com"
+    "https://www.nomadedit.com"
     "http://www.finalcut-edit.com"
     "http://blackdogfilms.com"
     "http://malloybrothers.com/"
