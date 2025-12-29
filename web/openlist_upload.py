@@ -249,6 +249,7 @@ class RcloneUploader:
             '--include=*.*',
             '--config=/usr/local/bin/rclone.conf',
             '--max-depth=1', 
+            '--timeout=666m', 
             '-v',  # 详细输出
             '--stats=6s'  # 6秒显示一次统计
         ]
