@@ -16,6 +16,14 @@ class RcloneUploader:
         self.max_retries = 5
         self.current_retry = 0
         
+        # 进度估算相关变量
+        self.total_size_bytes = 0  # 总文件大小（字节）
+        self.estimated_transferred = 0  # 估算已传输字节数
+        self.last_speed_check_time = 0  # 上次速度检查时间
+        self.last_bytes_sent = 0  # 上次发送的字节数
+        self.upload_start_time = 0  # 上传开始时间
+        self.progress_last_display = 0  # 上次显示进度的时间
+        
     def refresh_target_directory(self):
         """执行rclone lsd强制刷新目标目录"""
         # 确保目标目录格式正确
@@ -60,49 +68,173 @@ class RcloneUploader:
             print(f"刷新目录时出错: {e}")
             print("继续上传流程...")
     
-    def get_upload_speed(self, interval=5):
-        """监控上传速度，每interval秒显示一次"""
+    def parse_size_string(self, size_str):
+        """解析大小字符串为字节数"""
+        # 示例: "7 GiB", "500 MiB", "2.5 GB"等
+        size_str = size_str.strip().upper()
+        
+        # 定义单位转换
+        units = {
+            'B': 1,
+            'KB': 1000,
+            'MB': 1000 * 1000,
+            'GB': 1000 * 1000 * 1000,
+            'TB': 1000 * 1000 * 1000 * 1000,
+            'KIB': 1024,
+            'MIB': 1024 * 1024,
+            'GIB': 1024 * 1024 * 1024,
+            'TIB': 1024 * 1024 * 1024 * 1024
+        }
+        
+        # 提取数字和单位
+        for unit in sorted(units.keys(), key=len, reverse=True):
+            if size_str.endswith(unit):
+                number = float(size_str[:-len(unit)].strip())
+                return int(number * units[unit])
+        
+        # 如果没有单位，尝试直接解析为数字
+        try:
+            return int(float(size_str))
+        except:
+            return 0
+    
+    def extract_total_size_from_line(self, line):
+        """从rclone的输出行中提取总文件大小"""
+        # 示例: rclone: Transferred: 0 B / 7 GiB, 0%, 0 B/s, ETA -
+        pattern = r'Transferred:\s*[\d\.]+\s*\w*\s*/\s*([\d\.]+\s*\w*)'
+        match = re.search(pattern, line)
+        
+        if match:
+            total_size_str = match.group(1)
+            return self.parse_size_string(total_size_str)
+        
+        return 0
+    
+    def get_upload_speed_and_estimate_progress(self):
+        """监控上传速度并估算进度"""
+        # 初始化网络统计
+        net_io_before = psutil.net_io_counters(pernic=True)
+        self.last_bytes_sent = 0
+        for iface, stats in net_io_before.items():
+            if iface != 'lo':  # 排除本地回环接口
+                self.last_bytes_sent += stats.bytes_sent
+        
+        self.last_speed_check_time = time.time()
+        self.upload_start_time = time.time()
+        
         while self.speed_monitor_running:
             try:
-                net_io_before = psutil.net_io_counters(pernic=True)
-                bytes_sent_before = 0
-                for iface, stats in net_io_before.items():
-                    if iface != 'lo':  # 排除本地回环接口
-                        bytes_sent_before += stats.bytes_sent
+                # 计算当前速度
+                net_io_current = psutil.net_io_counters(pernic=True)
+                current_bytes_sent = 0
+                for iface, stats in net_io_current.items():
+                    if iface != 'lo':
+                        current_bytes_sent += stats.bytes_sent
                 
-                time.sleep(interval)
+                current_time = time.time()
+                time_diff = current_time - self.last_speed_check_time
                 
-                net_io_after = psutil.net_io_counters(pernic=True)
-                bytes_sent_after = 0
-                for iface, stats in net_io_after.items():
-                    if iface != 'lo':  # 排除本地回环接口
-                        bytes_sent_after += stats.bytes_sent
+                if time_diff > 0:
+                    # 计算速度（字节/秒）
+                    bytes_diff = current_bytes_sent - self.last_bytes_sent
+                    speed_bps = bytes_diff / time_diff
+                    speed_mbps = speed_bps / (1024 * 1024)
+                    
+                    # 更新已传输字节数的估算
+                    self.estimated_transferred += bytes_diff
+                    
+                    # 更新记录
+                    self.last_bytes_sent = current_bytes_sent
+                    self.last_speed_check_time = current_time
+                    
+                    # 每5秒显示一次详细进度
+                    current_time_for_display = time.time()
+                    if current_time_for_display - self.progress_last_display >= 5:
+                        self.progress_last_display = current_time_for_display
+                        
+                        # 显示上传速度
+                        print(f"📊 实时上传速度: {speed_mbps:.2f} MB/s")
+                        
+                        # 显示估算进度
+                        if self.total_size_bytes > 0:
+                            elapsed_time = current_time_for_display - self.upload_start_time
+                            estimated_percentage = (self.estimated_transferred / self.total_size_bytes) * 100
+                            
+                            # 确保百分比不超过100%
+                            if estimated_percentage > 100:
+                                estimated_percentage = 100
+                            
+                            # 计算剩余时间和估算速度
+                            if speed_bps > 0:
+                                remaining_bytes = self.total_size_bytes - self.estimated_transferred
+                                if remaining_bytes > 0:
+                                    eta_seconds = remaining_bytes / speed_bps
+                                    
+                                    # 格式化时间显示
+                                    if eta_seconds < 60:
+                                        eta_str = f"{int(eta_seconds)}秒"
+                                    elif eta_seconds < 3600:
+                                        eta_str = f"{int(eta_seconds/60)}分{int(eta_seconds%60)}秒"
+                                    else:
+                                        hours = int(eta_seconds/3600)
+                                        minutes = int((eta_seconds%3600)/60)
+                                        eta_str = f"{hours}小时{minutes}分"
+                                    
+                                    # 格式化已传输和总大小
+                                    transferred_mb = self.estimated_transferred / (1024 * 1024)
+                                    total_mb = self.total_size_bytes / (1024 * 1024)
+                                    
+                                    print(f"📈 估算进度: {estimated_percentage:.1f}% ({transferred_mb:.1f} MB / {total_mb:.1f} MB)")
+                                    print(f"⏱️  预计剩余时间: {eta_str}")
+                                else:
+                                    print("✅ 上传完成（估算）")
+                            else:
+                                transferred_mb = self.estimated_transferred / (1024 * 1024)
+                                total_mb = self.total_size_bytes / (1024 * 1024)
+                                print(f"📈 估算进度: {estimated_percentage:.1f}% ({transferred_mb:.1f} MB / {total_mb:.1f} MB)")
+                        
+                        print("-" * 50)
                 
-                bytes_per_sec = (bytes_sent_after - bytes_sent_before) / interval
-                mb_per_sec = bytes_per_sec / (1024 * 1024)
-                
-                print(f"上传速度: {mb_per_sec:.2f} MB/s")
+                time.sleep(1)  # 每秒检查一次
                 
             except Exception as e:
                 print(f"速度监控出错: {e}")
                 break
     
     def start_speed_monitor(self):
-        """启动速度监控线程"""
+        """启动速度监控和进度估算线程"""
         self.speed_monitor_running = True
         self.upload_speed_thread = threading.Thread(
-            target=self.get_upload_speed,
-            args=(5,)  # 每5秒显示一次
+            target=self.get_upload_speed_and_estimate_progress
         )
         self.upload_speed_thread.daemon = True
         self.upload_speed_thread.start()
-        print("速度监控已启动，每5秒显示一次上传速度")
+        print("速度监控和进度估算已启动")
     
     def stop_speed_monitor(self):
         """停止速度监控"""
         self.speed_monitor_running = False
         if self.upload_speed_thread:
             self.upload_speed_thread.join(timeout=2)
+        
+        # 显示最终估算结果
+        if self.total_size_bytes > 0:
+            elapsed_time = time.time() - self.upload_start_time
+            estimated_percentage = (self.estimated_transferred / self.total_size_bytes) * 100
+            if estimated_percentage > 100:
+                estimated_percentage = 100
+            
+            transferred_mb = self.estimated_transferred / (1024 * 1024)
+            total_mb = self.total_size_bytes / (1024 * 1024)
+            
+            print(f"\n📊 最终估算结果:")
+            print(f"   总用时: {elapsed_time:.1f}秒")
+            print(f"   估算总进度: {estimated_percentage:.1f}%")
+            print(f"   估算传输量: {transferred_mb:.1f} MB / {total_mb:.1f} MB")
+            
+            if elapsed_time > 0:
+                avg_speed_mbps = self.estimated_transferred / elapsed_time / (1024 * 1024)
+                print(f"   平均速度: {avg_speed_mbps:.2f} MB/s")
     
     def run_rclone_command(self):
         """执行rclone命令"""
@@ -169,11 +301,12 @@ class RcloneUploader:
         return False
     
     def monitor_rclone_output(self):
-        """监控rclone输出，检查是否成功"""
+        """监控rclone输出，检查是否成功并提取总文件大小"""
         if not self.rclone_process:
             return False
         
         output_lines = []
+        total_size_extracted = False
         
         # 实时读取输出
         for line in iter(self.rclone_process.stdout.readline, ''):
@@ -181,6 +314,15 @@ class RcloneUploader:
             if line:
                 output_lines.append(line)
                 print(f"rclone: {line}")
+                
+                # 尝试从Transferred行提取总文件大小
+                if not total_size_extracted and 'Transferred:' in line:
+                    total_size = self.extract_total_size_from_line(line)
+                    if total_size > 0:
+                        self.total_size_bytes = total_size
+                        total_size_extracted = True
+                        total_gb = total_size / (1024 * 1024 * 1024)
+                        print(f"📁 检测到总文件大小: {total_gb:.2f} GB ({total_size} 字节)")
         
         # 等待进程结束
         return_code = self.rclone_process.wait()
@@ -204,16 +346,22 @@ class RcloneUploader:
             print(f"开始上传尝试 {self.current_retry}/{self.max_retries}")
             print(f"{'='*60}")
             
+            # 重置进度估算变量
+            self.total_size_bytes = 0
+            self.estimated_transferred = 0
+            self.progress_last_display = 0
+            
             # 强制刷新目标目录
             print("\n强制刷新目标目录...")
             self.refresh_target_directory()
             print("目标目录刷新完成\n")
             
-            # 启动速度监控
+            # 启动速度监控和进度估算
             self.start_speed_monitor()
             
             # 启动rclone进程
             print("启动rclone上传...")
+            print("注意：由于特殊配置，rclone显示的速度可能为0，将使用网络监控估算进度")
             process = self.run_rclone_command()
             
             if not process:
@@ -290,4 +438,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()  
+    main()
