@@ -74,6 +74,7 @@ IP=(
     "http://www.lane-casting.com"
     "http://www.treyfanjoy.com/"
     "http://boyinthecastle.com"
+    "https://cadence-films.com"
     "http://www.mathieuplainfosse.com"
     "http://contrast.tv"
     "http://www.romanwhite.com"
