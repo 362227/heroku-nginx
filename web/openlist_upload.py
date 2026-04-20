@@ -17,7 +17,7 @@ class RcloneUploader:
         self.current_retry = 0
         
         # 进度估算相关变量
-        self.total_size_bytes = 0  # 总文件大小（字节）
+        self.total_size_bytes = 0  # 总文件大小(字节)
         self.estimated_transferred = 0  # 估算已传输字节数
         self.last_speed_check_time = 0  # 上次速度检查时间
         self.last_bytes_sent = 0  # 上次发送的字节数
@@ -33,7 +33,7 @@ class RcloneUploader:
             target_path = self.target_dir
             
         refresh_command = [
-            'rclone', 'lsd', f'dav:/bd{target_path}',
+            'rclone', 'lsd', f'dav:/bd3{target_path}',
             '--config=/usr/local/bin/rclone.conf'
         ]
         
@@ -135,7 +135,7 @@ class RcloneUploader:
                 time_diff = current_time - self.last_speed_check_time
                 
                 if time_diff > 0:
-                    # 计算速度（字节/秒）
+                    # 计算速度(字节/秒)
                     bytes_diff = current_bytes_sent - self.last_bytes_sent
                     speed_bps = bytes_diff / time_diff
                     speed_mbps = speed_bps / (1024 * 1024)
@@ -245,7 +245,7 @@ class RcloneUploader:
             target_path = self.target_dir
             
         command = [
-            'rclone', 'copy', 'dav:/tx', f'dav:/bd{target_path}',
+            'rclone', 'copy', 'dav:/tx', f'dav:/bd3{target_path}',
             '--include=*.*',
             '--config=/usr/local/bin/rclone.conf',
             '--max-depth=1', 
