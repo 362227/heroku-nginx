@@ -42,7 +42,7 @@ class FileUploader:
         net_io_after = psutil.net_io_counters(pernic=True)
         bytes_sent_after = 0
         for iface, stats in net_io_after.items():
-            # 排除本地回环接口（lo）
+            # 排除本地回环接口(lo)
             if iface != 'lo':
                 bytes_sent_after += stats.bytes_sent
         
@@ -55,7 +55,7 @@ class FileUploader:
         """为单个文件发送复制命令"""
         payload = {
             "src_dir": "/tx",
-            "dst_dir": f"/bd{self.target_dir}",  # 修正这里：将 /bd 和目标目录拼接
+            "dst_dir": f"/bd3{self.target_dir}",  # 修正这里：将 /bd 和目标目录拼接
             "names": [filename],
             "overwrite": False,
             "skip_existing": False,
