@@ -15,8 +15,8 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 while true; do [ $(($(date +%s) - $(stat --format=%Y 合并${num}000000-${num}999999.log))) -le 10 ] && tail -n 15 合并${num}000000-${num}999999.log; sleep 5; done & \
-python 下载ref.py  -i "链接01.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
-python 下载ref.py  -i "链接02.txt"  -r "http://friendlondon.tv" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+python 下载ref.py  -i "链接01.txt"  -r "https://rockson.se" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
+python 下载ref.py  -i "链接02.txt"  -r "https://rockson.se" -d /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 
 #aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接01.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/01 --max-download-result=10000000 > /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
 #aria2c  -x16  $proxy   --referer=http://friendlondon.tv   --max-tries=100 --check-certificate=false -i "链接02.txt" --file-allocation=none --max-concurrent-downloads=700 --disk-cache=0 --dir=/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/02 --max-download-result=10000000 >> /mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/合并${num}000000-${num}999999.log
@@ -52,42 +52,6 @@ http://modernpost.com/
 
 IP=(
     "https://iconoclast.tv/"
-    "https://www.themill.com"
-    "https://www.nomadedit.com"
-    "http://www.finalcut-edit.com"
-    "http://blackdogfilms.com"
-    "http://malloybrothers.com/"
-    "http://www.305films.com"
-    "http://electrictheatre.tv"
-    "https://www.xo.film"
-    "https://caviar.tv"
-    "http://friendlondon.tv"
-    "http://www.tenthree.co.uk"
-    "http://alexanderhammer.com/"
-    "http://samuelbayer.com/"
-    "http://ways-means.co"
-    "http://trimediting.com"
-    "http://www.jonasakerlund.com"
-    "http://coffeeand.tv/"
-    "http://www.resetcontent.com"
-    "http://modernpost.com/"
-    "http://www.lane-casting.com"
-    "http://www.treyfanjoy.com/"
-    "http://boyinthecastle.com"
-    "https://cadence-films.com"
-    "http://www.mathieuplainfosse.com"
-    "http://contrast.tv"
-    "http://www.romanwhite.com"
-    "http://www.schemeengine.com"
-    "http://believemedia.com"
-    "https://nickrondeau.com/music"
-    "https://www.davidchecel.com/"
-    "https://mjz.com/"
-    "https://somesuch.co/"
-    "https://tenthplanet.net/"
-    "https://www.collider.com.au/"
-    "https://www.david-barnard.com/"
-    "https://favouritecolourblack.co.uk/music-video"
 )
 
 
