@@ -46,9 +46,7 @@ find "/mnt/d/常用/vimeo/传统方法刷-下载后再处理数据-刷json/temp/
 
 
 
-IP000000000=(
-http://modernpost.com/
-)
+
 
 IP=(
     "https://iconoclast.tv/"
@@ -80,6 +78,7 @@ IP=(
     "http://www.romanwhite.com"
     "http://www.schemeengine.com"
     "http://believemedia.com"
+    "https://www.arcadeedit.com/"
     "https://nickrondeau.com/music"
     "https://www.davidchecel.com/"
     "https://mjz.com/"
@@ -90,6 +89,9 @@ IP=(
     "https://favouritecolourblack.co.uk/music-video"
 )
 
+IP=(
+"https://www.arcadeedit.com/"
+)
 
 
 rm -rf ref下载log
