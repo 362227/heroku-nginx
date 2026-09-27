@@ -47,7 +47,7 @@ DEFAULT_FIELDS = [
     "Service provider",
     "Service name",
     "Service type",
-    "*UTC",
+    "00000000000000000000000000000000UTC",
 ]
 
 # 匹配形如 "2026-09-27 15:00:00 UTC" 的时间戳，长度固定（23字节），
