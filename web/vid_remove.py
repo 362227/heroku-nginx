@@ -1,29 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-blank_text.py
+vid_remove.py
 
 自动用 mediainfo 提取文件里的指定字段（比如 Service provider / Service name /
 Service type），把这些字段的值当作"要清空的文字"，在文件里按原始字节搜索
 所有出现位置，原地替换成等长空格，不改变文件大小、不解析容器结构本身。
 
-另外支持一个特殊伪字段 "*UTC"：不经过 mediainfo，直接在文件全体字节里用
-正则表达式查找形如 "YYYY-MM-DD HH:MM:SS UTC" 的时间戳（比如
-"2026-09-27 15:00:00 UTC"），并把匹配到的文字原地替换成等长空格。
+另外支持一个特殊伪字段 "*UTC"：不经过普通字段匹配，而是先检查 mediainfo
+JSON 里是否有任何字段的值本身就符合 "YYYY-MM-DD HH:MM:SS UTC" 格式
+（比如 "2026-09-26 13:55:54 UTC"）——如果有，才会对整个文件做正则全文扫描
+并把匹配到的文字原地替换成等长空格；如果 mediainfo 里根本没有这种格式的
+值，就直接跳过全文件扫描，不浪费时间。
 这个开关的用法和普通字段完全一样——把 "*UTC" 放进 DEFAULT_FIELDS /
 --field / --only-field 里即可，不需要额外的参数。
 
 依赖:
     需要系统装有 mediainfo 命令行工具（例如: sudo apt install mediainfo）
-    （如果只使用 *UTC，不需要任何 mediainfo 字段，也会跳过 mediainfo 调用）
+    （如果既没有普通字段也没有 *UTC，会完全跳过 mediainfo 调用）
 
 用法:
-    python3 blank_text.py 文件.ts
-    python3 blank_text.py 文件.ts --dry-run
-    python3 blank_text.py 文件.ts --field "Title"        # 在默认字段基础上追加
-    python3 blank_text.py 文件.ts --only-field "Title"   # 只用这一个字段，不用默认的
-    python3 blank_text.py 文件.ts --only-field "*UTC"    # 只清空 UTC 时间戳，不查 mediainfo 字段
-    python3 blank_text.py 文件.ts --text "手动指定的额外文字"  # 完全不依赖mediainfo也能加
+    python3 vid_remove.py 文件.mkv
+    python3 vid_remove.py 文件.mkv --dry-run
+    python3 vid_remove.py 文件.mkv --field "Title"        # 在默认字段基础上追加
+    python3 vid_remove.py 文件.mkv --only-field "Title"   # 只用这一个字段，不用默认的
+    python3 vid_remove.py 文件.mkv --only-field "*UTC"    # 只检查/清空 UTC 时间戳
+    python3 vid_remove.py 文件.mkv --text "手动指定的额外文字"  # 完全不依赖mediainfo也能加
 
 默认抓取字段在下面 DEFAULT_FIELDS 里，直接改这个列表就能自定义。
 """
@@ -39,7 +41,8 @@ CHUNK_SIZE = 32 * 1024 * 1024  # 32MB 一块，顺序读取
 
 # ==== 在这里自定义要自动抓取的 mediainfo 字段名 ====
 # 大小写、空格、下划线都不敏感（内部会归一化比较），随便写成 mediainfo 显示的样子即可
-# 特殊伪字段 "*UTC"：不查 mediainfo，而是用正则在整个文件里查找 UTC 时间戳并清空。
+# 特殊伪字段 "*UTC"：先检查 mediainfo 里是否存在该格式的时间戳，存在才用正则在
+# 整个文件里查找并清空。
 DEFAULT_FIELDS = [
     "Service provider",
     "Service name",
@@ -50,6 +53,8 @@ DEFAULT_FIELDS = [
 # 匹配形如 "2026-09-27 15:00:00 UTC" 的时间戳，长度固定（23字节），
 # 方便和普通字段一样按等长空格原地替换。
 UTC_TIME_REGEX = re.compile(rb"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC")
+# 字符串版本，用来检查 mediainfo JSON 里的字段值是否含有该格式（存在性检查用）
+UTC_TIME_REGEX_STR = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC")
 UTC_MAX_LEN = 23  # "YYYY-MM-DD HH:MM:SS UTC" 的字节长度
 UTC_LABEL = "*UTC (正则时间戳)"
 UTC_MARKER = "*utc"  # 归一化后用于识别伪字段的标记
@@ -104,6 +109,24 @@ def extract_fields(mi_json: dict, wanted_fields):
                 print(f"[提取到] {wanted_norm[nk]} (mediainfo字段: {k}) = \"{v}\"")
 
     return found
+
+
+def mediainfo_has_utc_timestamp(mi_json: dict):
+    """
+    检查 mediainfo JSON 里是否有任何字段的值本身符合 UTC 时间戳格式
+    （"YYYY-MM-DD HH:MM:SS UTC"），比如 "Encoded date" / "Tagged date" 等字段
+    的值。命中返回 (字段名, 值)，没有命中返回 None。
+    """
+    media = mi_json.get("media", {})
+    tracks = media.get("track", [])
+    if isinstance(tracks, dict):
+        tracks = [tracks]
+
+    for track in tracks:
+        for k, v in track.items():
+            if isinstance(v, str) and UTC_TIME_REGEX_STR.search(v):
+                return (k, v)
+    return None
 
 
 def blank_occurrences(path: str, texts, dry_run: bool, use_utc_regex: bool = False):
@@ -192,12 +215,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="自动用 mediainfo 提取指定字段（如 Service provider/name/type），"
                     "在文件里原地替换为等长空格（不改变文件大小）。"
-                    "特殊伪字段 *UTC 会用正则在整个文件里查找并清空 "
-                    "\"YYYY-MM-DD HH:MM:SS UTC\" 格式的时间戳。")
+                    "特殊伪字段 *UTC 会先检查 mediainfo 中是否存在 "
+                    "\"YYYY-MM-DD HH:MM:SS UTC\" 格式的值，存在才对全文件做正则清空。")
     parser.add_argument("file", help="要处理的文件路径")
     parser.add_argument("--field", action="append", default=[],
                          help="额外要抓取的字段名，追加到默认字段列表，可重复传多次。"
-                              "也可以传 \"*UTC\" 来额外开启 UTC 时间戳清空。")
+                              "也可以传 \"*UTC\" 来额外开启 UTC 时间戳检查/清空。")
     parser.add_argument("--only-field", action="append", default=None,
                          help="只用这些字段（忽略默认字段列表），可重复传多次。"
                               "也可以只传 \"*UTC\"。")
@@ -209,20 +232,32 @@ def main():
 
     wanted_fields_raw = args.only_field if args.only_field is not None else DEFAULT_FIELDS + args.field
 
-    # 把 "*UTC" 这个伪字段单独摘出来，走正则逻辑，不参与 mediainfo 字段匹配
-    use_utc_regex = any(is_utc_marker(f) for f in wanted_fields_raw)
+    # 把 "*UTC" 这个伪字段单独摘出来，不参与普通 mediainfo 字段匹配
+    use_utc_regex_requested = any(is_utc_marker(f) for f in wanted_fields_raw)
     wanted_fields = [f for f in wanted_fields_raw if not is_utc_marker(f)]
 
+    mi_json = None
     found = {}
-    if wanted_fields:
+
+    if wanted_fields or use_utc_regex_requested:
         print(f"正在用 mediainfo 分析文件: {args.file}")
         mi_json = run_mediainfo(args.file)
-        found = extract_fields(mi_json, wanted_fields)
+        if wanted_fields:
+            found = extract_fields(mi_json, wanted_fields)
     else:
         print("未指定任何 mediainfo 字段，跳过 mediainfo 分析。")
 
-    if use_utc_regex:
-        print("已启用 *UTC：将用正则查找并清空 \"YYYY-MM-DD HH:MM:SS UTC\" 格式的时间戳。")
+    # *UTC：先检查 mediainfo 里是否真的存在该格式的时间戳，没有就不扫文件
+    use_utc_regex = False
+    if use_utc_regex_requested:
+        hit = mediainfo_has_utc_timestamp(mi_json) if mi_json is not None else None
+        if hit:
+            field_name, field_value = hit
+            use_utc_regex = True
+            print(f"[*UTC] 在 mediainfo 字段 \"{field_name}\" 中发现时间戳: "
+                  f"\"{field_value}\"，将启用全文件扫描清空。")
+        else:
+            print("[*UTC] mediainfo 中未发现该格式的时间戳，跳过全文件扫描。")
 
     texts = list(found.values()) + args.text
     seen = set()
@@ -233,7 +268,8 @@ def main():
             uniq_texts.append(t)
 
     if not uniq_texts and not use_utc_regex:
-        print("没有从 mediainfo 抓到任何目标字段的值，也没有手动指定 --text 或 *UTC，无事可做。")
+        print("没有从 mediainfo 抓到任何目标字段的值，也没有手动指定 --text，"
+              "*UTC 也未命中，无事可做。")
         return
 
     if uniq_texts:
