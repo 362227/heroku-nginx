@@ -41,6 +41,46 @@ import subprocess
 
 CHUNK_SIZE = 32 * 1024 * 1024  # 32MB 一块，顺序读取
 
+# 这些扩展名的文件一律跳过，不调用 mediainfo，也不会写入（不区分大小写）
+SKIP_EXTENSIONS = {
+    # 常见压缩包
+    ".zip", ".zipx", ".rar", ".7z",
+    # tar 系列及单文件压缩
+    ".tar", ".gz", ".tgz", ".bz2", ".tbz", ".tbz2", ".xz", ".txz",
+    ".zst", ".tzst", ".lz", ".lzma", ".lz4", ".z", ".lzo", ".br",
+    # 其他老牌/小众压缩格式
+    ".cab", ".arj", ".lzh", ".lha", ".ace", ".cpio", ".sit", ".sitx",
+    ".zoo", ".pak", ".alz", ".egg",
+    # 本质是压缩包的包格式
+    ".jar", ".war", ".apk", ".ipa", ".xpi", ".rpm", ".deb",
+    # 光盘 / 磁盘镜像
+    ".iso", ".img", ".dmg", ".wim", ".vhd", ".vhdx", ".vmdk", ".squashfs",
+}
+
+# 分卷压缩包：.001 .002 / .r00 .r01 / .z01 .z02 等
+SKIP_SPLIT_REGEX = re.compile(r"\.(\d{3}|r\d{2}|z\d{2})$", re.IGNORECASE)
+
+
+def should_skip(path: str):
+    """是压缩包/镜像（含分卷）就返回命中的后缀，否则返回 None。"""
+    name = os.path.basename(path).lower()
+    ext = os.path.splitext(name)[1]
+    if ext in SKIP_EXTENSIONS:
+        return ext
+    m = SKIP_SPLIT_REGEX.search(name)
+    if m:
+        return m.group(0)
+    return None
+
+# mediainfo 报告的"文件系统时间"，不是文件内容里的数据，
+# 不能拿来判断文件里有没有 UTC 时间戳（归一化后的键名）
+FILESYSTEM_DATE_KEYS = {
+    "filemodifieddate",
+    "filemodifieddatelocal",
+    "filecreateddate",
+    "filecreateddatelocal",
+}
+
 # ==== 在这里自定义要自动抓取的 mediainfo 字段名 ====
 # 大小写、空格、下划线都不敏感（内部会归一化比较）
 DEFAULT_FIELDS = [
@@ -173,6 +213,8 @@ def mediainfo_has_utc_timestamp(mi_json: dict):
     """mediainfo 里是否有字段的值符合 UTC 时间戳格式。命中返回 (字段名, 值)。"""
     for track in get_tracks(mi_json):
         for k, v in iter_track_items(track):
+            if normalize_key(k) in FILESYSTEM_DATE_KEYS:
+                continue
             if isinstance(v, str) and UTC_TIME_REGEX_STR.search(v):
                 return (k, v)
     return None
@@ -280,6 +322,11 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="只查找并打印命中次数，不实际写入")
     args = parser.parse_args()
+
+    skipped_ext = should_skip(args.file)
+    if skipped_ext:
+        print(f"跳过：{skipped_ext} 属于压缩包/镜像格式，不处理（{args.file}）")
+        return
 
     wanted_fields_raw = args.only_field if args.only_field is not None else DEFAULT_FIELDS + args.field
 
