@@ -72,14 +72,17 @@ def should_skip(path: str):
         return m.group(0)
     return None
 
-# mediainfo 报告的"文件系统时间"，不是文件内容里的数据，
-# 不能拿来判断文件里有没有 UTC 时间戳（归一化后的键名）
-FILESYSTEM_DATE_KEYS = {
-    "filemodifieddate",
-    "filemodifieddatelocal",
-    "filecreateddate",
-    "filecreateddatelocal",
-}
+def is_date_key(key: str) -> bool:
+    """
+    判断是不是 "xxx_Date" 类字段，例如 Encoded_Date / Tagged_Date /
+    File_Modified_Date / File_Created_Date / Mastered_Date（含 _Local 版本）。
+    这类字段的值要么是文件系统时间（不在文件内容里），要么在容器里是二进制存储
+    （如 mkv 的 Encoded_Date），不是文本，没法按文字搜索替换，
+    所以不拿它们来判断是否启用 *UTC 全文件扫描。
+    按下划线/空格拆词判断，避免误伤 "Updated" 这类词。
+    """
+    tokens = key.replace(" ", "_").lower().split("_")
+    return "date" in tokens or "dates" in tokens
 
 # ==== 在这里自定义要自动抓取的 mediainfo 字段名 ====
 # 大小写、空格、下划线都不敏感（内部会归一化比较）
@@ -213,7 +216,7 @@ def mediainfo_has_utc_timestamp(mi_json: dict):
     """mediainfo 里是否有字段的值符合 UTC 时间戳格式。命中返回 (字段名, 值)。"""
     for track in get_tracks(mi_json):
         for k, v in iter_track_items(track):
-            if normalize_key(k) in FILESYSTEM_DATE_KEYS:
+            if is_date_key(k):
                 continue
             if isinstance(v, str) and UTC_TIME_REGEX_STR.search(v):
                 return (k, v)
