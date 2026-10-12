@@ -79,6 +79,10 @@ def should_skip(path: str):
         return m.group(0)
     return None
 
+# 字段名里只要有这些词（按下划线拆词、小写），就不拿来判断是否启用 *UTC 扫描
+UTC_IGNORE_TOKENS = {"date", "dates", "duration"}
+
+
 def is_date_key(key: str) -> bool:
     """
     判断是不是 "xxx_Date" 类字段，例如 Encoded_Date / Tagged_Date /
@@ -86,10 +90,13 @@ def is_date_key(key: str) -> bool:
     这类字段的值要么是文件系统时间（不在文件内容里），要么在容器里是二进制存储
     （如 mkv 的 Encoded_Date），不是文本，没法按文字搜索替换，
     所以不拿它们来判断是否启用 *UTC 全文件扫描。
+    另外 Duration_Start / Duration_Start_String / Duration_End 这类
+    "时长起止时间" 字段，是 mediainfo 根据流时间戳算出来的，也不是文本，同样忽略。
     按下划线/空格拆词判断，避免误伤 "Updated" 这类词。
+    要忽略更多类型，往 UTC_IGNORE_TOKENS 里加词即可。
     """
-    tokens = key.replace(" ", "_").lower().split("_")
-    return "date" in tokens or "dates" in tokens
+    tokens = set(key.replace(" ", "_").lower().split("_"))
+    return bool(tokens & UTC_IGNORE_TOKENS)
 
 # ==== 在这里自定义要自动抓取的 mediainfo 字段名 ====
 # 大小写、空格、下划线都不敏感（内部会归一化比较）
