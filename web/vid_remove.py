@@ -19,6 +19,13 @@ Service type / videoai），把这些字段的值当作"要清空的文字"，�
 mediainfo JSON 会把非标准标签（如 videoai）放进嵌套的 "extra" 字典里，
 所以这里用 iter_track_items 递归展开所有嵌套字典。
 
+处理优先级（从高到低）：
+1. 扩展名在 SKIP_EXTENSIONS 里（压缩包/镜像，含分卷）→ 一律跳过。即使 mediainfo
+   能从 rar 等存储模式的压缩包里识别出轨道，也跳过。
+2. mediainfo 里有 Service provider / Service name / Service type 任意一个有值
+   → 一定处理（可能是冷门编码，识别不到轨道也处理）。
+3. 以上都不满足时，检查轨道：没有视频轨道也没有音频轨道 → 跳过；有 → 继续。
+
 依赖:
     需要系统装有 mediainfo 命令行工具（例如: sudo apt install mediainfo）
 
@@ -94,6 +101,15 @@ DEFAULT_FIELDS = [
     "*UTC",
 ]
 
+# ==== 最高优先字段（仅次于扩展名跳过）====
+# 只要 mediainfo 里有这几个字段中的任何一个且有值，就一定处理，
+# 不再检查有没有视频/音频轨道（防止冷门编码的视频/音频识别不到轨道）。
+PRIORITY_FIELDS = [
+    "Service provider",
+    "Service name",
+    "Service type",
+]
+
 # ==== 条件规则：(字段名列表, 关键字列表) ====
 # 只有当这些字段中某个字段的值"包含"关键字（不区分大小写）时，才清空。
 # 值不含关键字时，该字段原样保留。
@@ -164,8 +180,8 @@ def iter_track_items(track: dict):
             yield k, v
 
 
-def extract_fields(mi_json: dict, wanted_fields):
-    """普通字段：只要字段名匹配且有值，就收集该值。"""
+def extract_fields(mi_json: dict, wanted_fields, quiet: bool = False):
+    """普通字段：只要字段名匹配且有值，就收集该值。quiet=True 时不打印。"""
     wanted_norm = {normalize_key(f): f for f in wanted_fields}
     found = {}  # 归一化字段名 -> 值
 
@@ -174,7 +190,8 @@ def extract_fields(mi_json: dict, wanted_fields):
             nk = normalize_key(k)
             if nk in wanted_norm and isinstance(v, str) and v.strip() != "":
                 found[nk] = v
-                print(f"[提取到] {wanted_norm[nk]} (mediainfo字段: {k}) = \"{v}\"")
+                if not quiet:
+                    print(f"[提取到] {wanted_norm[nk]} (mediainfo字段: {k}) = \"{v}\"")
 
     return found
 
@@ -210,6 +227,18 @@ def extract_conditional(mi_json: dict, rules):
                     if matched != v:
                         results.append(matched)
     return results
+
+
+def find_av_tracks(mi_json: dict):
+    """返回 mediainfo 识别到的 (视频轨道数, 音频轨道数)。"""
+    video = audio = 0
+    for track in get_tracks(mi_json):
+        t = str(track.get("@type", "")).lower()
+        if t == "video":
+            video += 1
+        elif t == "audio":
+            audio += 1
+    return video, audio
 
 
 def mediainfo_has_utc_timestamp(mi_json: dict):
@@ -341,15 +370,30 @@ def main():
     found = {}
     conditional_texts = []
 
-    if wanted_fields or use_utc_regex_requested or rules:
-        print(f"正在用 mediainfo 分析文件: {args.file}")
-        mi_json = run_mediainfo(args.file)
-        if wanted_fields:
-            found = extract_fields(mi_json, wanted_fields)
-        if rules:
-            conditional_texts = extract_conditional(mi_json, rules)
+    print(f"正在用 mediainfo 分析文件: {args.file}")
+    mi_json = run_mediainfo(args.file)
+
+    # 优先级：扩展名跳过（上面已判断） > Service 三字段 > 视频/音频轨道检查
+    # 1) Service provider / name / type 只要有一个有值，就一定处理，不检查轨道
+    wanted_norm = {normalize_key(f) for f in wanted_fields}
+    priority_wanted = [f for f in PRIORITY_FIELDS if normalize_key(f) in wanted_norm]
+    priority_found = extract_fields(mi_json, priority_wanted, quiet=True) if priority_wanted else {}
+
+    video_count, audio_count = find_av_tracks(mi_json)
+    if priority_found:
+        print("[优先] 检测到 Service provider/name/type 字段，一定处理，不检查轨道。")
+        print(f"[轨道] 视频轨道 {video_count} 条，音频轨道 {audio_count} 条（仅供参考）")
     else:
-        print("未指定任何 mediainfo 字段，跳过 mediainfo 分析。")
+        # 2) 没有这三个字段，才检查轨道：视频、音频轨道都没有就跳过
+        if video_count == 0 and audio_count == 0:
+            print("跳过：mediainfo 没有识别到任何视频轨道或音频轨道，不是媒体文件，不处理。")
+            return
+        print(f"[轨道] 视频轨道 {video_count} 条，音频轨道 {audio_count} 条")
+
+    if wanted_fields:
+        found = extract_fields(mi_json, wanted_fields)
+    if rules:
+        conditional_texts = extract_conditional(mi_json, rules)
 
     # *UTC：先检查 mediainfo 里是否真的存在该格式的时间戳，没有就不扫文件
     use_utc_regex = False
