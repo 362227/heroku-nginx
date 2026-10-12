@@ -264,12 +264,26 @@ def blank_occurrences(path: str, texts, dry_run: bool, use_utc_regex: bool = Fal
         print("没有要处理的文字，退出。")
         return
 
+    # 每个文字按三种编码搜索：UTF-8 / UTF-16BE / UTF-16LE。
+    # MPEG-TS 里的 Service name（ATSC 的 TVCT 表等）常用 UTF-16 存储，
+    # 只搜 UTF-8 会 0 命中。替换用同编码的空格，长度不变。
     patterns = []
+    seen_bytes = set()
     for t in texts:
-        b = t.encode("utf-8")
-        if len(b) == 0:
-            continue
-        patterns.append((t, b, bytes([0x20]) * len(b)))
+        variants = [
+            (t, t.encode("utf-8"), b"\x20"),
+            (f"{t} [UTF-16BE]", t.encode("utf-16-be"), b"\x00\x20"),
+            (f"{t} [UTF-16LE]", t.encode("utf-16-le"), b"\x20\x00"),
+        ]
+        for label, b, unit in variants:
+            if len(b) == 0 or b in seen_bytes:
+                continue
+            seen_bytes.add(b)
+            if len(unit) == 1:
+                repl = unit * len(b)
+            else:
+                repl = unit * (len(b) // 2)
+            patterns.append((label, b, repl))
 
     # 长的先处理，避免短的先把长的破坏掉
     patterns.sort(key=lambda p: len(p[1]), reverse=True)
