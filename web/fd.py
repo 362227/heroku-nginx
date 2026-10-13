@@ -28,7 +28,7 @@ from http.client import HTTPConnection, HTTPSConnection, HTTPException
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
-VERSION = "2.8.0"
+VERSION = "2.8.1"
 CTRL_SUFFIX = ".fdctrl"
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -167,9 +167,11 @@ def format_time(seconds: float | None) -> str:
     return f"{days}d {rem // 3600:02d}:{(rem % 3600) // 60:02d}:{rem % 60:02d}"
 
 
-def sanitize(filename: str) -> str:
+def sanitize(filename: str, decode: bool = True) -> str:
+    """清理文件名。decode=False 表示调用方已经解过百分号编码, 避免二次解码。"""
     name = filename.replace("\\", "/").split("/")[-1]
-    name = unquote(name)
+    if decode:
+        name = unquote(name)
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
     if name in ("", ".", ".."):
         name = "download"
@@ -201,12 +203,36 @@ def safe_filename(directory: str, filename: str) -> str:
     return os.path.join(directory, *parts)
 
 
+def fix_header_mojibake(text: str) -> str:
+    """http.client 用 latin-1 解码响应头; 如果原始字节其实是 UTF-8/GBK, 还原回来。"""
+    if all(ord(c) < 128 for c in text):
+        return text
+    try:
+        raw = text.encode("latin-1")
+    except UnicodeEncodeError:
+        return text  # 已经含有 latin-1 之外的字符, 说明不是这种乱码
+    for enc in ("utf-8", "gb18030"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return text
+
+
 def filename_from_cd(cd: str | None) -> str | None:
     if not cd:
         return None
-    match = re.search(r"filename\*\s*=\s*([^']*)''([^;]+)", cd, re.I)
+    # RFC 5987: filename*=charset'lang'percent-encoded, 优先级最高
+    match = re.search(r"filename\*\s*=\s*([^']*)'[^']*'([^;]+)", cd, re.I)
     if match:
-        return sanitize(unquote(match.group(2).strip().strip('"')))
+        charset = (match.group(1) or "utf-8").strip() or "utf-8"
+        value = match.group(2).strip().strip('"')
+        try:
+            decoded = unquote(value, encoding=charset, errors="replace")
+        except LookupError:
+            decoded = unquote(value, errors="replace")
+        return sanitize(decoded, decode=False)
+    cd = fix_header_mojibake(cd)
     match = re.search(r'filename\s*=\s*"([^"]+)"', cd, re.I)
     if match:
         return sanitize(match.group(1))
@@ -217,9 +243,13 @@ def filename_from_cd(cd: str | None) -> str | None:
 
 
 def filename_from_url(url: str) -> str:
-    path = unquote(urlsplit(url).path)
+    raw_path = urlsplit(url).path
+    try:
+        path = unquote(raw_path, errors="strict")
+    except UnicodeDecodeError:
+        path = unquote(raw_path, encoding="gb18030", errors="replace")
     base = os.path.basename(path.rstrip("/"))
-    return sanitize(base) if base else "index.html"
+    return sanitize(base, decode=False) if base else "index.html"
 
 
 def merge_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
