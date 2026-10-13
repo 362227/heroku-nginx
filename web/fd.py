@@ -28,7 +28,7 @@ from http.client import HTTPConnection, HTTPSConnection, HTTPException
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
-VERSION = "2.8.1"
+VERSION = "2.8.2"
 CTRL_SUFFIX = ".fdctrl"
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -58,6 +58,7 @@ ZH = {
     "fail": "下载失败: {url}",
     "reason": "原因: {err}",
     "keep": "未完成的文件已保留, 加 -c 可续传: {path}",
+    "missing": "还有 {missing} ({missing_bytes} 字节, {segments} 段) 未下载, 已完成 {percentage}%\n可重新运行并加 -c 续传; 若持续被拒绝, 请降低 -x 或换新链接",
     "meta-fail": "获取元数据失败: {err}",
     "header-bad": "请求头格式错误: {raw}",
     "bad-out": "-o/--out 只能在单个 URL 时使用",
@@ -90,6 +91,7 @@ EN = {
     "fail": "Download failed: {url}",
     "reason": "Reason: {err}",
     "keep": "Partial file kept. Resume with -c: {path}",
+    "missing": "{missing} ({missing_bytes} bytes, {segments} segment(s)) not downloaded, {percentage}% done\nRe-run with -c to resume; if refused repeatedly, lower -x or use a fresh link",
     "meta-fail": "Failed to fetch metadata: {err}",
     "header-bad": "Bad header: {raw}",
     "bad-out": "-o/--out requires exactly one URL",
@@ -1007,6 +1009,25 @@ def print_summary(results: list[Result]) -> None:
         print("(CNCL):download cancelled.")
 
 
+def report_missing(total: int | None, progress: Progress) -> None:
+    """下载提前结束时, 打印还缺多少数据。文件大小未知时无法计算, 直接跳过。"""
+    if not total:
+        return
+    holes = missing_ranges(progress.snapshot(), total)
+    left = sum(end - start for start, end in holes)
+    if left <= 0:
+        return
+    eprint(
+        t(
+            "missing",
+            missing=format_size(left),
+            missing_bytes=left,
+            segments=len(holes),
+            percentage=f"{(total - left) * 100 / total:.1f}",
+        )
+    )
+
+
 def download_one(args: argparse.Namespace, url: str, source_cycle: list[str]) -> Result:
     gid = uuid.uuid4().hex[:6]
     try:
@@ -1342,6 +1363,7 @@ def _download_one(args: argparse.Namespace, url: str, gid: str, source_cycle: li
             for th in threads_list:
                 th.join(timeout=2)
             persist()
+            report_missing(meta.size, progress)
             eprint(t("keep", path=dest))
             return Result(gid, "ERR", None, url, "interrupted", True)
         finally:
@@ -1363,6 +1385,7 @@ def _download_one(args: argparse.Namespace, url: str, gid: str, source_cycle: li
             err = errors[0]
             eprint(t("fail", url=final_url))
             eprint(t("reason", err=err))
+            report_missing(meta.size, progress)
             eprint(t("keep", path=dest))
             return Result(gid, "ERR", None, url, str(err))
 
@@ -1370,6 +1393,7 @@ def _download_one(args: argparse.Namespace, url: str, gid: str, source_cycle: li
             persist()
             eprint(t("fail", url=final_url))
             eprint(t("reason", err="incomplete"))
+            report_missing(meta.size, progress)
             eprint(t("keep", path=dest))
             return Result(gid, "ERR", None, url, "incomplete")
 
