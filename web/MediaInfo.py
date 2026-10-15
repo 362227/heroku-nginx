@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+#https://claude.ai/chat/c87f32df-3f13-4eb9-ab5f-23a81e48e086 AI记录
 MediaInfo.py —— 用 ffprobe 生成媒体信息 txt（需要先安装 ffmpeg）
 
 用法:
