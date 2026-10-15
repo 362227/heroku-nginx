@@ -881,7 +881,11 @@ def _mi_build_full(full_path, data, streams, extra, enc, first_video, video_fall
         g.append(_mi_kv("Overall bit rate", _mi_rate(int(float(fmt.get("bit_rate"))))))
     except Exception:
         pass
-    g.append(_mi_kv("Streams / Chapters", f"{len(streams)} / {len(data.get('chapters') or [])}"))
+    n_ch = len(data.get("chapters") or [])
+    if n_ch:
+        g.append(_mi_kv("Streams / Chapters", f"{len(streams)} / {n_ch}"))
+    else:
+        g.append(_mi_kv("Streams", len(streams)))
     g += _mi_tag_lines(fmt.get("tags"))
     sections.append(g)
 
@@ -1010,7 +1014,9 @@ def get_media_info(path):
 
     if subs:
         lines.append("Subtitle: " + " / ".join(subs))
-    lines.append(f"章节： {len(data.get('chapters') or [])}")
+    n_chapters = len(data.get("chapters") or [])
+    if n_chapters > 0:   # 没有章节时这一行完全不显示
+        lines.append(f"章节： {n_chapters}")
 
     try:
         full_text = _mi_build_full(full_path, data, streams, extra, enc, first_video, video_fallback)
