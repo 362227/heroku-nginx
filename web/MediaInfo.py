@@ -34,7 +34,7 @@ BITMAP_SUB_CODECS = {"hdmv_pgs_subtitle", "dvd_subtitle", "xsub"}
 
 MEDIA_EXTS = {
     # 视频
-    ".mkv", ".mp4", ".m4v", ".mov", ".avi", ".wmv", ".flv", ".f4v", ".ts", ".m2ts", ".mts", ".mpg", ".mpeg",
+    ".iso", ".mkv", ".mp4", ".m4v", ".mov", ".avi", ".wmv", ".flv", ".f4v", ".ts", ".m2ts", ".mts", ".mpg", ".mpeg",
     ".vob", ".webm", ".ogv", ".3gp", ".3g2", ".rm", ".rmvb", ".asf", ".divx", ".mxf", ".m2v", ".h264", ".264",
     ".h265", ".265", ".hevc", ".ivf", ".evo", ".mpv", ".y4m",
     # 音频
