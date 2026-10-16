@@ -7,6 +7,7 @@ MediaInfo.py —— 用 ffprobe 生成媒体信息 txt（需要先安装 ffmpeg�
 用法:
     python MediaInfo.py 视频.mkv                  # BDInfo 风格 -> media_视频.txt
     python MediaInfo.py 视频.mkv --full           # 完整 MediaInfo 风格 -> media_视频_full.txt
+    python MediaInfo.py 视频.mkv --all            # 完整版(放进 spoiler 折叠) + 简洁版 -> media_视频_all.txt
     python MediaInfo.py /path                     # 文件夹（默认不递归，只处理该目录下的媒体文件）
     python MediaInfo.py /path/*                   # 与上一条等价（shell 展开后的文件会被一起处理）
     python MediaInfo.py /path -r                  # 递归子文件夹
@@ -14,7 +15,7 @@ MediaInfo.py —— 用 ffprobe 生成媒体信息 txt（需要先安装 ffmpeg�
     python MediaInfo.py /path -d /out             # 指定 txt 输出目录（默认是本脚本所在目录）
 
 说明:
-  * 输出文件名: media_文件名.txt；--full 时为 media_文件名_full.txt。
+  * 输出文件名: media_文件名.txt；--full 时为 media_文件名_full.txt；--all 时为 media_文件名_all.txt。
     文件名过长会自动截断；同名文件会在结尾加 (1)、(2) ...
   * 识别不到视频或音频信息的文件不会生成 txt，只打印错误。
   * 给了多个路径（例如 /path/* 被 shell 展开）时，其中的子文件夹默认被忽略，加 -r 才会递归进去；
@@ -34,7 +35,7 @@ BITMAP_SUB_CODECS = {"hdmv_pgs_subtitle", "dvd_subtitle", "xsub"}
 
 MEDIA_EXTS = {
     # 视频
-    ".iso", ".mkv", ".mp4", ".m4v", ".mov", ".avi", ".wmv", ".flv", ".f4v", ".ts", ".m2ts", ".mts", ".mpg", ".mpeg",
+    ".mkv", ".mp4", ".m4v", ".mov", ".avi", ".wmv", ".flv", ".f4v", ".ts", ".m2ts", ".mts", ".mpg", ".mpeg",
     ".vob", ".webm", ".ogv", ".3gp", ".3g2", ".rm", ".rmvb", ".asf", ".divx", ".mxf", ".m2v", ".h264", ".264",
     ".h265", ".265", ".hevc", ".ivf", ".evo", ".mpv", ".y4m",
     # 音频
@@ -1026,6 +1027,15 @@ def get_media_info(path):
     return "\n".join(lines), full_text
 
 
+SPOILER_OPEN = '[spoiler title="Mediainfo" open="no" style="default" icon="plus" anchor_in_url="no"]'
+SPOILER_CLOSE = "[/spoiler]"
+
+
+def format_all(brief, full):
+    """--all：完整版放进 spoiler 折叠块，后面空一行再接简洁版"""
+    return f"{SPOILER_OPEN}\n{full.rstrip()}\n{SPOILER_CLOSE}\n\n{brief.rstrip()}"
+
+
 # ===================== 命令行部分 =====================
 def _natural_key(p):
     return [int(t) if t.isdigit() else t.casefold() for t in re.split(r"(\d+)", p)]
@@ -1099,11 +1109,10 @@ def _truncate_bytes(text, max_bytes):
     return raw[:max_bytes].decode("utf-8", "ignore")
 
 
-def make_out_path(out_dir, src_path, full):
-    """media_文件名.txt / media_文件名_full.txt；名字过长截断；重名加 (1)(2)"""
+def make_out_path(out_dir, src_path, suffix=""):
+    """media_文件名.txt / media_文件名_full.txt / media_文件名_all.txt；名字过长截断；重名加 (1)(2)"""
     stem = os.path.splitext(os.path.basename(src_path))[0]
     prefix = "media_"
-    suffix = "_full" if full else ""
     reserve = len((prefix + suffix + "(9999).txt").encode("utf-8"))
     stem = _truncate_bytes(stem, 255 - reserve).rstrip(" .") or "unnamed"
     base = f"{prefix}{stem}{suffix}"
@@ -1127,6 +1136,8 @@ def main(argv=None):
         description="用 ffprobe 生成媒体信息 txt：默认 BDInfo 风格，--full 为完整 MediaInfo 风格。")
     ap.add_argument("paths", nargs="+", help="文件或文件夹（/path 与 /path/* 等价）")
     ap.add_argument("--full", action="store_true", help="输出完整 MediaInfo 信息（文件名 media_xxx_full.txt）")
+    ap.add_argument("--all", action="store_true",
+                    help="同时输出完整版（放进 spoiler 折叠块）和简洁版（文件名 media_xxx_all.txt）；与 --full 同时给时以 --all 为准")
     ap.add_argument("-r", "--recursive", action="store_true", help="递归子文件夹（默认不递归）")
     ap.add_argument("-n", "--num", type=int, default=None, metavar="N", help="只取前 N 个文件（生成 N 个 txt）")
     ap.add_argument("-d", "--dir", default=None, metavar="DIR", help="txt 输出文件夹（默认是 MediaInfo.py 所在文件夹）")
@@ -1161,10 +1172,16 @@ def main(argv=None):
             print(f"[错误] {f}: 执行异常 {e}", file=sys.stderr)
             errors += 1
             continue
-        out_path = make_out_path(out_dir, f, args.full)
+        if args.all:
+            suffix, text = "_all", format_all(brief, full)
+        elif args.full:
+            suffix, text = "_full", full
+        else:
+            suffix, text = "", brief
+        out_path = make_out_path(out_dir, f, suffix)
         try:
             with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write((full if args.full else brief).rstrip("\n") + "\n")
+                fh.write(text.rstrip("\n") + "\n")
         except OSError as e:
             print(f"[错误] 写入失败 {out_path}: {e}", file=sys.stderr)
             errors += 1
