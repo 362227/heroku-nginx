@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-#https://claude.ai/chat/c87f32df-3f13-4eb9-ab5f-23a81e48e086 AI记录
 MediaInfo.py —— 用 ffprobe 生成媒体信息 txt（需要先安装 ffmpeg）
 
 用法:
@@ -184,26 +183,29 @@ def _mi_fps(s):
     return ""
 
 
+_MI_STD_HEIGHTS = (4320, 2160, 1440, 1080, 720, 576, 540, 480, 360, 240)
+_MI_STD_WIDTHS = ((7680, 4320), (4096, 2160), (3840, 2160), (2560, 1440), (1920, 1080), (1280, 720))
+
+
 def _mi_resolution(s, interlaced=None):
+    """分辨率档位：高度贴近标准高度(±3%)，或宽度贴近标准宽度（裁了黑边的宽银幕片源）才归入标准档；
+    其它非标准尺寸（如 2222x1250）直接显示实际高度（1250p），不再硬归到 1080p"""
     w = int(s.get("width") or 0)
     h = int(s.get("height") or 0)
-    if w >= 7600 or h >= 4000:
-        base = 4320
-    elif w >= 3800 or h >= 2000:
-        base = 2160
-    elif w >= 2500 or h >= 1300:
-        base = 1440
-    elif w >= 1900 or h >= 1000:
-        base = 1080
-    elif w >= 1260 or h >= 700:
-        base = 720
-    elif h >= 560:
-        base = 576
-    elif h >= 520:
-        base = 540
-    elif h >= 460:
-        base = 480
-    else:
+    base = 0
+    # 宽度 >=1260 的片源，只按 720 以上的标准高度匹配；540/576/480 这些 SD 档位只留给窄画面
+    # （否则 1280x544 的宽银幕会被误判成 540p，实际它是 720p 档）
+    heights = _MI_STD_HEIGHTS if w < 1260 else [x for x in _MI_STD_HEIGHTS if x >= 720]
+    for sh in heights:
+        if abs(h - sh) <= sh * 0.03:
+            base = sh
+            break
+    if not base:
+        for sw, sh in _MI_STD_WIDTHS:
+            if sw * 0.95 <= w <= sw * 1.01:
+                base = sh
+                break
+    if not base:
         base = h
     if not base:
         return ""
@@ -212,17 +214,36 @@ def _mi_resolution(s, interlaced=None):
     return f"{base}{'i' if interlaced else 'p'}"
 
 
+# 常见画面比例；实际比例与它们相差 0.5% 以内就显示成这个名字
+_MI_COMMON_AR = (
+    ("1:1", 1.0), ("5:4", 1.25), ("4:3", 4 / 3), ("1.37:1", 1.37), ("3:2", 1.5), ("16:10", 1.6),
+    ("5:3", 5 / 3), ("16:9", 16 / 9), ("1.85:1", 1.85), ("2:1", 2.0), ("2.20:1", 2.2),
+    ("2.35:1", 2.35), ("21:9", 64 / 27), ("2.39:1", 2.39), ("2.40:1", 2.40),
+)
+
+
 def _mi_aspect(s):
+    """显示比例：先取 ffprobe 的 DAR（没有就用宽/高），再吸附到常见比例；对不上就写成 x.xx:1"""
+    r = None
     dar = s.get("display_aspect_ratio")
     if dar and dar not in ("0:1", "N/A"):
-        return dar
-    w = int(s.get("width") or 0)
-    h = int(s.get("height") or 0)
-    if w and h:
-        from math import gcd
-        g = gcd(w, h)
-        return f"{w // g}:{h // g}"
-    return ""
+        try:
+            a, b = dar.split(":")
+            if float(b) > 0 and float(a) > 0:
+                r = float(a) / float(b)
+        except Exception:
+            r = None
+    if r is None:
+        w = int(s.get("width") or 0)
+        h = int(s.get("height") or 0)
+        if w and h:
+            r = w / h
+    if not r:
+        return ""
+    name, val = min(_MI_COMMON_AR, key=lambda x: abs(r - x[1]) / x[1])
+    if abs(r - val) / val <= 0.005:
+        return name
+    return f"{r:.2f}:1"
 
 
 def _mi_profile(s):
