@@ -971,6 +971,47 @@ class Meta:
     size: int | None
     ranges: bool
     etag: str | None
+    cd_name: str | None = None
+    cd_raw: str | None = None
+
+
+def _fix_mojibake(text: str) -> str:
+    """http.client 按 latin-1 解码响应头; 原始字节若其实是 UTF-8 / Shift-JIS / GBK 就还原。"""
+    if all(ord(c) < 128 for c in text):
+        return text
+    try:
+        raw = text.encode("latin-1")
+    except UnicodeEncodeError:
+        return text
+    for enc in ("utf-8", "cp932", "gb18030"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return text
+
+
+def filename_from_cd(cd: str | None) -> str | None:
+    if not cd:
+        return None
+    m = re.search(r"filename\*\s*=\s*([^']*)'[^']*'([^;]+)", cd, re.I)
+    if m:
+        try:
+            return sanitize(unquote(m.group(2).strip().strip('"'), encoding=(m.group(1) or "utf-8").strip() or "utf-8", errors="replace"))
+        except LookupError:
+            return sanitize(unquote(m.group(2).strip().strip('"'), errors="replace"))
+    cd = _fix_mojibake(cd)
+    m = re.search(r'filename\s*=\s*"([^"]+)"', cd, re.I) or re.search(r"filename\s*=\s*([^;]+)", cd, re.I)
+    if m:
+        val = m.group(1).strip().strip('"')
+        return sanitize(unquote(val) if "%" in val else val)
+    return None
+
+
+def name_is_degraded(name: str) -> bool:
+    """文件名主体里一个像样的字符都没有 (全是下划线/符号/替换字符)。"""
+    stem = name.rsplit(".", 1)[0] if "." in name else name
+    return not re.search(r"[^\W_]", stem)
 
 
 def probe(net: Net, url: str, args: argparse.Namespace) -> Meta:
@@ -1004,7 +1045,8 @@ def probe(net: Net, url: str, args: argparse.Namespace) -> Meta:
                 cl = resp.get("content-length") or ""
                 if cl.isdigit():
                     size = int(cl)
-            return Meta(size, ranges and size is not None, resp.get("etag"))
+            cd = resp.get("content-disposition")
+            return Meta(size, ranges and size is not None, resp.get("etag"), filename_from_cd(cd), cd)
     raise FatalError(f"获取文件信息失败: {last}")
 
 
@@ -1128,7 +1170,15 @@ def download_item(args, net: Net, item: Item, outname: str | None) -> Result:
     directory = os.path.abspath(args.directory)
     os.makedirs(directory, exist_ok=True)
     meta = probe(net, item.url, args)
-    name = sanitize(outname) if outname else item.name
+    if args.verbose:
+        CON.log(f"页面文件名: {item.name!r}\nContent-Disposition: {meta.cd_raw!r}")
+    if outname:
+        name = sanitize(outname)
+    elif name_is_degraded(item.name) and meta.cd_name and not name_is_degraded(meta.cd_name):
+        name = meta.cd_name
+        CON.log(f"页面文件名无法识别 ({item.name}), 改用服务器返回的文件名")
+    else:
+        name = item.name
     dest = os.path.join(directory, name)
     ctrl = dest + CTRL_SUFFIX
     size = meta.size
@@ -1377,7 +1427,8 @@ def build_parser() -> argparse.ArgumentParser:
     dl.add_argument("-x", "--max-connection-per-server", "--connections", dest="connections", type=int, default=16, help="并发连接数 (默认 16), 例如 -x16")
     dl.add_argument("-d", "--dir", dest="directory", default=".", help="保存目录 (默认 当前目录)")
     dl.add_argument("-o", "--out", default=None, help="自定义文件名 (仅单个文件)")
-    dl.add_argument("-c", "--continue", dest="cont", action="store_true", help="断点续传; 已下完的文件会直接跳过")
+    dl.add_argument("-c", "--continue", dest="cont", action="store_true", default=True, help="断点续传 (默认已开启); 已下完的文件会直接跳过")
+    dl.add_argument("--no-continue", dest="cont", action="store_false", help="关闭断点续传: 文件已存在时询问是否覆盖")
     dl.add_argument("-f", "--force", action="store_true", help="强制覆盖已有文件")
     dl.add_argument("-H", "--header", dest="headers", action="append", default=[], metavar="Key: Value", help="自定义请求头, 可重复")
     dl.add_argument("--user-agent", default=None, help="自定义 User-Agent")
