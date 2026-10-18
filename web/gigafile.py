@@ -325,8 +325,10 @@ class Painter(threading.Thread):
         avail = CON.cols() - 1
         size_txt = f"{format_size(cur)}/{format_size(self.total)}" if self.total else format_size(cur)
         extra = self.extra()
-        label = middle_clip(self.label, 20)
-        label = label + " " * (min(20, dwidth(self.label)) - dwidth(label))
+        text = self.label() if callable(self.label) else self.label
+        label = middle_clip(text, 20)
+        self.lw = max(getattr(self, "lw", 0), dwidth(label))
+        label = label + " " * (self.lw - dwidth(label))
         bw = 0
         head = tail = ""
         for show_label, show_extra, show_size in ((1, 1, 1), (0, 1, 1), (0, 0, 1), (0, 0, 0)):
@@ -728,27 +730,81 @@ def pick_chunk_size(args: argparse.Namespace, size: int) -> int:
     return int(min(100 << 20, max(16 << 20, guess)))
 
 
-def upload_file(args: argparse.Namespace, net: Net, path: str) -> Result:
+class Batch:
+    """一次 upload 命令里的所有文件: 排在同一条坐标轴上, 合并成一条总进度条。"""
+
+    def __init__(self, files: list[str]) -> None:
+        self.files = files
+        self.sizes = [os.path.getsize(f) for f in files]
+        self.bases = [0]
+        for sz in self.sizes:
+            self.bases.append(self.bases[-1] + sz)
+        self.total = self.bases[-1]
+        self.lock = threading.Lock()
+        self.active: dict[int, UpJob] = {}
+        self.final: dict[int, list[tuple[int, int]]] = {}
+        self.abort = threading.Event()
+        self.finished = 0
+
+    def mark_finished(self, idx: int) -> None:
+        with self.lock:
+            self.active.pop(idx, None)
+            self.final[idx] = [(self.bases[idx], self.bases[idx + 1])]
+            self.finished += 1
+
+    def snapshot(self):
+        with self.lock:
+            ranges = [r for rs in self.final.values() for r in rs]
+            jobs = list(self.active.items())
+        cur = sum(e - s for s, e in ranges)
+        for idx, job in jobs:
+            base = self.bases[idx]
+            for i, sent in enumerate(list(job.sent)):
+                if sent > 0:
+                    ranges.append((base + i * job.chunk, base + i * job.chunk + sent))
+                    cur += sent
+        return merge_ranges(ranges), cur
+
+    def label(self) -> str:
+        if len(self.files) == 1:
+            return os.path.basename(self.files[0])
+        return f"[{self.finished}/{len(self.files)}]"
+
+    def extra(self) -> str:
+        with self.lock:
+            jobs = sorted(self.active.items())
+        if not jobs:
+            return ""
+        if len(self.files) == 1:
+            return f"块 {jobs[0][1].gate.done}/{jobs[0][1].nchunks}"
+        return f"并发{len(jobs)} {middle_clip(os.path.basename(self.files[jobs[0][0]]), 16)}"
+
+
+def upload_file(args: argparse.Namespace, batch: Batch, idx: int) -> Result:
+    net = Net(args)  # 每个文件独立 cookie, 避免并发上传时互相串会话
+    try:
+        return _upload_file(args, net, batch, idx, batch.files[idx])
+    finally:
+        batch.mark_finished(idx)
+
+
+def _upload_file(args: argparse.Namespace, net: Net, batch: Batch, idx: int, path: str) -> Result:
     name = os.path.basename(path)
-    size = os.path.getsize(path)
-    if size == 0:
-        return Result("ERR", path, error="空文件无法上传")
+    size = batch.sizes[idx]
+    tag = f"[{idx + 1}/{len(batch.files)}] " if len(batch.files) > 1 else ""
     chunk = pick_chunk_size(args, size)
     nchunks = math.ceil(size / chunk)
     threads = max(1, min(args.threads, nchunks))
-    CON.log(f"文件: {name}  大小: {format_size(size)}  分块: {nchunks} x {format_size(chunk)}  线程: {threads}")
+    CON.log(f"{tag}文件: {name}  大小: {format_size(size)}  分块: {nchunks} x {format_size(chunk)}  线程: {threads}")
 
     try:
         with net.request("GET", HOME) as r:
             page = r.read(2_000_000).decode("utf-8", "replace")
-    except FatalError:
-        raise
     except Exception as exc:
         return Result("ERR", path, size=size, error=f"无法连接 gigafile.nu: {exc}")
     m = re.search(r'var\s+server\s*=\s*"(.+?)"', page)
     if not m:
         return Result("ERR", path, size=size, error="找不到上传服务器地址 (网站可能改版了)")
-    scheme = urlsplit(HOME).scheme
     job = UpJob(
         path=path,
         name=name,
@@ -756,17 +812,13 @@ def upload_file(args: argparse.Namespace, net: Net, path: str) -> Result:
         chunk=chunk,
         nchunks=nchunks,
         token=uuid.uuid1().hex,
-        upload_url=f"{scheme}://{m.group(1)}/upload_chunk.php",
+        upload_url=f"{urlsplit(HOME).scheme}://{m.group(1)}/upload_chunk.php",
         lifetime=args.lifetime,
+        abort=batch.abort,
     )
     job.sent = [0] * nchunks
-
-    def snapshot():
-        sent = list(job.sent)
-        return [(i * chunk, i * chunk + s) for i, s in enumerate(sent) if s > 0], sum(sent)
-
-    painter = Painter(name, size, snapshot, extra=lambda: f"块 {job.gate.done}/{nchunks}")
-    painter.start()
+    with batch.lock:
+        batch.active[idx] = job
     started = time.monotonic()
     pending: queue.Queue[int] = queue.Queue()
     for i in range(1, nchunks):
@@ -801,72 +853,143 @@ def upload_file(args: argparse.Namespace, net: Net, path: str) -> Result:
             th.start()
         while any(th.is_alive() for th in ths):
             time.sleep(0.2)
-    except KeyboardInterrupt:
-        job.abort.set()
-        painter.finish()
-        CON.log("已取消上传")
-        return Result("ERR", path, size=size, error="interrupted", interrupted=True)
     except Aborted:
         pass
     except BaseException as exc:  # noqa: BLE001
         job.abort.set()
         job.errors.append(exc)
-    painter.finish()
 
     elapsed = max(time.monotonic() - started, 1e-6)
     if job.errors:
         return Result("ERR", path, size=size, error=str(job.errors[0]))
     url = job.result_data.get("url")
     if not url:
+        if batch.abort.is_set():
+            return Result("ERR", path, size=size, error="已取消", interrupted=True)
         return Result("ERR", path, size=size, error=f"服务器没有返回下载链接: {job.result_data}")
     return Result("OK", path, speed=size / elapsed, size=size, url=url)
 
 
-def collect_files(paths: list[str], yes: bool) -> list[str]:
+def collect_files(paths: list[str], recursive: bool, yes: bool) -> list[str]:
     files: list[str] = []
+    seen: set[str] = set()
+    empties = 0
+    skipped_dirs = 0
+    from_dir = False
+
+    def add(f: str) -> None:
+        nonlocal empties
+        key = os.path.abspath(f)
+        if key in seen:
+            return
+        seen.add(key)
+        if os.path.getsize(f) == 0:
+            empties += 1
+            return
+        files.append(f)
+        if len(files) > 2000:
+            raise FatalError("文件数量超过 2000, 请指定更具体的路径")
+
     for p in paths:
         if os.path.isdir(p):
-            found: list[str] = []
-            for root, dirs, names in os.walk(p):
-                dirs.sort()
-                for n in sorted(names):
-                    found.append(os.path.join(root, n))
-                if len(found) > 200:
-                    raise FatalError(f"目录文件过多 (>200): {p}, 请指定具体文件")
-            files.extend(found)
+            from_dir = True
+            if recursive:
+                for root, dirs, names in os.walk(p):
+                    dirs.sort()
+                    for nm in sorted(names):
+                        fp = os.path.join(root, nm)
+                        if os.path.isfile(fp):
+                            add(fp)
+            else:
+                for nm in sorted(os.listdir(p)):
+                    fp = os.path.join(p, nm)
+                    if os.path.isfile(fp):
+                        add(fp)
+                    elif os.path.isdir(fp):
+                        skipped_dirs += 1
         elif os.path.isfile(p):
-            files.append(p)
+            add(p)
         else:
             raise FatalError(f"路径不存在: {p}")
+    if skipped_dirs:
+        CON.log(f"已跳过 {skipped_dirs} 个子目录 (加 -r 可递归上传)")
+    if empties:
+        CON.log(f"已跳过 {empties} 个空文件 (gigafile 不支持空文件)")
     if not files:
-        raise FatalError("没有可上传的文件")
-    if len(files) > 1 or any(os.path.isdir(p) for p in paths):
+        raise FatalError("没有可上传的文件" + (" (目录默认不递归, 子目录请加 -r)" if from_dir and not recursive else ""))
+    if len(files) > 50:
         total = sum(os.path.getsize(f) for f in files)
-        if not confirm(yes, f"将逐个上传 {len(files)} 个文件, 共 {format_size(total)}, 继续?"):
+        if not confirm(yes, f"将上传 {len(files)} 个文件, 共 {format_size(total)}, 继续? (加 -y 可跳过确认)"):
             raise FatalError("已取消")
     return files
 
 
 def cmd_upload(args: argparse.Namespace) -> int:
-    net = Net(args)
-    files = collect_files(args.files, args.yes)
-    results: list[Result] = []
-    for f in files:
-        try:
-            res = upload_file(args, net, f)
-        except FatalError as exc:
-            res = Result("ERR", f, error=str(exc))
-        except Exception as exc:  # noqa: BLE001
-            res = Result("ERR", f, error=str(exc))
-        results.append(res)
-        if res.kind == "OK":
-            CON.log(f"完成: {res.url}")
-        else:
-            CON.log(f"失败: {f}  ({res.error})")
-        if res.interrupted:
-            break
-    print_summary("Upload Results:", results, with_url=True)
-    return 0 if all(r.kind == "OK" for r in results) else 1
+    files = collect_files(args.files, args.recursive, args.yes)
+    n = len(files)
+    batch = Batch(files)
+    jobs_n = max(1, min(args.jobs, n))
+    if n > 1:
+        CON.log(f"共 {n} 个文件, {format_size(batch.total)}; 同时上传 {jobs_n} 个文件, 每个文件 {args.threads} 线程")
+    results: list[Result | None] = [None] * n
+    todo: queue.Queue[int] = queue.Queue()
+    for i in range(n):
+        todo.put(i)
+
+    def file_worker() -> None:
+        while not batch.abort.is_set():
+            try:
+                i = todo.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                res = upload_file(args, batch, i)
+            except Exception as exc:  # noqa: BLE001
+                res = Result("ERR", files[i], size=batch.sizes[i], error=str(exc))
+            results[i] = res
+            tag = f"[{i + 1}/{n}] " if n > 1 else ""
+            if res.kind == "OK":
+                CON.log(f"{tag}完成: {os.path.basename(files[i])}\n    {res.url}")
+            elif not res.interrupted:
+                CON.log(f"{tag}失败: {os.path.basename(files[i])}  ({res.error})")
+
+    painter = Painter(batch.label, batch.total, batch.snapshot, extra=batch.extra)
+    painter.start()
+    ths = [threading.Thread(target=file_worker, daemon=True) for _ in range(jobs_n)]
+    for th in ths:
+        th.start()
+    interrupted = False
+    try:
+        while any(th.is_alive() for th in ths):
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        interrupted = True
+        batch.abort.set()
+        for th in ths:
+            th.join(timeout=2)
+    painter.finish()
+    if interrupted:
+        CON.log("已取消上传")
+
+    final = [r if r is not None else Result("CNCL", files[i], size=batch.sizes[i], error="未上传") for i, r in enumerate(results)]
+    print_summary("Upload Results:", final, with_url=False)
+    ok = [r for r in final if r.kind == "OK" and r.url]
+    if ok:
+        print()
+        print(f"全部链接 ({len(ok)}/{n}):")
+        for r in ok:
+            print(f"{r.url}  {os.path.basename(r.target)}")
+        if args.save:
+            try:
+                with open(args.save, "a", encoding="utf-8") as fh:
+                    for r in ok:
+                        fh.write(f"{r.url}  {os.path.basename(r.target)}\n")
+                print(f"\n链接已追加保存到: {args.save}")
+            except OSError as exc:
+                print(f"\n保存链接失败: {exc}")
+    if interrupted:
+        return 130
+    return 0 if len(ok) == n else 1
 
 
 # ═════════════════════════════ 下载 ═════════════════════════════
@@ -1412,13 +1535,16 @@ def build_parser() -> argparse.ArgumentParser:
         prog="gigafile.py",
         description="gigafile.nu 上传 / 下载工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="示例:\n  python gigafile.py upload movie.mkv\n  python gigafile.py upload movie.mkv -n 12\n  python gigafile.py dl -x16 -d D:\\down https://66.gigafile.nu/xxxx\n  python gigafile.py dl -c -x16 URL    (断点续传)",
+        epilog="示例:\n  python gigafile.py upload movie.mkv\n  python gigafile.py upload a.mkv b.mkv\n  python gigafile.py upload 文件夹 -r      (递归子目录)\n  python gigafile.py dl -x16 -d D:\\down https://66.gigafile.nu/xxxx\n  python gigafile.py dl -x16 URL         (默认断点续传)",
     )
     sub = parser.add_subparsers(dest="cmd", required=True, metavar="{upload,dl}")
 
     up = sub.add_parser("upload", aliases=["up", "u"], parents=[common], help="上传文件")
-    up.add_argument("files", nargs="+", metavar="FILE", help="要上传的文件 (也可以是目录, 会逐个上传其中的文件)")
-    up.add_argument("-n", "--threads", "--thread-num", dest="threads", type=int, default=16, help="并发上传线程数 (默认 16)")
+    up.add_argument("files", nargs="+", metavar="PATH", help="要上传的文件或目录, 可以多个; 目录默认只传其中的文件, 不含子目录")
+    up.add_argument("-r", "--recursive", action="store_true", help="目录递归上传 (包含所有子目录)")
+    up.add_argument("-j", "--jobs", type=int, default=3, help="同时上传的文件数 (默认 3); 总连接数 = -j x -n")
+    up.add_argument("--save", metavar="FILE", default=None, help="把 链接  文件名 追加保存到该文件")
+    up.add_argument("-n", "--threads", "--thread-num", dest="threads", type=int, default=16, help="每个文件的并发线程数 (默认 16)")
     up.add_argument("-s", "--chunk-size", default="30MB", help="分块大小, 如 50MB (默认 30MB; auto 表示按文件大小自动选 16~100MB)")
     up.add_argument("-l", "--lifetime", type=int, default=100, help="保存天数 (默认 100)")
 
@@ -1454,8 +1580,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         if args.cmd == "upload":
-            if args.threads < 1:
-                print("-n 必须 >= 1", file=sys.stderr)
+            if args.threads < 1 or args.jobs < 1:
+                print("-n / -j 必须 >= 1", file=sys.stderr)
                 return 2
             return cmd_upload(args)
         if args.connections < 1:
