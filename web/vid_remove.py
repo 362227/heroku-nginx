@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ts_sdt_clean.py
-
 https://claude.ai/chat/887b9a93-30cf-4af2-ae7b-91cba00f337d
+
+ts_sdt_clean.py
 
 按 MPEG-TS 的 SDT 表结构精确定位，清除 service_provider_name / service_name，
 并可把 service_type 置 0。只改 PID 0x0011 的 SDT section 里的对应字节，
@@ -334,6 +334,35 @@ def precheck_mediainfo(path):
     return bool(hits), hits
 
 
+def final_check(path):
+    """
+    收尾检查：重新用 mediainfo JSON 看 Service 字段是否还有值。
+    没有 -> 返回 True；还有 -> 提示"没有去除干净"，询问是否忽略。
+    回车 / y（默认）= 忽略，返回 True；n = 不忽略，返回 False。
+    """
+    print("\n[收尾检查] 重新用 mediainfo 检查 Service 字段...")
+    has, hits = precheck_mediainfo(path)
+    if has is None:
+        print("[收尾检查] mediainfo 不可用或执行失败，无法检查。")
+        return True
+    if not has:
+        print("[收尾检查] 已清理干净，mediainfo 里没有 Service 字段了。")
+        return True
+
+    print("[收尾检查] 没有去除干净，mediainfo 仍然读到：")
+    for k, v in hits:
+        print(f"  - {k} = \"{v}\"")
+    try:
+        ans = input("是否忽略？[Y/n]（默认 y）: ").strip().lower()
+    except EOFError:      # 非交互环境（管道/计划任务）按默认处理
+        ans = ""
+    if ans in ("", "y", "yes"):
+        print("已忽略。")
+        return True
+    print("未忽略：该文件仍有残留，请检查（可加 --dry-run 查看 SDT 里的 service）。")
+    return False
+
+
 def verify_with_mediainfo(path):
     try:
         out = subprocess.check_output(["mediainfo", path], stderr=subprocess.STDOUT)
@@ -360,6 +389,8 @@ def main():
                     help="只处理 provider 或 name 包含该文字的 service，可重复；不传则处理全部")
     ap.add_argument("--no-precheck", action="store_true",
                     help="不做 mediainfo 预检，直接扫描 SDT")
+    ap.add_argument("--no-final-check", action="store_true",
+                    help="处理后不做 mediainfo 收尾检查")
     ap.add_argument("--verify", action="store_true", help="处理后用 mediainfo 再看一遍 Service 字段")
     args = ap.parse_args()
 
@@ -400,6 +431,10 @@ def main():
 
     if args.verify and not args.dry_run:
         verify_with_mediainfo(args.file)
+
+    if not args.dry_run and not args.no_final_check:
+        if not final_check(args.file):
+            sys.exit(1)
 
 
 if __name__ == "__main__":
