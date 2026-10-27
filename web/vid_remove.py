@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-https://claude.ai/chat/887b9a93-30cf-4af2-ae7b-91cba00f337d
-
 ts_sdt_clean.py
 
 按 MPEG-TS 的 SDT 表结构精确定位，清除 service_provider_name / service_name，
@@ -48,6 +46,7 @@ CHUNK_BYTES = 32 * 1024 * 1024
 SDT_PID = 0x0011
 SDT_TABLES = (0x42, 0x46)      # 0x42 = SDT actual, 0x46 = SDT other
 SERVICE_DESCRIPTOR_TAG = 0x48
+MULTILINGUAL_DESCRIPTOR_TAG = 0x5D   # multilingual_service_name_descriptor
 TS_PACKET = 188
 
 # 压缩包/镜像一律跳过
@@ -130,7 +129,11 @@ class SdtProcessor:
         self.modified_sections = 0
         self.modified_services = 0
         self.first_offset = None
-        self.seen = {}          # (provider, name, type) -> 次数
+        self.seen = {}          # (provider, name, type) -> 次数  (tag 0x48)
+        self.seen5d = {}        # (lang, provider, name) -> 次数  (tag 0x5D)
+        self.tags_seen = {}     # descriptor tag -> 次数
+        self.unparsed = 0       # 没解析到任何 service 的 section 数
+        self.unparsed_example = None
 
     def reset(self):
         self.buf = bytearray()
@@ -180,42 +183,45 @@ class SdtProcessor:
         elif self.buf:
             self.push(payload, poff)
 
-    def _edit_service(self, sec, a, b):
-        """sec[a:b] 是 service_descriptor 的内容。返回是否有修改。"""
+    @staticmethod
+    def _parse_48(sec, a, b):
+        """service_descriptor: 返回 (stype, ps, pe, ns, ne) 或 None"""
         if b - a < 3:
-            return False
-        stype = sec[a]
+            return None
         plen = sec[a + 1]
         ps, pe = a + 2, a + 2 + plen
         if pe + 1 > b:
-            return False
+            return None
         nlen = sec[pe]
         ns, ne = pe + 1, pe + 1 + nlen
         if ne > b:
-            return False
+            return None
+        return sec[a], ps, pe, ns, ne
 
-        prov = bytes(sec[ps:pe])
-        name = bytes(sec[ns:ne])
-        prov_t, name_t = printable(prov), printable(name)
+    @staticmethod
+    def _parse_5d(sec, a, b):
+        """multilingual_service_name_descriptor: 返回 [(lang, ps, pe, ns, ne), ...]"""
+        res = []
+        p = a
+        while p + 4 <= b:
+            plen = sec[p + 3]
+            ps, pe = p + 4, p + 4 + plen
+            if pe + 1 > b:
+                break
+            nlen = sec[pe]
+            ns, ne = pe + 1, pe + 1 + nlen
+            if ne > b:
+                break
+            res.append((bytes(sec[p:p + 3]).decode("ascii", "replace"), ps, pe, ns, ne))
+            p = ne
+        return res
 
-        if self.matches:
-            if not any(m in prov_t or m in name_t for m in self.matches):
-                return False
-
-        key = (prov_t, name_t, stype)
-        self.seen[key] = self.seen.get(key, 0) + 1
-
-        changed = False
-        if prov and prov != b" " * plen:
-            sec[ps:pe] = b" " * plen
-            changed = True
-        if name and name != b" " * nlen:
-            sec[ns:ne] = b" " * nlen
-            changed = True
-        if not self.keep_type and stype != 0:
-            sec[a] = 0
-            changed = True
-        return changed
+    @staticmethod
+    def _blank(sec, s, e):
+        if e > s and sec[s:e] != b" " * (e - s):
+            sec[s:e] = b" " * (e - s)
+            return True
+        return False
 
     def finish(self):
         sec = bytearray(self.buf)
@@ -225,21 +231,62 @@ class SdtProcessor:
         end = len(sec) - 4            # 最后 4 字节是 CRC32
         pos = 11                      # 前 3 字节头 + 8 字节固定字段后开始是 service 循环
         changed = False
+        parsed_any = False
+
         while pos + 5 <= end:
             desc_len = ((sec[pos + 3] & 0x0F) << 8) | sec[pos + 4]
             d = pos + 5
             dend = min(d + desc_len, end)
+            p48, p5d = [], []
             while d + 2 <= dend:
                 tag, ln = sec[d], sec[d + 1]
                 body = d + 2
                 if body + ln > dend:
                     break
+                self.tags_seen[tag] = self.tags_seen.get(tag, 0) + 1
                 if tag == SERVICE_DESCRIPTOR_TAG:
-                    if self._edit_service(sec, body, body + ln):
-                        changed = True
-                        self.modified_services += 1
+                    r = self._parse_48(sec, body, body + ln)
+                    if r:
+                        p48.append((body,) + r)
+                elif tag == MULTILINGUAL_DESCRIPTOR_TAG:
+                    p5d.extend(self._parse_5d(sec, body, body + ln))
                 d = body + ln
             pos += 5 + desc_len
+
+            if not p48 and not p5d:
+                continue
+            parsed_any = True
+
+            texts = []
+            for _, _, ps, pe, ns, ne in p48:
+                texts += [printable(bytes(sec[ps:pe])), printable(bytes(sec[ns:ne]))]
+            for _, ps, pe, ns, ne in p5d:
+                texts += [printable(bytes(sec[ps:pe])), printable(bytes(sec[ns:ne]))]
+            if self.matches and not any(m in t for m in self.matches for t in texts):
+                continue
+
+            svc_changed = False
+            for abody, stype, ps, pe, ns, ne in p48:
+                key = (printable(bytes(sec[ps:pe])), printable(bytes(sec[ns:ne])), stype)
+                self.seen[key] = self.seen.get(key, 0) + 1
+                svc_changed |= self._blank(sec, ps, pe)
+                svc_changed |= self._blank(sec, ns, ne)
+                if not self.keep_type and stype != 0:
+                    sec[abody] = 0
+                    svc_changed = True
+            for lang, ps, pe, ns, ne in p5d:
+                key = (lang, printable(bytes(sec[ps:pe])), printable(bytes(sec[ns:ne])))
+                self.seen5d[key] = self.seen5d.get(key, 0) + 1
+                svc_changed |= self._blank(sec, ps, pe)
+                svc_changed |= self._blank(sec, ns, ne)
+            if svc_changed:
+                changed = True
+                self.modified_services += 1
+
+        if not parsed_any:
+            self.unparsed += 1
+            if self.unparsed_example is None:
+                self.unparsed_example = (self.segs[0][0], bytes(sec[:96]).hex(" "))
 
         if not changed:
             return
@@ -312,6 +359,12 @@ def _iter_items(d):
 SERVICE_KEYS = {"serviceprovider", "servicename", "servicetype", "servicetypestring"}
 
 
+def _effectively_empty(v):
+    """'en: - zh:' 这类只剩语言前缀和分隔符的值，视为空。"""
+    t = re.sub(r"(?<![A-Za-z])[A-Za-z]{2,3}:", "", v).replace("-", "")
+    return t.strip() == ""
+
+
 def precheck_mediainfo(path):
     """
     用 mediainfo JSON 预检。返回 (有无Service字段, 字段列表)；
@@ -329,7 +382,7 @@ def precheck_mediainfo(path):
     hits = []
     for t in tracks:
         for k, v in _iter_items(t):
-            if _norm(k) in SERVICE_KEYS and isinstance(v, str) and v.strip():
+            if _norm(k) in SERVICE_KEYS and isinstance(v, str) and not _effectively_empty(v):
                 hits.append((k, v))
     return bool(hits), hits
 
@@ -426,7 +479,18 @@ def main():
         print("\n出现过的 service（provider / name / service_type -> 次数）：")
         for (p, n, t), c in sorted(proc.seen.items(), key=lambda x: -x[1]):
             print(f"  - \"{p}\" / \"{n}\" / 0x{t:02X} -> {c} 次")
-    elif proc.sections == 0:
+    if proc.seen5d:
+        print("\n多语言名称 (tag 0x5D)（语言 / provider / name -> 次数）：")
+        for (l, p, n), c in sorted(proc.seen5d.items(), key=lambda x: -x[1]):
+            print(f"  - {l} / \"{p}\" / \"{n}\" -> {c} 次")
+    if proc.tags_seen:
+        tags = ", ".join(f"0x{t:02X}x{c}" for t, c in sorted(proc.tags_seen.items()))
+        print(f"\nSDT 里出现的描述符 tag：{tags}")
+    if proc.unparsed:
+        print(f"\n[注意] 有 {proc.unparsed} 个 SDT section 没解析到任何 service 描述符，"
+              f"示例（文件偏移 {proc.unparsed_example[0]}，前 96 字节）：")
+        print("  " + proc.unparsed_example[1])
+    if proc.sections == 0:
         print("\n没有找到任何 SDT 表（PID 0x0011, table_id 0x42/0x46）。")
 
     if args.verify and not args.dry_run:
