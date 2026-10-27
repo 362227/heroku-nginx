@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 https://claude.ai/chat/887b9a93-30cf-4af2-ae7b-91cba00f337d
+
 ts_sdt_clean.py
 
 按 MPEG-TS 的 SDT 表结构精确定位，清除 service_provider_name / service_name，
@@ -509,7 +510,7 @@ def diagnose_residual(path, limit=5):
         print("  （没有找到明确的残留字段，可能是 mediainfo 其他位置的值，请贴相关输出给我）")
 
 
-def final_check(path):
+def final_check(path, assume_yes=False):
     """
     收尾检查：
       1) mediainfo JSON 检查 Service 字段；没有残留 -> 结束。
@@ -544,6 +545,9 @@ def final_check(path):
     for k, v in hits:
         print(f"  - {k} = \"{v}\"")
 
+    if assume_yes:
+        print("已用 -y 自动忽略，不再确认。")
+        return True
     try:
         ans = input("是否忽略？[Y/n]（默认 y）: ").strip().lower()
     except EOFError:      # 非交互环境（管道/计划任务）按默认处理
@@ -581,6 +585,8 @@ def main():
                     help="只处理 provider 或 name 包含该文字的 service，可重复；不传则处理全部")
     ap.add_argument("--no-precheck", action="store_true",
                     help="不做 mediainfo 预检，直接扫描 SDT")
+    ap.add_argument("-y", "--yes", action="store_true",
+                    help="收尾检查仍有残留时自动忽略，不再询问")
     ap.add_argument("--no-final-check", action="store_true",
                     help="处理后不做 mediainfo 收尾检查")
     ap.add_argument("--diagnose", action="store_true",
@@ -654,7 +660,7 @@ def main():
         verify_with_mediainfo(args.file)
 
     if not args.dry_run and not args.no_final_check:
-        if not final_check(args.file):
+        if not final_check(args.file, assume_yes=args.yes):
             sys.exit(1)
 
 
