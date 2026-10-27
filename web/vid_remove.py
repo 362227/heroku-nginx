@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+https://claude.ai/chat/887b9a93-30cf-4af2-ae7b-91cba00f337d
 ts_sdt_clean.py
 
 按 MPEG-TS 的 SDT 表结构精确定位，清除 service_provider_name / service_name，
@@ -44,6 +45,9 @@ except ImportError:
 
 CHUNK_BYTES = 32 * 1024 * 1024
 SDT_PID = 0x0011
+NIT_PID = 0x0010
+NIT_TABLES = (0x40, 0x41)       # 0x40 = NIT actual, 0x41 = NIT other
+SERVICE_LIST_TAG = 0x41
 SDT_TABLES = (0x42, 0x46)      # 0x42 = SDT actual, 0x46 = SDT other
 SERVICE_DESCRIPTOR_TAG = 0x48
 MULTILINGUAL_DESCRIPTOR_TAG = 0x5D   # multilingual_service_name_descriptor
@@ -223,6 +227,25 @@ class SdtProcessor:
             return True
         return False
 
+    label = "SDT"
+
+    def _commit(self, sec, changed):
+        """有修改才重算 CRC 并写回。"""
+        if not changed:
+            return
+        if not self.no_crc:
+            sec[-4:] = crc32_mpeg(bytes(sec[:-4])).to_bytes(4, "big")
+        self.modified_sections += 1
+        if self.first_offset is None:
+            self.first_offset = self.segs[0][0]
+            print(f"[首次命中] {self.label} section 在文件偏移 {self.first_offset}")
+        if not self.dry_run:
+            p = 0
+            for off, ln in self.segs:
+                self.f.seek(off)
+                self.f.write(bytes(sec[p:p + ln]))
+                p += ln
+
     def finish(self):
         sec = bytearray(self.buf)
         if sec[0] not in SDT_TABLES or len(sec) < 15:
@@ -288,23 +311,66 @@ class SdtProcessor:
             if self.unparsed_example is None:
                 self.unparsed_example = (self.segs[0][0], bytes(sec[:96]).hex(" "))
 
-        if not changed:
+        self._commit(sec, changed)
+
+
+class NitProcessor(SdtProcessor):
+    """NIT (PID 0x0010)：把 service_list_descriptor (tag 0x41) 里的 service_type 置 0。"""
+    label = "NIT"
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.seen_list = {}     # (service_id, service_type) -> 次数
+
+    def _scan_desc(self, sec, a, b):
+        changed = False
+        d = a
+        while d + 2 <= b:
+            tag, ln = sec[d], sec[d + 1]
+            body = d + 2
+            if body + ln > b:
+                break
+            if tag == SERVICE_LIST_TAG:
+                r = body
+                while r + 3 <= body + ln:
+                    sid = (sec[r] << 8) | sec[r + 1]
+                    stype = sec[r + 2]
+                    key = (sid, stype)
+                    self.seen_list[key] = self.seen_list.get(key, 0) + 1
+                    if stype != 0:
+                        sec[r + 2] = 0
+                        changed = True
+                    r += 3
+            d = body + ln
+        return changed
+
+    def finish(self):
+        sec = bytearray(self.buf)
+        if sec[0] not in NIT_TABLES or len(sec) < 16:
             return
-
-        if not self.no_crc:
-            sec[-4:] = crc32_mpeg(bytes(sec[:-4])).to_bytes(4, "big")
-
-        self.modified_sections += 1
-        if self.first_offset is None:
-            self.first_offset = self.segs[0][0]
-            print(f"[首次命中] SDT section 在文件偏移 {self.first_offset}")
-
-        if not self.dry_run:
-            p = 0
-            for off, ln in self.segs:
-                self.f.seek(off)
-                self.f.write(bytes(sec[p:p + ln]))
-                p += ln
+        self.sections += 1
+        end = len(sec) - 4
+        pos = 8                                   # 3 字节头 + network_id(2) + 版本(1) + section 号(2)
+        if pos + 2 > end:
+            return
+        nd_len = ((sec[pos] & 0x0F) << 8) | sec[pos + 1]
+        changed = self._scan_desc(sec, pos + 2, min(pos + 2 + nd_len, end))
+        pos += 2 + nd_len
+        if pos + 2 > end:
+            self._commit(sec, changed)
+            return
+        ts_len = ((sec[pos] & 0x0F) << 8) | sec[pos + 1]
+        pos += 2
+        tend = min(pos + ts_len, end)
+        while pos + 6 <= tend:
+            td_len = ((sec[pos + 4] & 0x0F) << 8) | sec[pos + 5]
+            d = pos + 6
+            if self._scan_desc(sec, d, min(d + td_len, tend)):
+                changed = True
+            pos = d + td_len
+        if changed:
+            self.modified_services += 1
+        self._commit(sec, changed)
 
 
 # ---------------- 主流程 ----------------
@@ -323,6 +389,8 @@ def scan_file(path, dry_run, keep_type, no_crc, matches):
 
     with open(path, "rb" if dry_run else "r+b") as f:
         proc = SdtProcessor(f, dry_run, keep_type, no_crc, matches)
+        nit = NitProcessor(f, dry_run, keep_type, no_crc, matches)
+        do_nit = not keep_type and not matches     # 用了 --match 时不动 NIT（里面没有名字可匹配）
         pos = s0
         while pos + stride <= size:
             f.seek(pos)
@@ -334,13 +402,17 @@ def scan_file(path, dry_run, keep_type, no_crc, matches):
             ok = arr[:, 0] == 0x47
             bad_sync += int(n - ok.sum())
             pids = ((arr[:, 1].astype(np.uint16) & 0x1F) << 8) | arr[:, 2].astype(np.uint16)
-            idx = np.nonzero(ok & (pids == SDT_PID))[0]
+            sel = ok & ((pids == SDT_PID) | ((pids == NIT_PID) if do_nit else False))
+            idx = np.nonzero(sel)[0]
             for i in idx:
-                proc.feed_packet(arr[i, :TS_PACKET].tobytes(), pos + int(i) * stride)
+                target = nit if int(pids[i]) == NIT_PID else proc
+                target.feed_packet(arr[i, :TS_PACKET].tobytes(), pos + int(i) * stride)
             pos += n * stride
 
     if bad_sync:
         print(f"[警告] 有 {bad_sync} 个包同步字节不是 0x47（已忽略），文件可能有损坏或丢同步。")
+    proc.nit = nit
+    proc.do_nit = do_nit
     return proc
 
 
@@ -387,6 +459,56 @@ def precheck_mediainfo(path):
     return bool(hits), hits
 
 
+DETAIL_FIELD_RE = re.compile(
+    r"^\s*([0-9A-Fa-f]{6,})\s+(service_type|service_provider_name|service_name|provider_name):\s*(.*?)\s*$")
+DETAIL_TABLE_RE = re.compile(r"table_id:\s*\d+\s*\(0x([0-9A-Fa-f]+)\)(.*)")
+
+
+def diagnose_residual(path, limit=5):
+    """
+    用 mediainfo --Details=1 流式读取，找出仍然有值的 service_type / provider / name 字段，
+    打印所在偏移和所属的表，找到 limit 处就停止（不读完整个输出）。
+    """
+    try:
+        proc = subprocess.Popen(["mediainfo", "--Details=1", path],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except Exception:
+        print("[定位] 无法运行 mediainfo --Details=1。")
+        return
+    print(f"[定位] 用 mediainfo --Details=1 查找残留位置（最多 {limit} 处，可能要一点时间）...")
+    last_table = "未知表"
+    found = 0
+    try:
+        for raw in proc.stdout:
+            line = raw.decode("utf-8", errors="replace").rstrip()
+            m = DETAIL_TABLE_RE.search(line)
+            if m:
+                last_table = f"table_id 0x{m.group(1).upper()}{m.group(2)}"
+                continue
+            m = DETAIL_FIELD_RE.match(line)
+            if not m:
+                continue
+            off, key, val = m.groups()
+            if key == "service_type":
+                if val == "0" or val.startswith("0 "):
+                    continue
+            elif not val.strip():
+                continue
+            found += 1
+            print(f"  - 文件偏移 {int(off, 16)} (0x{off.lstrip('0').upper() or '0'}) "
+                  f"{key} = {val}   [{last_table}]")
+            if found >= limit:
+                break
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+    if found == 0:
+        print("  （没有找到明确的残留字段，可能是 mediainfo 其他位置的值，请贴相关输出给我）")
+
+
 def final_check(path):
     """
     收尾检查：重新用 mediainfo JSON 看 Service 字段是否还有值。
@@ -405,6 +527,7 @@ def final_check(path):
     print("[收尾检查] 没有去除干净，mediainfo 仍然读到：")
     for k, v in hits:
         print(f"  - {k} = \"{v}\"")
+    diagnose_residual(path)
     try:
         ans = input("是否忽略？[Y/n]（默认 y）: ").strip().lower()
     except EOFError:      # 非交互环境（管道/计划任务）按默认处理
@@ -444,6 +567,8 @@ def main():
                     help="不做 mediainfo 预检，直接扫描 SDT")
     ap.add_argument("--no-final-check", action="store_true",
                     help="处理后不做 mediainfo 收尾检查")
+    ap.add_argument("--diagnose", action="store_true",
+                    help="只做诊断：用 mediainfo --Details=1 找出仍有值的 service 字段位置，不修改文件")
     ap.add_argument("--verify", action="store_true", help="处理后用 mediainfo 再看一遍 Service 字段")
     args = ap.parse_args()
 
@@ -454,6 +579,10 @@ def main():
     if not os.path.isfile(args.file):
         print(f"错误：找不到文件 {args.file}")
         sys.exit(1)
+
+    if args.diagnose:
+        diagnose_residual(args.file)
+        return
 
     if not args.no_precheck:
         print(f"正在用 mediainfo 预检: {args.file}")
@@ -492,6 +621,18 @@ def main():
         print("  " + proc.unparsed_example[1])
     if proc.sections == 0:
         print("\n没有找到任何 SDT 表（PID 0x0011, table_id 0x42/0x46）。")
+
+    nit = proc.nit
+    if not proc.do_nit:
+        why = "用了 --keep-type" if args.keep_type else "用了 --match"
+        print(f"\n[NIT] 未处理（{why}）。")
+    else:
+        print(f"\n[NIT] 解析到 {nit.sections} 个 section，需要修改 {nit.modified_sections} 个"
+              f"{'（dry-run，未实际写入）' if args.dry_run else ''}")
+        if nit.seen_list:
+            print("  service_list_descriptor (tag 0x41)（service_id / service_type -> 次数）：")
+            for (sid, t), c in sorted(nit.seen_list.items(), key=lambda x: -x[1]):
+                print(f"    - {sid} / 0x{t:02X} -> {c} 次")
 
     if args.verify and not args.dry_run:
         verify_with_mediainfo(args.file)
