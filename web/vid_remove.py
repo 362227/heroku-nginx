@@ -511,9 +511,11 @@ def diagnose_residual(path, limit=5):
 
 def final_check(path):
     """
-    收尾检查：重新用 mediainfo JSON 看 Service 字段是否还有值。
-    没有 -> 返回 True；还有 -> 提示"没有去除干净"，询问是否忽略。
-    回车 / y（默认）= 忽略，返回 True；n = 不忽略，返回 False。
+    收尾检查：
+      1) mediainfo JSON 检查 Service 字段；没有残留 -> 结束。
+      2) 有残留 -> 自动运行 mediainfo --Details=1 定位残留（最多 5 处）。
+      3) 定位完毕后，再用 mediainfo JSON 检查一遍。
+      4) 此时仍有残留才询问 y / n：回车或 y（默认）= 忽略，n = 不忽略（退出码 1）。
     """
     print("\n[收尾检查] 重新用 mediainfo 检查 Service 字段...")
     has, hits = precheck_mediainfo(path)
@@ -527,7 +529,21 @@ def final_check(path):
     print("[收尾检查] 没有去除干净，mediainfo 仍然读到：")
     for k, v in hits:
         print(f"  - {k} = \"{v}\"")
+
     diagnose_residual(path)
+
+    print("\n[收尾检查] 定位完毕，再用 mediainfo JSON 检查一遍...")
+    has, hits = precheck_mediainfo(path)
+    if has is None:
+        print("[收尾检查] mediainfo 不可用或执行失败，无法再次检查。")
+        return True
+    if not has:
+        print("[收尾检查] 已清理干净，mediainfo 里没有 Service 字段了。")
+        return True
+    print("[收尾检查] 仍有残留：")
+    for k, v in hits:
+        print(f"  - {k} = \"{v}\"")
+
     try:
         ans = input("是否忽略？[Y/n]（默认 y）: ").strip().lower()
     except EOFError:      # 非交互环境（管道/计划任务）按默认处理
@@ -535,7 +551,7 @@ def final_check(path):
     if ans in ("", "y", "yes"):
         print("已忽略。")
         return True
-    print("未忽略：该文件仍有残留，请检查（可加 --dry-run 查看 SDT 里的 service）。")
+    print("未忽略：该文件仍有残留，请检查。")
     return False
 
 
