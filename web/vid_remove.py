@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 https://claude.ai/chat/887b9a93-30cf-4af2-ae7b-91cba00f337d
-
 ts_sdt_clean.py
 
 按 MPEG-TS 的 SDT 表结构精确定位，清除 service_provider_name / service_name，
@@ -433,7 +432,10 @@ SERVICE_KEYS = {"serviceprovider", "servicename", "servicetype", "servicetypestr
 
 
 def _effectively_empty(v):
-    """'en: - zh:' 这类只剩语言前缀和分隔符的值，视为空。"""
+    """'en: - zh:' 这类只剩语言前缀和分隔符的值，视为空；
+    'reserved for future use' 是 mediainfo 对 service_type=0x00 的显示，也视为已清除。"""
+    if v.strip().lower().startswith("reserved"):
+        return True
     t = re.sub(r"(?<![A-Za-z])[A-Za-z]{2,3}:", "", v).replace("-", "")
     return t.strip() == ""
 
