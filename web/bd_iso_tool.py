@@ -1988,7 +1988,8 @@ def cli(argv):
     ap.add_argument("--preroll", type=float, help="预解码秒数 (默认 10, 防 HDTV 白色马赛克; 关键帧间隔很长时加大)")
     ap.add_argument("--gui", action="store_true", help="打开 GUI (可同时带 ISO 预加入列表)")
     ap.add_argument("--use-config", action="store_true", help=f"以 GUI 保存的设置 ({CONFIG_NAME}) 为基础")
-    ap.add_argument("-o", "--outdir", help="输出目录, 默认 ISO 所在目录")
+    ap.add_argument("-d", "--dir", "-o", "--outdir", dest="outdir", metavar="DIR",
+                    help="输出目录 (联系表和 MediaInfo txt 都放这里; 不存在会自动创建), 默认与源文件同目录")
     ap.add_argument("--grid", help="联系表 列x行, 默认 2x3")
     ap.add_argument("-w", "--width", type=int, help="单格截图宽度")
     g = ap.add_mutually_exclusive_group()
