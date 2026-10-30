@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+https://claude.ai/chat/0737b175-063e-401c-9a3e-6f8556c8075b
+
 DVD / 蓝光 ISO / 普通视频文件 -> 缩略图联系表 + MediaInfo  (ISO 不挂载)   GUI + 命令行
 
   python bd_iso_tool.py                      打开 GUI (可把 ISO 拖进去, 批量)
@@ -40,10 +42,11 @@ DEFAULTS = {
     # 截图
     "grid_cols": 2, "grid_rows": 3, "thumb_width": 640,
     "seek_mode": "auto",          # auto: DVD 先按字节再按时间 / bytes / time   (蓝光始终按时间)
-    "tonemap": False, "keep_thumbs": False,
+    "tonemap_mode": "auto",     # HDR→SDR: off 关 / on 强制 / auto 识别到 HDR 才映射
+    "keep_thumbs": False,
     "sheet_fmt": "jpg", "jpeg_quality": 92, "make_sheet": True,
     # 联系表内容
-    "show_filename": True, "show_fileinfo": True, "show_video": True,
+    "show_filename": False, "show_fileinfo": True, "show_video": True,
     "show_audio": True, "show_subs": True, "show_timestamp": True, "font_scale": 1.0,
     # MediaInfo
     # simple 精简(BDInfo风格) / full 完整 / all 完整(spoiler折叠)+精简 / mi_normal,mi_full MediaInfo命令行原生
@@ -55,6 +58,7 @@ DEFAULTS = {
     "comment": "", "comment_color": "#8CC8FF", "font_path": "",   # 联系表信息区最后一行的注释 (可写广告/备注)
     # 高级
     "recursive": False, "extra_exts": "", "preroll": 10,
+    "top_n": 1,                    # DVD/蓝光 ISO: 最多截取时长最长的前 N 个标题
     "playlist": "", "duration": "", "debug": False,
     "ffmpeg": "", "ffprobe": "", "sevenz": "", "mediainfo": "",
     # 界面记忆
@@ -76,6 +80,8 @@ def load_config():
                 cfg[k] = v
         if data.get("skip_existing") is True and "exist_mode" not in data:  # 兼容旧设置
             cfg["exist_mode"] = "skip"
+        if data.get("tonemap") is True and "tonemap_mode" not in data:
+            cfg["tonemap_mode"] = "on"
     except Exception:
         pass
     return cfg
@@ -200,14 +206,43 @@ def clean_err(err):
     return "\n".join(keep)
 
 
+_FILTER_CACHE = {}
+
+
+def has_filter(ffmpeg, name):
+    """当前 ffmpeg 有没有某个滤镜 (HDR 色调映射需要 zscale 和 tonemap)"""
+    if ffmpeg not in _FILTER_CACHE:
+        try:
+            _FILTER_CACHE[ffmpeg] = run([ffmpeg, "-hide_banner", "-filters"]).stdout or ""
+        except Exception:
+            _FILTER_CACHE[ffmpeg] = ""
+    return re.search(r"\s" + re.escape(name) + r"\s", _FILTER_CACHE[ffmpeg]) is not None
+
+
+def hdr_kind(probe):
+    """首个视频流是 HDR 吗: 返回 'pq' (HDR10/HDR10+/DV 的 PQ 基础层) / 'hlg' / None"""
+    for s in (probe or {}).get("streams", []):
+        if s.get("codec_type") == "video" and not (s.get("disposition") or {}).get("attached_pic"):
+            trc = (s.get("color_transfer") or "").lower()
+            if trc == "smpte2084":
+                return "pq"
+            if trc == "arib-std-b67":
+                return "hlg"
+            return None
+    return None
+
+
 def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False,
                 dvd_range=None, seek_mode="auto", debug=False, preroll=10):
     """dvd_range = (ISO路径, 标题集起始字节, 结束字节), 用于不依赖时间戳的"按字节偏移"取帧"""
     outdir.mkdir(parents=True, exist_ok=True)
     vf = ["yadif=deint=interlaced",                    # 只处理被标记为隔行的帧 (HDTV 1080i / DVD)
           "scale='trunc(iw*sar/2)*2':ih", "setsar=1"]  # 按 SAR 还原画面比例 (DVD / 1440x1080 等非方形像素)
-    if tonemap:
-        vf.append("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,"
+    if tonemap:   # tonemap: "tags" 按流里的标签 / "pq" 流没标签时按 PQ BT.2020 处理
+        # 流里本来就有 HDR 标签: 直接按标签映射; 没标签却强制映射: 先用 setparams 补上 PQ/BT.2020 标签
+        first = ("setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc:range=tv,"
+                 "zscale=t=linear:npl=100" if tonemap == "pq" else "zscale=t=linear:npl=100")
+        vf.append(first + ",format=gbrpf32le,zscale=p=bt709,"
                   "tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p")
     vf.append(f"scale={width}:-2")
     vf = ",".join(vf)
@@ -1643,7 +1678,7 @@ def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override
             kbps = _mi_kbps(s)
             lines.append("AUDIO: " + _mi_join([
                 _mi_audio_codec(s), _mi_lang(lang, title), kbps,
-                _mi_channels(s), _mi_samplerate(s), kbps, _mi_bitdepth(s)
+                _mi_channels(s), _mi_samplerate(s), _mi_bitdepth(s)
             ]))
         elif ctype == "subtitle":
             subs.append(_mi_lang(lang, title) or "Unknown")
@@ -1848,8 +1883,109 @@ def out_dirs(iso, c):
 MI_MODES = ("simple", "full", "all", "mi_normal", "mi_full")
 
 
+def list_bd_titles(ffprobe, iso):
+    """蓝光: 让 ffmpeg 的 bluray 协议列出可用播放列表 (它自己会去重/过滤), 返回 [(mpls编号, 秒)] 按时长降序"""
+    try:
+        r = run([ffprobe, "-hide_banner", "-v", "info", "-i", bd_src(iso)], timeout=300)
+    except Exception:
+        return []
+    log = (r.stderr or "") + (r.stdout or "")
+    seen, out = set(), []
+    for m in re.finditer(r"playlist\s+(\d+)\.mpls\s+\((\d+):(\d{2}):(\d{2})\)", log):
+        pl = int(m.group(1))
+        if pl not in seen:
+            seen.add(pl)
+            out.append((pl, int(m.group(2)) * 3600 + int(m.group(3)) * 60 + int(m.group(4))))
+    out.sort(key=lambda x: (-x[1], x[0]))
+    return out
+
+
+def list_dvd_titles(dvd, mediainfo, iso, tmpdir):
+    """DVD: 每个标题集(VTS) 一个标题, 返回 [(vts号, 时长秒或None, 总字节)] 按时长(没有就按大小)降序"""
+    out = []
+    for n, vt in dvd.items():
+        size = sum(v[2] for v in vt["vobs"])
+        dur = None
+        if mediainfo and vt["ifo"]:
+            try:
+                _, _, dur = do_mediainfo_dvd(mediainfo, iso, n, vt, "simple", tmpdir)
+            except Exception:
+                dur = None
+        out.append((n, dur, size))
+    if out and all(x[1] for x in out):
+        out.sort(key=lambda x: (-x[1], -x[2]))
+    else:
+        out.sort(key=lambda x: -x[2])
+    return out
+
+
 def process_iso(iso, cfg):
-    """处理单个 ISO. 返回 dict(report, sheet, report_path, skipped). 失败抛 RuntimeError"""
+    """处理一个文件. DVD/蓝光 ISO 且 top_n>1 时, 依次处理时长最长的前 N 个标题 (输出名加 [1][2]...)"""
+    c = {**DEFAULTS, **cfg}
+    iso = Path(iso)
+    try:
+        top = max(1, int(c.get("top_n") or 1))
+    except Exception:
+        top = 1
+    if iso.suffix.lower() != ".iso" or not iso.is_file():
+        return _process_iso_one(iso, c)
+    dvd = scan_dvd(iso)
+    if top <= 1 and not dvd:      # 蓝光 N=1: 直接用 ffmpeg/libbluray 默认选的主标题(最长的)
+        return _process_iso_one(iso, c)
+
+    ffmpeg = find_tool("ffmpeg", c["ffmpeg"] or None)
+    ffprobe = find_tool("ffprobe", c["ffprobe"] or None)
+    mediainfo = find_tool("mediainfo", c["mediainfo"] or None, [r"C:\Program Files\MediaInfo\MediaInfo.exe"])
+    tmpdir = out_dirs(iso, c)[1]
+    tmpdir.mkdir(parents=True, exist_ok=True)
+    titles = []
+    if dvd:
+        for n, dur, size in list_dvd_titles(dvd, mediainfo, iso, tmpdir)[:top]:
+            titles.append({"_vts": n, "label": f"VTS_{n:02d}  " + (fmt_t(dur) if dur else f"{size / 1024 ** 3:.2f} GB")})
+    elif ffmpeg and ffprobe and check_bluray_protocol(ffmpeg):
+        for pl, sec in list_bd_titles(ffprobe, iso)[:top]:
+            titles.append({"_playlist": pl, "label": f"{pl:05d}.mpls  {fmt_t(sec)}"})
+    if not titles:
+        print("没能列出该 ISO 的标题 (蓝光需要 ffmpeg 带 libbluray), 只处理主标题")
+        return _process_iso_one(iso, c)
+
+    total = len(titles)
+    if total > 1 or top > 1:
+        print(f"取时长最长的 {total} 个标题: " + " | ".join(t["label"] for t in titles))
+    merged = {"report": None, "sheet": None, "sheets": [], "report_path": None, "report_paths": [], "skipped": True}
+    reports, errors = [], 0
+    for i, t in enumerate(titles, 1):
+        check_cancel()
+        if total > 1:
+            print(f"\n--- 标题 [{i}/{total}] {t['label']} ---")
+        cc = {**c, **{k: v for k, v in t.items() if k != "label"}}
+        if total > 1:
+            cc["_idx"] = i
+        try:
+            r = _process_iso_one(iso, cc)
+        except Cancelled:
+            raise
+        except Exception as e:
+            errors += 1
+            print(f"标题 [{i}] 失败: {e}")
+            continue
+        merged["skipped"] = merged["skipped"] and r.get("skipped", False)
+        if r.get("report"):
+            reports.append(f"===== [{i}] {t['label']} =====\n{r['report']}" if total > 1 else r["report"])
+        if r.get("sheet"):
+            merged["sheets"].append(r["sheet"])
+        if r.get("report_path"):
+            merged["report_paths"].append(r["report_path"])
+    if errors == total:
+        raise RuntimeError("所有标题都处理失败")
+    merged["report"] = "\n\n".join(reports) if reports else None
+    merged["sheet"] = merged["sheets"][0] if merged["sheets"] else None
+    merged["report_path"] = merged["report_paths"][0] if merged["report_paths"] else None
+    return merged
+
+
+def _process_iso_one(iso, cfg):
+    """处理单个文件/单个标题. 返回 dict(report, sheet, report_path, skipped). 失败抛 RuntimeError"""
     c = {**DEFAULTS, **cfg}
     iso = Path(iso)
     if not iso.is_file():
@@ -1860,8 +1996,9 @@ def process_iso(iso, cfg):
     FONT_PATH[0] = str(c.get("font_path") or "").strip()
     is_iso = iso.suffix.lower() == ".iso"
     base = iso.stem if is_iso else iso.name   # 非 ISO 保留扩展名, 避免 a.mkv / a.mp4 重名覆盖
-    sheet_path = outdir / f"{base}_sheet.{'png' if c['sheet_fmt'] == 'png' else 'jpg'}"
-    mi_path = outdir / f"{base}.mediainfo.txt"
+    tag = f"[{c['_idx']}]" if c.get("_idx") else ""      # 多标题模式: 名字_sheet[1].jpg ...
+    sheet_path = outdir / f"{base}_sheet{tag}.{'png' if c['sheet_fmt'] == 'png' else 'jpg'}"
+    mi_path = outdir / f"{base}.mediainfo{tag}.txt"
     res = {"report": None, "sheet": None, "report_path": None, "skipped": False}
 
     exist = c["exist_mode"] if c["exist_mode"] in ("overwrite", "skip", "rename") else "overwrite"
@@ -1888,6 +2025,8 @@ def process_iso(iso, cfg):
                                                     r"C:\Program Files (x86)\7-Zip\7z.exe"])
     mediainfo = find_tool("mediainfo", c["mediainfo"] or None, [r"C:\Program Files\MediaInfo\MediaInfo.exe"])
     playlist = int(c["playlist"]) if str(c["playlist"]).strip() else None
+    if c.get("_playlist") is not None:
+        playlist = int(c["_playlist"])
     duration = float(c["duration"]) if str(c["duration"]).strip() else None
 
     mode = {"normal": "mi_normal"}.get(c["mediainfo_mode"], c["mediainfo_mode"])  # 兼容旧设置
@@ -1904,6 +2043,8 @@ def process_iso(iso, cfg):
     kind = "DVD-Video" if dvd else ("Blu-ray" if is_iso else iso.suffix[1:].upper() + " 视频文件")
     label = iso.name if is_iso else str(iso.resolve())
     probe, mj, raw, inner, extra = None, None, None, None, None
+    if c.get("_playlist") is not None:
+        inner = f"{int(c['_playlist']):05d}.mpls"
     brief = full = None
     pre, url, cleanup, rng, css_enc = [], None, None, None, False
     header = ""
@@ -1918,7 +2059,7 @@ def process_iso(iso, cfg):
 
     try:
         if dvd:
-            n, vt = dvd_pick_main(dvd)
+            n, vt = (c["_vts"], dvd[c["_vts"]]) if c.get("_vts") in dvd else dvd_pick_main(dvd)
             total = sum(v[2] for v in vt["vobs"])
             inner = f"VTS_{n:02d} ({len(vt['vobs'])} VOB)"
             print(f"DVD-Video: 主标题集 VTS_{n:02d}, {len(vt['vobs'])} 个 VOB, {total / 1024 ** 3:.2f} GB")
@@ -2033,7 +2174,18 @@ def process_iso(iso, cfg):
             cnt = cols * rows
             lines = sheet_lines(info, c)
             args = (ffmpeg, pre, url, duration, cnt, int(c["thumb_width"]))
-            kw = dict(tonemap=c["tonemap"], dvd=bool(dvd), dvd_range=rng,
+            tm_mode = c["tonemap_mode"] if c["tonemap_mode"] in ("off", "on", "auto") else "auto"
+            kind_hdr = hdr_kind(probe)
+            tonemap = None
+            if tm_mode == "on" or (tm_mode == "auto" and kind_hdr):
+                tonemap = "tags" if kind_hdr else "pq"
+                if tm_mode == "auto":
+                    print(f"检测到 HDR ({'HLG' if kind_hdr == 'hlg' else 'HDR10/PQ'}) → 自动映射为 SDR 截图")
+                if not (has_filter(ffmpeg, "zscale") and has_filter(ffmpeg, "tonemap")):
+                    print("!! 当前 ffmpeg 缺少 zscale/tonemap 滤镜, 无法做 HDR→SDR, 截图可能发灰 "
+                          "(换 gyan.dev full 构建; Linux 用发行版自带的 ffmpeg 一般有)")
+                    tonemap = None
+            kw = dict(tonemap=tonemap, dvd=bool(dvd), dvd_range=rng,
                       seek_mode=c["seek_mode"], debug=c["debug"],
                       preroll=float(c["preroll"]))
             if c["keep_thumbs"]:
@@ -2054,6 +2206,75 @@ def process_iso(iso, cfg):
 
 
 # ============================================================ 命令行
+def build_cli_command(cfg, files, script=None):
+    """把当前设置翻译成等价的命令行 (只写和默认值不同的项). files 为空时用 xxx.mkv 占位"""
+    c, d = {**DEFAULTS, **cfg}, DEFAULTS
+    a = []
+
+    def val(key, flag, fmt=str):
+        if str(c.get(key, "")) != str(d[key]) and str(c.get(key, "")).strip() != "":
+            a.extend([flag, fmt(c[key])])
+
+    if c["out_mode"] == "dir" and str(c["out_dir"]).strip():
+        a.extend(["-d", str(c["out_dir"])])
+    if (c["grid_cols"], c["grid_rows"]) != (d["grid_cols"], d["grid_rows"]):
+        a.extend(["--grid", f"{c['grid_cols']}x{c['grid_rows']}"])
+    val("thumb_width", "-w")
+    if c["seek_mode"] == "bytes":
+        a.append("--seek-bytes")
+    elif c["seek_mode"] == "time":
+        a.append("--seek-time")
+    val("tonemap_mode", "--tonemap")
+    val("preroll", "--preroll")
+    val("sheet_fmt", "--fmt")
+    val("jpeg_quality", "--quality")
+    val("font_scale", "--font-scale")
+    hide = [k for k in ("filename", "fileinfo", "video", "audio", "subs", "timestamp")
+            if not c["show_" + k] and d["show_" + k]]
+    show = [k for k in ("filename", "fileinfo", "video", "audio", "subs", "timestamp")
+            if c["show_" + k] and not d["show_" + k]]
+    if hide:
+        a.extend(["--hide", ",".join(hide)])
+    if show:
+        a.extend(["--show", ",".join(show)])
+    if str(c["comment"]).strip():
+        a.extend(["--comment", str(c["comment"])])
+        val("comment_color", "--comment-color")
+    val("font_path", "--font")
+    if not c["make_sheet"]:
+        a.append("--no-thumbs")
+    if not c["do_mediainfo"]:
+        a.append("--no-mediainfo")
+    else:
+        val("mediainfo_mode", "--mi-mode")
+        if not c["save_mediainfo"]:
+            a.append("--no-save-mediainfo")
+    val("head_mb", "--head-mb")
+    val("top_n", "--top")
+    val("exist_mode", "--exists")
+    if c["keep_thumbs"]:
+        a.append("--keep-thumbs")
+    if c["recursive"]:
+        a.append("-r")
+    val("extra_exts", "--ext")
+    val("playlist", "--playlist")
+    val("duration", "--duration")
+    val("tmp_dir", "--tmpdir")
+    val("ffmpeg", "--ffmpeg")
+    val("ffprobe", "--ffprobe")
+    val("sevenz", "--7z")
+    val("mediainfo", "--mediainfo")
+    if c["debug"]:
+        a.append("--debug")
+
+    script = script or str(Path(__file__).resolve())
+    parts = ["python", script] + [str(f) for f in (files or ["xxx.mkv"])] + a
+    if os.name == "nt":
+        return subprocess.list2cmdline(parts)
+    import shlex
+    return " ".join(shlex.quote(x) for x in parts)
+
+
 def cli(argv):
     ap = argparse.ArgumentParser(description="DVD/蓝光 ISO: 联系表 + MediaInfo (不挂载). 不带参数则打开 GUI")
     ap.add_argument("iso", nargs="*", help="ISO / 视频文件 / 目录, 可多个")
@@ -2077,11 +2298,13 @@ def cli(argv):
     ap.add_argument("--no-mediainfo", action="store_true", help="不读取 MediaInfo")
     ap.add_argument("--no-save-mediainfo", action="store_true", help="MediaInfo 只显示不存 txt")
     ap.add_argument("--no-thumbs", action="store_true", help="不生成联系表")
+    ap.add_argument("--show", default="", help="联系表显示项 (默认关闭的才需要), 同 --hide 的取值, 如 filename")
     ap.add_argument("--hide", default="", help="联系表隐藏项, 逗号分隔: filename,fileinfo,video,audio,subs,timestamp")
     ap.add_argument("--fmt", choices=["jpg", "png"])
     ap.add_argument("--quality", type=int)
     ap.add_argument("--font-scale", type=float)
-    ap.add_argument("--tonemap", action="store_true", help="HDR 转 SDR 再截图")
+    ap.add_argument("--tonemap", nargs="?", const="on", choices=["off", "on", "auto"],
+                    help="HDR→SDR 色调映射: off 关 / on 强制 / auto 识别到 HDR 才映射 (默认 auto); 只写 --tonemap = on")
     ap.add_argument("--keep-thumbs", action="store_true", help="保留单张截图")
     ap.add_argument("--skip-existing", action="store_true", help="同名输出已存在则跳过 (= --exists skip)")
     ap.add_argument("--exists", choices=["overwrite", "skip", "rename"],
@@ -2090,6 +2313,8 @@ def cli(argv):
     ap.add_argument("--comment-color", help="注释颜色, 如 red / #FF8800")
     ap.add_argument("--check-font", action="store_true", help="检查会用哪个字体、是否支持中文/日文, 然后退出")
     ap.add_argument("--font", help="联系表用的字体文件 (.ttf/.ttc/.otf), 需支持中文; 默认自动查找系统字体")
+    ap.add_argument("--top", type=int, metavar="N",
+                    help="DVD/蓝光 ISO: 取时长最长的前 N 个标题各出一张联系表 (默认 1; N>1 时输出名加 [1][2]…)")
     ap.add_argument("--playlist", type=int, help="蓝光: 指定 mpls 编号, 如 800")
     ap.add_argument("--head-mb", type=int, help="蓝光: 喂给 MediaInfo 的数据量(MB)")
     ap.add_argument("--duration", type=float, help="取不到时长时手动指定(秒)")
@@ -2122,7 +2347,7 @@ def cli(argv):
         if not m:
             sys.exit("--grid 格式应为 列x行, 例如 2x3")
         cfg["grid_cols"], cfg["grid_rows"] = int(m.group(1)), int(m.group(2))
-    for src, key in (("comment", "comment"), ("comment_color", "comment_color"), ("font", "font_path"), ("exists", "exist_mode"),
+    for src, key in (("top", "top_n"), ("comment", "comment"), ("comment_color", "comment_color"), ("font", "font_path"), ("exists", "exist_mode"),
                      ("ext", "extra_exts"), ("preroll", "preroll"), ("width", "thumb_width"), ("quality", "jpeg_quality"), ("font_scale", "font_scale"),
                      ("fmt", "sheet_fmt"), ("playlist", "playlist"), ("head_mb", "head_mb"),
                      ("duration", "duration"), ("tmpdir", "tmp_dir"), ("ffmpeg", "ffmpeg"),
@@ -2146,14 +2371,19 @@ def cli(argv):
         cfg["save_mediainfo"] = False
     if a.no_thumbs:
         cfg["make_sheet"] = False
+    for k in [x.strip() for x in a.show.split(",") if x.strip()]:
+        if "show_" + k in cfg:
+            cfg["show_" + k] = True
     for k in [x.strip() for x in a.hide.split(",") if x.strip()]:
         if "show_" + k in cfg:
             cfg["show_" + k] = False
-    for flag, key in ((a.tonemap, "tonemap"), (a.keep_thumbs, "keep_thumbs"),
+    for flag, key in ((a.keep_thumbs, "keep_thumbs"),
                       (a.debug, "debug")):
         if flag:
             cfg[key] = True
 
+    if a.tonemap:
+        cfg["tonemap_mode"] = a.tonemap
     if a.skip_existing:
         cfg["exist_mode"] = "skip"
     if a.recursive:
@@ -2314,9 +2544,17 @@ def run_gui(initial=()):
                                     ("bytes", "只按字节位置  (--seek-bytes, 不依赖时间戳, 更稳)"),
                                     ("time", "只按时间 seek  (--seek-time)"))):
         ttk.Radiobutton(lf, text=txt, value=val, variable=var("seek_mode")).grid(row=i, column=0, sticky="w")
-    check(t1, "HDR → SDR 色调映射 (4K 蓝光截图发灰时)", "tonemap", 7)
+    lf3 = ttk.LabelFrame(t1, text="HDR → SDR 色调映射 (HDR 截图发灰时)", padding=6)
+    lf3.grid(row=7, column=0, columnspan=3, sticky="we", pady=4)
+    for i, (val, txt) in enumerate((("auto", "自动: 识别到 HDR (HDR10/HLG) 才映射, SDR 片源不动"),
+                                    ("on", "始终映射"), ("off", "关闭"))):
+        ttk.Radiobutton(lf3, text=txt, value=val, variable=var("tonemap_mode")).grid(row=i, column=0, sticky="w")
     check(t1, "保留单张截图 (<文件名>_thumbs 文件夹)", "keep_thumbs", 8)
     spin(t1, "预解码秒数", "preroll", 0, 120, 9)
+    spin(t1, "ISO 取最长的前 N 个标题", "top_n", 1, 50, 11)
+    ttk.Label(t1, text="仅 DVD / 蓝光 ISO: DVD 按标题集(VTS)、蓝光按播放列表(mpls) 取时长最长的 N 个,\n"
+                       "每个各出一张联系表 + MediaInfo; N>1 时输出名加 [1] [2]…。默认 1 = 只取主标题。",
+              foreground="#666").grid(row=12, column=0, columnspan=3, sticky="w", pady=(2, 0))
     ttk.Label(t1, text="防 HDTV/TS 白色马赛克: 先 seek 到目标前 N 秒的关键帧, 再解码到目标时间。\n"
                        "关键帧间隔很长 (>10 秒) 的视频可加大。", foreground="#666").grid(
         row=10, column=0, columnspan=3, sticky="w", pady=(2, 0))
@@ -2596,6 +2834,15 @@ def run_gui(initial=()):
             Path(p).write_text(mi_text.get("1.0", "end").rstrip() + "\n", encoding="utf-8")
             status.set(f"已保存: {p}")
 
+    def copy_cmd():
+        sel = list(tree.selection()) or list(tree.get_children())
+        cmd = build_cli_command(collect(), sel or ["xxx.mkv"])
+        root.clipboard_clear()
+        root.clipboard_append(cmd)
+        root.update()
+        log_add("\n[命令行]\n" + cmd + "\n")
+        status.set("命令行已复制到剪贴板" + ("" if sel else " (列表为空, 用 xxx.mkv 占位)"))
+
     def open_out():
         sel = tree.selection() or tree.get_children()
         if not sel:
@@ -2621,6 +2868,9 @@ def run_gui(initial=()):
     b_start_sel = btn(tb2, "开始(选中)", lambda: start(selected=True))
     b_stop = btn(tb2, "■ 停止", stop, state="disabled")
     btn(tb2, "打开输出目录", open_out)
+    bar = ttk.Frame(right)
+    bar.pack(side="bottom", fill="x", before=nb, pady=(4, 0))
+    ttk.Button(bar, text="复制命令行", command=copy_cmd).pack(side="right")
     b_mi = ttk.Button(brow, text="读取选中文件的 MediaInfo", command=lambda: start(mi_only=True))
     b_mi.pack(side="left", padx=2)
     ttk.Button(brow, text="复制", command=copy_mi).pack(side="left", padx=2)
