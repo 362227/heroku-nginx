@@ -52,7 +52,7 @@ DEFAULTS = {
     # 输出
     "out_mode": "iso_dir", "out_dir": "", "tmp_dir": "",
     "exist_mode": "overwrite",      # 同名输出已存在时: overwrite 覆盖 / skip 跳过 / rename 自动改名 (1)
-    "comment": "", "comment_color": "#8CC8FF",   # 联系表信息区最后一行的注释 (可写广告/备注)
+    "comment": "", "comment_color": "#8CC8FF", "font_path": "",   # 联系表信息区最后一行的注释 (可写广告/备注)
     # 高级
     "recursive": False, "extra_exts": "", "preroll": 10,
     "playlist": "", "duration": "", "debug": False,
@@ -1670,16 +1670,89 @@ def format_all(brief, full):
 
 
 # ============================================================ 联系表
+FONT_PATH = [""]       # 用户指定的字体文件 (设置里 / --font)
+_FONT_WARNED = [False]
+_CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uff00-\uffef]")
+
+_FONT_CANDIDATES = [
+    # Windows
+    r"C:\Windows\Fonts\msyh.ttc", r"C:\Windows\Fonts\msyh.ttf", r"C:\Windows\Fonts\meiryo.ttc",
+    r"C:\Windows\Fonts\YuGothM.ttc", r"C:\Windows\Fonts\simhei.ttf", r"C:\Windows\Fonts\simsun.ttc",
+    # Linux (Colab: apt-get install -y fonts-noto-cjk  或  fonts-wqy-zenhei)
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", "/usr/share/fonts/wenquanyi/wqy-zenhei/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+    "/usr/share/fonts/truetype/arphic/uming.ttc",
+    # macOS
+    "/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc", "/Library/Fonts/Arial Unicode.ttf",
+]
+
+
+def _fc_cjk_fonts():
+    """用 fontconfig 找系统里支持中文的字体 (Linux/macOS)"""
+    try:
+        r = subprocess.run(["fc-list", ":lang=zh", "-f", "%{file}\n"], capture_output=True, text=True, timeout=10)
+        fs = [x.strip() for x in (r.stdout or "").splitlines() if x.strip()]
+    except Exception:
+        return []
+    fs.sort(key=lambda x: (0 if re.search(r"CJK|Noto|WenQuanYi|wqy|Source ?Han|Heiti|PingFang", x, re.I) else 1, x))
+    out = []
+    for x in fs:
+        if x.lower().endswith((".ttf", ".ttc", ".otf")) and x not in out:
+            out.append(x)
+    return out
+
+
+def font_supports_cjk(font):
+    """字体里有没有 "中/あ" 的真实字形 (没有的话会画成和未定义字符一样的方块)"""
+    try:
+        blank = bytes(font.getmask("\u0378"))   # 未分配的码位 -> 方块/空白 (.notdef)
+        return bytes(font.getmask("中")) != blank and bytes(font.getmask("あ")) != blank
+    except Exception:
+        return False
+
+
 def load_font(size):
     from PIL import ImageFont
-    for f in (r"C:\Windows\Fonts\msyh.ttc", r"C:\Windows\Fonts\meiryo.ttc",
-              r"C:\Windows\Fonts\simhei.ttf", r"C:\Windows\Fonts\arial.ttf",
-              "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
+    cands = ([FONT_PATH[0]] if FONT_PATH[0] else []) + _FONT_CANDIDATES
+    for f in cands:
+        if f and os.path.isfile(f):
+            try:
+                ft = ImageFont.truetype(f, size)
+                if font_supports_cjk(ft):
+                    return ft
+            except Exception:
+                continue
+    for f in _fc_cjk_fonts():
         try:
-            return ImageFont.truetype(f, size)
+            ft = ImageFont.truetype(f, size)
+            if font_supports_cjk(ft):
+                return ft
         except Exception:
             continue
+    for f in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", r"C:\Windows\Fonts\arial.ttf"):
+        try:
+            f2 = ImageFont.truetype(f, size)
+            _font_warn()
+            return f2
+        except Exception:
+            continue
+    _font_warn()
     return ImageFont.load_default()
+
+
+def _font_warn():
+    if not _FONT_WARNED[0]:
+        _FONT_WARNED[0] = True
+        print("!! 没找到支持中文/日文的字体, 中文会显示成方块。解决办法任选其一:\n"
+              "   - Linux/Colab:  apt-get install -y fonts-noto-cjk   (装完重跑)\n"
+              "   - 或用 --font /路径/某字体.ttf (GUI: 联系表内容 → 字体文件) 指定一个中文字体")
 
 
 def wrap(draw, text, font, maxw):
@@ -1784,6 +1857,7 @@ def process_iso(iso, cfg):
     outdir, tmpdir = out_dirs(iso, c)
     outdir.mkdir(parents=True, exist_ok=True)
     tmpdir.mkdir(parents=True, exist_ok=True)
+    FONT_PATH[0] = str(c.get("font_path") or "").strip()
     is_iso = iso.suffix.lower() == ".iso"
     base = iso.stem if is_iso else iso.name   # 非 ISO 保留扩展名, 避免 a.mkv / a.mp4 重名覆盖
     sheet_path = outdir / f"{base}_sheet.{'png' if c['sheet_fmt'] == 'png' else 'jpg'}"
@@ -2014,6 +2088,8 @@ def cli(argv):
                     help="同名输出已存在时: overwrite 覆盖(默认) / skip 跳过 / rename 自动改名加 (1)")
     ap.add_argument("--comment", help="联系表信息区最后一行的注释 (可写广告/备注, \\n 换行)")
     ap.add_argument("--comment-color", help="注释颜色, 如 red / #FF8800")
+    ap.add_argument("--check-font", action="store_true", help="检查会用哪个字体、是否支持中文/日文, 然后退出")
+    ap.add_argument("--font", help="联系表用的字体文件 (.ttf/.ttc/.otf), 需支持中文; 默认自动查找系统字体")
     ap.add_argument("--playlist", type=int, help="蓝光: 指定 mpls 编号, 如 800")
     ap.add_argument("--head-mb", type=int, help="蓝光: 喂给 MediaInfo 的数据量(MB)")
     ap.add_argument("--duration", type=float, help="取不到时长时手动指定(秒)")
@@ -2023,6 +2099,18 @@ def cli(argv):
     ap.add_argument("--7z", dest="sevenz"); ap.add_argument("--mediainfo")
     a = ap.parse_args(argv)
 
+    if a.check_font:
+        FONT_PATH[0] = (a.font or "").strip()
+        _FONT_WARNED[0] = True  # 下面自己输出结果, 不重复提示
+        f = load_font(20)
+        path = getattr(f, "path", None)
+        ok = font_supports_cjk(f) if path else False
+        print("使用字体:", path or "(PIL 内置字体)")
+        print("支持中文/日文:", "是, 联系表里的中文不会再是方块" if ok else
+              "否, 中文会显示成方块\n  Linux/Colab:  apt-get install -y fonts-noto-cjk\n  或  --font /路径/某中文字体.ttf")
+        found = _fc_cjk_fonts()
+        print("系统中文字体 (fc-list :lang=zh):", ("\n  " + "\n  ".join(found[:8])) if found else "无")
+        return 0 if ok else 1
     if a.gui or not a.iso:
         return run_gui(a.iso)
 
@@ -2034,7 +2122,7 @@ def cli(argv):
         if not m:
             sys.exit("--grid 格式应为 列x行, 例如 2x3")
         cfg["grid_cols"], cfg["grid_rows"] = int(m.group(1)), int(m.group(2))
-    for src, key in (("comment", "comment"), ("comment_color", "comment_color"), ("exists", "exist_mode"),
+    for src, key in (("comment", "comment"), ("comment_color", "comment_color"), ("font", "font_path"), ("exists", "exist_mode"),
                      ("ext", "extra_exts"), ("preroll", "preroll"), ("width", "thumb_width"), ("quality", "jpeg_quality"), ("font_scale", "font_scale"),
                      ("fmt", "sheet_fmt"), ("playlist", "playlist"), ("head_mb", "head_mb"),
                      ("duration", "duration"), ("tmpdir", "tmp_dir"), ("ffmpeg", "ffmpeg"),
@@ -2255,6 +2343,9 @@ def run_gui(initial=()):
     spin(t2, "文字缩放", "font_scale", 0.5, 3.0, 6, inc=0.1)
     entry(t2, "注释 (最后一行)", "comment", 7, width=40)
     entry(t2, "注释颜色", "comment_color", 8, width=14)
+    entry(t2, "字体文件", "font_path", 10, "file", width=40)
+    ttk.Label(t2, text="字体留空 = 自动找系统中文字体 (Windows 微软雅黑等)。", foreground="#666").grid(
+        row=11, column=0, columnspan=3, sticky="w")
     ttk.Label(t2, text="注释显示在信息区最后一行, 可写广告 / 备注; 想换行写 \\n; 留空则不显示。\n"
                        "颜色可写名字 (red) 或 #RRGGBB。", foreground="#666").grid(
         row=9, column=0, columnspan=3, sticky="w")
