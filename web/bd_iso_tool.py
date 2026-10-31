@@ -17,7 +17,8 @@ GUI 的设置自动保存在脚本旁边的  "DVD蓝光iso截图.json"  里, 下
   * DVD : 自己解析 ISO9660, 找到最大标题集的 VOB 在 ISO 内的偏移, 用 ffmpeg 的 subfile 协议直接读;
           MediaInfo 读 VTS_xx_0.IFO
 依赖: ffmpeg/ffprobe (蓝光需带 libbluray, gyan.dev full 构建), MediaInfo CLI, pip install pillow
-      蓝光另需 7-Zip;  GUI 拖拽需 pip install tkinterdnd2 (没装也能用按钮添加)
+      7-Zip 是可选的: 只有「蓝光 ISO」的 隐藏字幕检测 / MediaInfo 原生模式 才会用到, 没有也能正常截图和出精简/完整报告
+      GUI 拖拽需 pip install tkinterdnd2 (没装也能用按钮添加)
 """
 import argparse
 import contextlib
@@ -30,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import traceback
 from pathlib import Path
 
@@ -56,13 +58,26 @@ DEFAULTS = {
     "out_mode": "iso_dir", "out_dir": "", "tmp_dir": "",
     "exist_mode": "overwrite",      # 同名输出已存在时: overwrite 覆盖 / skip 跳过 / rename 自动改名 (1)
     "comment": "", "comment_color": "#8CC8FF", "font_path": "",   # 联系表信息区最后一行的注释 (可写广告/备注)
+    # 输出文件名后缀: 留空 = 无后缀 (GUI); 命令行不写 = 默认后缀, 写 "" 才是无后缀
+    "sheet_suffix": "_sheet", "mi_suffix": ".mediainfo",
+    "sheet_prefix": "", "mi_prefix": "",          # 文件名前缀, 如 media_ -> media_xxx.mkv.txt
+    # 联系表外观
+    "bg_color": "#18181C", "text_color": "#EBEBEB", "name_color": "#FFDC78", "ts_color": "#FFFFFF",
+    # 图片水印 (透明 PNG) 和 文字水印: 放在整张联系表上, 大小/位置都按联系表宽高的比例算, 所以不随图片大小变化
+    # 位置: tl tc tr / cl cc cr / bl bc br 九宫格, 或 custom (用 x/y 百分比: 0=贴左/上边, 100=贴右/下边)
+    "wm_enable": False, "wm_path": "", "wm_scale": 0.15, "wm_opacity": 100, "wm_pos": "tr", "wm_x": 100.0, "wm_y": 0.0,
+    "tx_enable": False, "tx_text": "", "tx_color": "#FFFFFF", "tx_size": 0.03, "tx_opacity": 100, "tx_stroke": True,
+    "tx_pos": "br", "tx_x": 100.0, "tx_y": 100.0,
+    "detect_cc": True,             # 检测隐藏字幕 (EIA-608/708, 用 mediainfo 命令行)
     # 高级
     "recursive": False, "extra_exts": "", "preroll": 10,
     "top_n": 1,                    # DVD/蓝光 ISO: 最多截取时长最长的前 N 个标题
+    # 过滤 (rclone 风格): 每行一条 "+ 模式" 包含 / "- 模式" 排除, 按顺序, 第一条匹配的生效
+    "filter_rules": "", "min_size": "", "max_size": "", "min_age": "", "max_age": "", "filter_ignore_case": True,
     "playlist": "", "duration": "", "debug": False,
     "ffmpeg": "", "ffprobe": "", "sevenz": "", "mediainfo": "",
     # 界面记忆
-    "geometry": "", "last_dir": "",
+    "geometry": "", "last_dir": "", "pending": [],     # pending: 上次没处理完/失败的队列 (崩溃恢复, 仅 GUI)
 }
 
 
@@ -82,15 +97,21 @@ def load_config():
             cfg["exist_mode"] = "skip"
         if data.get("tonemap") is True and "tonemap_mode" not in data:
             cfg["tonemap_mode"] = "on"
+        if str(data.get("wm_path") or "").strip() and "wm_enable" not in data:   # 旧版: 填了图片路径就是启用
+            cfg["wm_enable"] = True
     except Exception:
         pass
     return cfg
 
 
 def save_config(cfg):
+    """原子写入 (先写临时文件再替换), 断电/崩溃时不会留下写了一半的 json"""
     try:
         data = {k: cfg.get(k, v) for k, v in DEFAULTS.items()}
-        config_path().write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        path = config_path()
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
     except Exception as e:
         print("保存设置失败:", e)
 
@@ -129,23 +150,149 @@ def _natural(p):
     return [int(t) if t.isdigit() else t.casefold() for t in re.split(r"(\d+)", str(p))]
 
 
-def collect_inputs(paths, recursive, exts, strict=True):
-    """文件/目录 -> 文件列表 (去重, 自然排序). strict: 单独给的文件也必须是已知扩展名"""
+def _child(p, name):
+    """不区分大小写地找子项 (Linux 上 BDMV / bdmv 都能找到)"""
+    try:
+        for x in Path(p).iterdir():
+            if x.name.upper() == name.upper():
+                return x
+    except OSError:
+        pass
+    return None
+
+
+def disc_root(p):
+    """文件夹是不是解压出来的 DVD / 蓝光? 返回 ("bd"|"dvd", 光盘根目录) 或 None.
+    也认直接拖进来的 BDMV / VIDEO_TS 文件夹本身 (根目录取其上一级)"""
+    p = Path(p)
+    if not p.is_dir():
+        return None
+    name = p.name.upper()
+    bdmv = p if name == "BDMV" else _child(p, "BDMV")
+    if bdmv and bdmv.is_dir():
+        st = _child(bdmv, "STREAM")
+        if st and st.is_dir() and any(x.suffix.lower() == ".m2ts" for x in st.iterdir()):
+            return "bd", (p.parent if name == "BDMV" else p)
+    vts = p if name == "VIDEO_TS" else _child(p, "VIDEO_TS")
+    if vts and vts.is_dir():
+        if any(re.match(r"^VTS_\d\d_[1-9]\.VOB$", x.name, re.I) for x in vts.iterdir()):
+            return "dvd", (p.parent if name == "VIDEO_TS" else p)
+    return None
+
+
+def media_kind(p):
+    """路径 -> 'iso' / 'bdfolder' / 'dvdfolder' / 'file' / 'dir' / None"""
+    p = Path(p)
+    if p.is_dir():
+        r = disc_root(p)
+        return {"bd": "bdfolder", "dvd": "dvdfolder"}[r[0]] if r else "dir"
+    if p.is_file():
+        return "iso" if p.suffix.lower() == ".iso" else "file"
+    return None
+
+
+def _pattern_has_wild(p):
+    return any(ch in str(p) for ch in "*?[")
+
+
+def expand_pattern(pat, recursive, exts):
+    """通配符 (如 D:/常用/*.iso 或 D:/常用/*): 非递归只看那个目录, -r 递归子目录.
+    只写 * 或 *.* 这种没指定扩展名的, 按已知视频扩展名过滤; 写了具体扩展名 (*.iso / *.xyz) 就照写的来"""
+    import fnmatch
+    pat = str(pat)
+    d, name = os.path.split(pat)
+    if _pattern_has_wild(d):                    # 目录部分也带通配符: 交给 glob
+        import glob
+        hits = glob.glob(pat, recursive=bool(recursive))
+        return [Path(h) for h in hits]
+    d = d or "."
+    explicit_ext = bool(re.search(r"\.[A-Za-z0-9]+$", name))
+    base = Path(d)
+    if not base.is_dir():
+        return []
+    out = []
+
+    def want(x):
+        if not fnmatch.fnmatch(x.name.lower(), name.lower()):
+            return False
+        return x.is_dir() or explicit_ext or x.suffix.lower() in exts
+
+    def walk(dirp, depth):
+        try:
+            items = sorted(dirp.iterdir(), key=_natural)
+        except OSError:
+            return
+        for x in items:
+            if x.is_dir():
+                if disc_root(x):
+                    if want(x) or name in ("*", "*.*"):
+                        out.append(x)
+                elif recursive:
+                    walk(x, depth + 1)
+            elif x.is_file() and want(x):
+                out.append(x)
+    walk(base, 0)
+    return out
+
+
+def scan_dir_items(folder, recursive, exts):
+    """扫描一个普通目录: 返回其中的视频文件 + 解压的 DVD/蓝光文件夹 (后者作为整体, 不进入内部)"""
+    out = []
+
+    def walk(dirp, top):
+        try:
+            items = sorted(dirp.iterdir(), key=_natural)
+        except OSError:
+            return
+        for x in items:
+            if x.is_dir():
+                if disc_root(x):
+                    out.append(x)            # 光盘文件夹: 即使不递归, 直接子目录里的光盘也算
+                elif recursive:
+                    walk(x, False)
+            elif x.is_file() and x.suffix.lower() in exts:
+                out.append(x)
+    walk(folder, True)
+    return out
+
+
+INPUT_ROOT = {}      # 条目的绝对路径 -> 它是从哪个根目录收集来的 (过滤规则里以 / 开头的"锚定"规则要用)
+
+
+def collect_inputs(paths, recursive, exts, strict=True, disc_folders=True):
+    """文件/目录/通配符 -> 条目列表 (去重, 自然排序).
+    目录若本身就是解压的 DVD/蓝光, 作为一个条目返回 (disc_folders=False 时当普通目录展开).
+    strict: 单独给的文件也必须是已知扩展名"""
     out, seen = [], set()
+
+    def add(f, root=None):
+        k = str(Path(f).resolve())
+        INPUT_ROOT.setdefault(k, str(root if root is not None else Path(f).parent))
+        if k not in seen:
+            seen.add(k)
+            out.append(Path(f))
+
     for p in paths:
         p = Path(str(p).strip("{}"))
+        if _pattern_has_wild(p) and not p.exists():
+            for f in expand_pattern(p, recursive, exts):
+                if f.is_dir() and not disc_root(f):
+                    for g in scan_dir_items(f, recursive, exts):
+                        add(g, f)
+                else:
+                    add(f, f.parent)
+            continue
         if p.is_dir():
-            it = p.rglob("*") if recursive else p.iterdir()
-            found = sorted((x for x in it if x.is_file() and x.suffix.lower() in exts), key=_natural)
+            r = disc_root(p)
+            if r and disc_folders:
+                add(r[1], r[1].parent)
+            else:
+                for f in scan_dir_items(p, recursive, exts) if not r else \
+                        sorted((x for x in (p.rglob("*") if recursive else p.iterdir())
+                                if x.is_file() and x.suffix.lower() in exts), key=_natural):
+                    add(f, p)
         elif p.is_file() and (not strict or p.suffix.lower() in exts):
-            found = [p]
-        else:
-            found = []
-        for f in found:
-            k = str(f.resolve())
-            if k not in seen:
-                seen.add(k)
-                out.append(f)
+            add(p, p.parent)
     return out
 
 
@@ -164,6 +311,12 @@ def find_tool(name, given=None, extra=()):
 def run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                           errors="replace", creationflags=CREATE_NO_WINDOW, **kw)
+
+
+def fmt_size(n):
+    """联系表里的大小: >= 1GB 用 GB, 否则用 MB, 都保留两位小数: 1.50GB / 222.11MB / 11.00MB"""
+    n = float(n or 0)
+    return f"{n / 1024 ** 3:.2f}GB" if round(n / 1024 ** 2, 2) >= 1024 else f"{n / 1024 ** 2:.2f}MB"
 
 
 def fmt_t(sec):
@@ -264,9 +417,15 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     def grab_bytes(frac, out):
         """从 ISO 内标题集的 frac 位置(按字节)开始读, 跳过开头 10 帧(此处可能缺参考帧)后取一帧;
         返回 (ok, err, 帧的原始 PTS 秒)"""
-        path, s0, e0 = dvd_range
-        st = s0 + int((e0 - s0) * frac)
-        st -= st % SEC
+        # dvd_range = [(文件路径, 起始字节, 结束字节), ...]: ISO 里的 VOB 区段, 或 DVD 文件夹里的各个 VOB 文件
+        total = sum(e - b for _, b, e in dvd_range)
+        pos = min(int(total * frac), total - 1)
+        for path, b0, e0 in dvd_range:
+            if pos < e0 - b0:
+                break
+            pos -= e0 - b0
+        st = b0 + pos
+        st -= (st - b0) % SEC
         u = f"subfile,,start,{st},end,{e0},,:{path}"
         cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "info", "-copyts", "-probesize", "50M",
                "-i", u, "-map", "0:v:0", "-frames:v", "1",
@@ -412,6 +571,20 @@ def do_mediainfo_bd(sevenz, mediainfo, iso, head_mb, raw_mode, tmpdir):
 
 
 # ============================================================ DVD (ISO9660 直读)
+def do_mediainfo_bd_folder(mediainfo, root, raw_mode):
+    """蓝光文件夹: 直接对 BDMV/STREAM 里最大的 m2ts 跑 mediainfo (整个文件, 数据是准的)"""
+    st = _child(_child(root, "BDMV"), "STREAM")
+    m2 = max((x for x in st.iterdir() if x.suffix.lower() == ".m2ts"), key=lambda x: x.stat().st_size)
+    txt, mj = None, None
+    if raw_mode in ("normal", "full"):
+        txt = run([mediainfo] + (["--Full"] if raw_mode == "full" else []) + [str(m2)]).stdout
+    try:
+        mj = json.loads(run([mediainfo, "--Full", "--Output=JSON", str(m2)]).stdout)
+    except Exception:
+        mj = None
+    return txt, mj, m2.name, m2.stat().st_size
+
+
 def _iso_dir(f, lba, size):
     f.seek(lba * SEC)
     data = f.read(size)
@@ -472,9 +645,57 @@ def scan_dvd(iso):
     return {k: v for k, v in vts.items() if v["vobs"]}
 
 
-def read_range(iso, lba, size):
+def scan_dvd_folder(root):
+    """解压出来的 DVD 文件夹: 结构和 scan_dvd 一样, 只是位置是文件路径(Path)而不是 ISO 里的扇区号"""
+    vt = _child(root, "VIDEO_TS") if Path(root).name.upper() != "VIDEO_TS" else Path(root)
+    if not vt or not vt.is_dir():
+        return None
+    vts = {}
+    for x in vt.iterdir():
+        m = re.match(r"^VTS_(\d\d)_(\d)\.(VOB|IFO|BUP)$", x.name, re.I)
+        if not m or not x.is_file():
+            continue
+        n, part, ext = int(m.group(1)), int(m.group(2)), m.group(3).upper()
+        e = vts.setdefault(n, {"ifo": None, "vobs": []})
+        if ext == "IFO" and part == 0:
+            e["ifo"] = (x, x.stat().st_size)
+        elif ext == "VOB" and part >= 1:
+            e["vobs"].append((part, x, x.stat().st_size, x.name))
+    for e in vts.values():
+        e["vobs"].sort(key=lambda v: v[0])
+    return {k: v for k, v in vts.items() if v["vobs"]}
+
+
+def scan_dvd_any(path):
+    """ISO 文件 或 DVD 文件夹 -> scan 结果 (不是 DVD 返回 None)"""
+    path = Path(path)
+    if path.is_dir():
+        r = disc_root(path)
+        return scan_dvd_folder(r[1]) if r and r[0] == "dvd" else None
+    return scan_dvd(path)
+
+
+def path_size(p):
+    """文件大小; 文件夹则为其中所有文件之和"""
+    p = Path(p)
+    if p.is_file():
+        return p.stat().st_size
+    total = 0
+    for dp, _dn, fn in os.walk(p):
+        for f in fn:
+            try:
+                total += os.path.getsize(os.path.join(dp, f))
+            except OSError:
+                pass
+    return total
+
+
+def read_range(iso, loc, size):
+    if isinstance(loc, Path):           # DVD 文件夹里的文件
+        with open(loc, "rb") as f:
+            return f.read(size)
     with open(iso, "rb") as f:
-        f.seek(lba * SEC)
+        f.seek(loc * SEC)
         return f.read(size)
 
 
@@ -484,22 +705,32 @@ def dvd_pick_main(vts):
 
 
 def dvd_source(iso, vobs, tmpdir):
-    """返回 (ffmpeg前置参数, url, 需清理的目录, (路径,起,止)|None)"""
+    """返回 (ffmpeg前置参数, url, 需清理的目录, 区段列表[(路径,起,止)...]).
+    ISO: VOB 在 ISO 内连续时用单个 subfile, 否则 concat; DVD 文件夹: 单个 VOB 直接用, 多个用 concat"""
+    if isinstance(vobs[0][1], Path):
+        segs = [(v[1].resolve().as_posix(), 0, v[2]) for v in vobs]
+        if len(segs) == 1:
+            return [], segs[0][0], None, segs
+        lines = ["ffconcat version 1.0"] + ["file '" + sp.replace("'", "'\\''") + "'" for sp, _, _ in segs]
+        lst = Path(tempfile.mkdtemp(dir=tmpdir)) / "vobs.ffconcat"
+        lst.write_text("\n".join(lines), encoding="utf-8")
+        return ["-f", "concat", "-safe", "0"], str(lst), lst.parent, segs
     path = iso.resolve().as_posix()
     contiguous = all(vobs[i + 1][1] == vobs[i][1] + (vobs[i][2] + SEC - 1) // SEC
                      for i in range(len(vobs) - 1))
     if contiguous:
         start = vobs[0][1] * SEC
         end = vobs[-1][1] * SEC + vobs[-1][2]
-        return [], f"subfile,,start,{start},end,{end},,:{path}", None, (path, start, end)
+        return [], f"subfile,,start,{start},end,{end},,:{path}", None, [(path, start, end)]
     lines = ["ffconcat version 1.0"]
     for _, lba, size, _n in vobs:
         u = f"subfile,,start,{lba * SEC},end,{lba * SEC + size},,:{path}".replace("'", "'\\''")
         lines.append(f"file '{u}'")
     lst = Path(tempfile.mkdtemp(dir=tmpdir)) / "vobs.ffconcat"
     lst.write_text("\n".join(lines), encoding="utf-8")
+    segs = [(path, lba * SEC, lba * SEC + size) for _, lba, size, _n in vobs]
     return (["-f", "concat", "-safe", "0", "-protocol_whitelist", "file,subfile,concat"],
-            str(lst), lst.parent, None)
+            str(lst), lst.parent, segs)
 
 
 def dvd_css_scan(iso, vobs):
@@ -507,9 +738,10 @@ def dvd_css_scan(iso, vobs):
     lba, size = vobs[0][1], vobs[0][2]
     nsec = size // SEC
     scr = tot = 0
-    with open(iso, "rb") as f:
+    folder = isinstance(lba, Path)
+    with open(lba if folder else iso, "rb") as f:
         for i in range(2000):
-            f.seek((lba + i * nsec // 2000) * SEC)
+            f.seek((i * nsec // 2000 if folder else lba + i * nsec // 2000) * SEC)
             d = f.read(SEC)
             if len(d) < SEC or d[:4] != b"\x00\x00\x01\xba":
                 continue
@@ -582,7 +814,7 @@ def info_from_mediainfo(mj):
             p = [f"{t.get('Format', '?')} {t.get('Format_Profile', '')}".strip()]
             if t.get("Width") and t.get("Height"):
                 p.append(f"{t['Width']}x{t['Height']}" + ("i" if t.get("ScanType") == "Interlaced" else ""))
-            fr = to_f(t.get("FrameRate"))
+            fr = to_f(t.get("FrameRate_Original")) or to_f(t.get("FrameRate"))
             if fr:
                 p.append(f"{fr:.3f} fps")
             for key, suf in (("BitRate", ""), ("BitRate_Nominal", ""), ("BitRate_Maximum", " (max)")):
@@ -656,7 +888,7 @@ def info_from_probe(pr):
 
 
 def collect_info(iso, kind, duration, inner, mj, probe, extra, css_enc, brief=None, size_label="ISO 大小"):
-    parts = [kind, f"{size_label} {iso.stat().st_size / 1024 ** 3:.2f} GB"]
+    parts = [kind, f"{size_label} {fmt_size(path_size(iso))}"]
     if duration:
         parts.append("时长 " + fmt_t(duration))
     if inner:
@@ -665,13 +897,15 @@ def collect_info(iso, kind, duration, inner, mj, probe, extra, css_enc, brief=No
         parts.append(extra)
     if css_enc:
         parts.append("[!] VOB 被 CSS 加密, 无法截图")
-    info = {"name": iso.name, "fileinfo": "  |  ".join(parts), "video": [], "audio": [], "subs": None}
+    info = {"name": iso.name, "fileinfo": "  |  ".join(parts), "video": [], "audio": [], "subs": None, "cc": None}
     if brief:  # 联系表里的视频/音频/字幕行直接用 BDInfo 风格的精简文本
         ls = brief.splitlines()
         info["video"] = [l for l in ls if l.startswith("VIDEO:")][:2]
         info["audio"] = [l for l in ls if l.startswith("AUDIO:")][:8]
         sub = [l for l in ls if l.startswith("Subtitle:")]
         info["subs"] = sub[0] if sub else None
+        cc = [l for l in ls if l.startswith("隐藏字幕:")]
+        info["cc"] = cc[0] if cc else None
         return info
     v, a, s = ([], [], [])
     if mj:
@@ -698,12 +932,14 @@ def sheet_lines(info, c):
         lines += info["audio"]
     if c["show_subs"] and info["subs"]:
         lines.append(info["subs"])
+    if c["show_subs"] and info.get("cc"):
+        lines.append(info["cc"])
     return lines
 
 
 def simple_report(info):
     return "\n".join([info["name"], info["fileinfo"]] + info["video"] + info["audio"]
-                     + ([info["subs"]] if info["subs"] else []))
+                     + ([info["subs"]] if info["subs"] else []) + ([info["cc"]] if info.get("cc") else []))
 
 
 # ============================================================ BDInfo 风格 / 完整 MediaInfo 风格
@@ -829,17 +1065,35 @@ def _mi_kbps(stream, fallback_bps=0, approx=False):
     return f"{'~' if est else ''}{round(n / 1000)} kbps"
 
 
-def _mi_fps(s):
-    for key in ("r_frame_rate", "avg_frame_rate"):
+def _mi_fps(s, orig=None):
+    """帧率. 优先用 mediainfo 的「原始帧率」(orig); 没有就用 ffprobe 实测的 avg_frame_rate
+    (隔行 1080i 的 r_frame_rate / VUI 常给出场率 59.94, 而真实帧率是 29.97), 最后才用 r_frame_rate"""
+    def fmt(x):
+        return f"{x:.3f}".rstrip("0").rstrip(".") + " fps"
+    if orig:
+        return fmt(float(orig))
+    for key in ("avg_frame_rate", "r_frame_rate"):
         v = s.get(key) or ""
         try:
             a, b = v.split("/")
             a, b = float(a), float(b)
             if a > 0 and b > 0:
-                return f"{a / b:.3f}".rstrip("0").rstrip(".") + " fps"
+                return fmt(a / b)
         except Exception:
             continue
     return ""
+
+
+def _mi_orig_fps(mj):
+    """mediainfo JSON 里第一个视频轨的「原始帧率」: 字段名是 FrameRate_Original (界面里显示为 原始帧率 / Original frame rate)"""
+    for t in (mj or {}).get("media", {}).get("track", []):
+        if t.get("@type") == "Video":
+            for key in ("FrameRate_Original", "FrameRate_Original_String", "OriginalFrameRate"):
+                m = re.search(r"\d+(?:\.\d+)?", str(t.get(key) or ""))
+                if m and float(m.group()) > 0:
+                    return float(m.group())
+            return None
+    return None
 
 
 _MI_STD_HEIGHTS = (4320, 2160, 1440, 1080, 720, 576, 540, 480, 360, 240)
@@ -1366,7 +1620,7 @@ def _mi_disp_lines(s):
     return L
 
 
-def _mi_full_video(s, head, container_dur, extra, enc, interlaced, video_fallback):
+def _mi_full_video(s, head, container_dur, extra, enc, interlaced, video_fallback, orig_fps=None):
     L = [head]
     tags = s.get("tags") or {}
     L += _mi_common_stream_lines(s, container_dur)
@@ -1401,10 +1655,11 @@ def _mi_full_video(s, head, container_dur, extra, enc, interlaced, video_fallbac
     sar = s.get("sample_aspect_ratio")
     if sar and sar not in ("0:1", "N/A", "1:1"):
         L.append(_mi_kv("Pixel aspect ratio", sar))
-    fps = _mi_fps(s)
+    fps = _mi_fps(s, orig_fps)
     if fps:
         r, a = _mi_f(s.get("r_frame_rate")), _mi_f(s.get("avg_frame_rate"))
-        mode = "Constant" if (r and a and abs(r - a) < 0.01) else "Variable"
+        # r = 2a 是场率/帧率的差别 (隔行), 不算可变帧率
+        mode = "Constant" if (r and a and (abs(r - a) < 0.01 or abs(r - 2 * a) < 0.02)) else "Variable"
         L.append(_mi_kv("Frame rate mode", mode))
         L.append(_mi_kv("Frame rate", fps.replace(" fps", " FPS")))
     space, chroma = _mi_space_chroma(s.get("pix_fmt"))
@@ -1525,7 +1780,7 @@ def _mi_full_sub(s, head, container_dur):
     return L
 
 
-def _mi_build_full(label, data, streams, extra, enc, first_video, video_fallback):
+def _mi_build_full(label, data, streams, extra, enc, first_video, video_fallback, orig_fps=None):
     fmt = data.get("format") or {}
     container_dur = _mi_f(fmt.get("duration"))
     sections = []
@@ -1558,7 +1813,7 @@ def _mi_build_full(label, data, streams, extra, enc, first_video, video_fallback
         head = "Video" if len(vids) == 1 else f"Video #{i}"
         if s is first_video:
             inter = _mi_is_interlaced(s, extra, enc)
-            sections.append(_mi_full_video(s, head, container_dur, extra, enc, inter, video_fallback))
+            sections.append(_mi_full_video(s, head, container_dur, extra, enc, inter, video_fallback, orig_fps))
         else:
             inter = _mi_is_interlaced(s, {}, {})
             sections.append(_mi_full_video(s, head, container_dur, {}, {}, inter, 0))
@@ -1605,7 +1860,50 @@ def _mi_apply_langs(streams, mj):
                     s.setdefault("tags", {})["language"] = lang
 
 
-def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override=None, file_path=None):
+_CC_RE = re.compile(r"EIA-?[67]0[8]|CEA-?[67]0[8]|DTVCC|SCTE.?128|Line.?21|ATSC.?A/53", re.I)
+
+
+def mi_cc_tracks(mj):
+    """mediainfo JSON 里的隐藏字幕轨 (EIA-608/708 等, 混流在视频里, ffmpeg 读不出来)"""
+    out = []
+    for t in (mj or {}).get("media", {}).get("track", []):
+        if t.get("@type") == "Text" and _CC_RE.search(
+                " ".join(str(t.get(k, "")) for k in ("Format", "MuxingMode", "MuxingMode_MoreInfo", "CodecID"))):
+            out.append(t)
+    return out
+
+
+def cc_label(t):
+    lang = t.get("Language")
+    name = _mi_lang(lang, t.get("Title", "") or "") if lang else ""
+    if name:
+        return name
+    fmt = str(t.get("Format") or "CC")
+    m = re.search(r"-(\d+)\s*$", str(t.get("ID", "")))      # ID "256 (0x100)-4" -> 服务号 4
+    return f"{fmt}#{m.group(1)}" if m else fmt
+
+
+def _mi_cc_full(tracks):
+    secs = []
+    for i, t in enumerate(tracks, 1):
+        L = [f"Text (隐藏字幕) #{i}"]
+        for key, label in (("ID", "ID"), ("MenuID", "Menu ID"), ("Format", "Format"),
+                           ("MuxingMode", "Muxing mode"), ("MuxingMode_MoreInfo", "Muxing mode, more info"),
+                           ("Duration", "Duration"), ("Language", "Language")):
+            if t.get(key):
+                val = t[key]
+                if key == "Duration":
+                    try:
+                        val = _mi_dur_h(float(val))
+                    except Exception:
+                        pass
+                L.append(_mi_kv(label, val))
+        secs.append("\n".join(L))
+    return "\n\n".join(secs)
+
+
+def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override=None, file_path=None, cc_mj=None,
+                       show_cc=True):
     """对 bluray:/subfile 源生成 (精简文本, 完整文本, ffprobe JSON). 识别不到视频/音频时抛 MediaInfoError"""
     cmd = [ffprobe, "-v", "error", "-probesize", "50M", "-analyzeduration", "50M"] + pre + \
           ["-print_format", "json", "-show_streams", "-show_chapters", "-show_format", url]
@@ -1649,6 +1947,7 @@ def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override
         video_fallback = fmt_bps - audio_bps_sum
 
     first_video = real_videos[0] if real_videos else None
+    orig_fps = _mi_orig_fps(cc_mj) or _mi_orig_fps(lang_mj)   # mediainfo 的原始帧率 (比 ffprobe 的 r_frame_rate 准)
     extra, enc = {}, {}
     if first_video is not None:
         extra = _mi_probe_video_extra(ffprobe, pre, url)
@@ -1671,7 +1970,7 @@ def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override
             if etag:
                 codec += f" ({etag})"
             lines.append("VIDEO: " + _mi_join([
-                codec, _mi_resolution(s, inter), _mi_fps(s), _mi_aspect(s),
+                codec, _mi_resolution(s, inter), _mi_fps(s, orig_fps if is_first else None), _mi_aspect(s),
                 _mi_kbps(s, video_fallback, approx=True), _mi_profile(s), _mi_video_bitdepth(s)
             ] + _mi_hdr_list(s, extra if is_first else {})))
         elif ctype == "audio":
@@ -1684,12 +1983,21 @@ def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override
             subs.append(_mi_lang(lang, title) or "Unknown")
     if subs:
         lines.append("Subtitle: " + " / ".join(subs))
+    cc_tracks = mi_cc_tracks(cc_mj) if show_cc else []     # 关掉隐藏字幕检测时, cc_mj 仍用来取原始帧率
+    if cc_tracks:     # ffmpeg 看不到的隐藏字幕 (EIA-608/708): 用 mediainfo 的结果
+        counts = {}                       # 按格式统计条数: 有3条EIA-708字幕, 有1条EIA-608字幕
+        for t in cc_tracks:
+            fm = str(t.get("Format") or "CC").strip()
+            counts[fm] = counts.get(fm, 0) + 1
+        lines.append("隐藏字幕: " + ", ".join(f"有{n}条{fm}字幕" for fm, n in counts.items()))
     n_chapters = len(data.get("chapters") or [])
     if n_chapters > 0:
         lines.append(f"章节： {n_chapters}")
 
     try:
-        full_text = _mi_build_full(label, data, streams, extra, enc, first_video, video_fallback)
+        full_text = _mi_build_full(label, data, streams, extra, enc, first_video, video_fallback, orig_fps)
+        if cc_tracks:
+            full_text += "\n\n" + _mi_cc_full(cc_tracks)
     except Exception as e:
         full_text = "完整信息生成失败: " + str(e)
     return "\n".join(lines), full_text, data
@@ -1802,9 +2110,82 @@ def wrap(draw, text, font, maxw):
     return out
 
 
-def make_sheet(files, outpath, cols, rows, lines, show_ts=True, quality=92, font_scale=1.0,
-               comment="", comment_color="#8CC8FF"):
+def _rgb(v, default):
+    """颜色字符串 (名字 / #RRGGBB) -> (r,g,b); 空或写错用 default"""
+    try:
+        from PIL import ImageColor
+        v = str(v or "").strip()
+        return ImageColor.getrgb(v)[:3] if v else default
+    except Exception:
+        return default
+
+
+WM_POS = {"tl": (0, 0), "tc": (.5, 0), "tr": (1, 0), "cl": (0, .5), "cc": (.5, .5), "cr": (1, .5),
+          "bl": (0, 1), "bc": (.5, 1), "br": (1, 1)}
+
+
+def wm_xy(pos, px, py, W, H, w, h):
+    """水印左上角坐标: 九宫格预设 / 自定义百分比 (0=贴左(上)边, 100=贴右(下)边), 边距按联系表宽度的比例"""
+    m = max(6, int(W * 0.015))
+    if pos == "custom":
+        fx, fy = float(px) / 100.0, float(py) / 100.0
+    else:
+        fx, fy = WM_POS.get(pos, (1, 0))
+    fx, fy = min(max(fx, 0.0), 1.0), min(max(fy, 0.0), 1.0)
+    return int(m + max(W - w - 2 * m, 0) * fx), int(m + max(H - h - 2 * m, 0) * fy)
+
+
+def _apply_overlays(sheet, st):
+    """整张联系表上的图片水印和文字水印 (大小和位置都按联系表宽高的比例)"""
     from PIL import Image, ImageDraw
+    W, H = sheet.size
+    wmp = str(st.get("wm_path") or "").strip()
+    if st.get("wm_enable") and wmp:
+        try:
+            im0 = Image.open(wmp).convert("RGBA")
+            tw = max(8, int(W * float(st.get("wm_scale") or 0.15)))
+            th = max(1, int(im0.height * tw / im0.width))
+            if th > H * 0.5:
+                th = int(H * 0.5)
+                tw = max(1, int(im0.width * th / im0.height))
+            im = im0.resize((tw, th), getattr(Image, "Resampling", Image).LANCZOS)
+            op = max(0.0, min(100.0, float(st.get("wm_opacity", 100)))) / 100.0
+            if op < 1.0:
+                im.putalpha(im.getchannel("A").point(lambda v: int(v * op)))
+            x, y = wm_xy(st.get("wm_pos", "tr"), st.get("wm_x", 100), st.get("wm_y", 0), W, H, tw, th)
+            sheet.paste(im, (x, y), im)
+        except Exception as e:
+            print("图片水印加载失败:", e)
+    text = str(st.get("tx_text") or "").replace("\\n", "\n").strip()
+    if st.get("tx_enable") and text:
+        try:
+            size = max(10, int(W * float(st.get("tx_size") or 0.03)))
+            font = load_font(size)
+            col = _rgb(st.get("tx_color"), (255, 255, 255))
+            al = int(255 * max(0.0, min(100.0, float(st.get("tx_opacity", 100)))) / 100.0)
+            sw = max(1, size // 14) if st.get("tx_stroke", True) else 0
+            layer = Image.new("RGBA", sheet.size, (0, 0, 0, 0))
+            dl = ImageDraw.Draw(layer)
+            bb = dl.multiline_textbbox((0, 0), text, font=font, stroke_width=sw, align="center")
+            tw, th = bb[2] - bb[0], bb[3] - bb[1]
+            x, y = wm_xy(st.get("tx_pos", "br"), st.get("tx_x", 100), st.get("tx_y", 100), W, H, tw, th)
+            dl.multiline_text((x - bb[0], y - bb[1]), text, font=font, fill=col + (al,), align="center",
+                              stroke_width=sw, stroke_fill=(0, 0, 0, al))
+            sheet = Image.alpha_composite(sheet.convert("RGBA"), layer).convert("RGB")
+        except Exception as e:
+            print("文字水印绘制失败:", e)
+    return sheet
+
+
+def make_sheet(files, outpath, cols, rows, lines, show_ts=True, quality=92, font_scale=1.0,
+               comment="", comment_color="#8CC8FF", style=None):
+    """style: bg_color text_color name_color ts_color 以及 wm_* / tx_* 水印设置 (都可省略)"""
+    from PIL import Image, ImageDraw
+    st = style or {}
+    bg = _rgb(st.get("bg_color"), (24, 24, 28))
+    c_text = _rgb(st.get("text_color"), (235, 235, 235))
+    c_name = _rgb(st.get("name_color"), (255, 220, 120))
+    c_ts = _rgb(st.get("ts_color"), (255, 255, 255))
     if not files:
         print("没有成功的截图, 无法生成联系表")
         return False
@@ -1834,11 +2215,11 @@ def make_sheet(files, outpath, cols, rows, lines, show_ts=True, quality=92, font
     head_h = (margin * 2 + line_h * nlines) if nlines else margin
     sheet_h = head_h + rows * h + (rows - 1) * gap + margin
 
-    sheet = Image.new("RGB", (sheet_w, sheet_h), (24, 24, 28))
+    sheet = Image.new("RGB", (sheet_w, sheet_h), bg)
     d = ImageDraw.Draw(sheet)
     y = margin
     for i, ln in enumerate(wrapped):
-        d.text((margin, y), ln, font=font, fill=(255, 220, 120) if i == 0 else (235, 235, 235))
+        d.text((margin, y), ln, font=font, fill=c_name if i == 0 else c_text)
         y += line_h
     for ln in cwrapped:
         d.text((margin, y), ln, font=font, fill=ccolor)
@@ -1851,8 +2232,9 @@ def make_sheet(files, outpath, cols, rows, lines, show_ts=True, quality=92, font
         yy = head_h + (idx // cols) * (h + gap)
         sheet.paste(im.resize((w, h)), (x, yy))
         if show_ts:
-            d.text((x + 8, yy + h - int(fs * 1.9)), fmt_t(t), font=tfont, fill=(255, 255, 255),
+            d.text((x + 8, yy + h - int(fs * 1.9)), fmt_t(t), font=tfont, fill=c_ts,
                    stroke_width=2, stroke_fill=(0, 0, 0))
+    sheet = _apply_overlays(sheet, st)
     if str(outpath).lower().endswith(".png"):
         sheet.save(outpath)
     else:
@@ -1878,6 +2260,43 @@ def out_dirs(iso, c):
     isodir = iso.resolve().parent
     outdir = Path(c["out_dir"]) if (c["out_mode"] == "dir" and c["out_dir"]) else isodir
     return outdir, (Path(c["tmp_dir"]) if c["tmp_dir"] else isodir)
+
+
+def _ensure_orig_fps(mediainfo, path, mj):
+    """JSON 里没带「原始帧率」时, 用 --Inform 单独问一次 mediainfo, 补进第一个视频轨 (保险)"""
+    if not mj or _mi_orig_fps(mj):
+        return mj
+    try:
+        out = run([mediainfo, "--Inform=Video;%FrameRate_Original%\\n", str(path)]).stdout or ""
+        m = re.search(r"\d+(?:\.\d+)?", out)
+        if m and float(m.group()) > 0:
+            for t in mj.get("media", {}).get("track", []):
+                if t.get("@type") == "Video":
+                    t["FrameRate_Original"] = m.group()
+                    break
+    except Exception:
+        pass
+    return mj
+
+
+def detect_cc_json(kindp, path, c, mediainfo, sevenz, tmpdir):
+    """隐藏字幕检测: 对源跑一次 mediainfo 拿 JSON (文件=整个文件, 蓝光文件夹=最大的 m2ts, 蓝光 ISO=7z 读开头一段)"""
+    if not mediainfo:
+        return None
+    try:
+        if kindp == "file":
+            return _ensure_orig_fps(mediainfo, path, json.loads(
+                run([mediainfo, "--Full", "--Output=JSON", str(path)]).stdout))
+        if kindp == "bdfolder":
+            mj = do_mediainfo_bd_folder(mediainfo, path, "simple")[1]
+            st = _child(_child(path, "BDMV"), "STREAM")
+            m2 = max((x for x in st.iterdir() if x.suffix.lower() == ".m2ts"), key=lambda x: x.stat().st_size)
+            return _ensure_orig_fps(mediainfo, m2, mj)
+        if kindp == "iso" and sevenz and c.get("detect_cc"):    # 读 ISO 开头要用 7z, 比较慢, 只在开了隐藏字幕检测时做
+            return do_mediainfo_bd(sevenz, mediainfo, path, int(c["head_mb"]), "simple", tmpdir)[1]
+    except Exception as e:
+        print("隐藏字幕检测失败:", e)
+    return None
 
 
 MI_MODES = ("simple", "full", "all", "mi_normal", "mi_full")
@@ -1927,9 +2346,12 @@ def process_iso(iso, cfg):
         top = max(1, int(c.get("top_n") or 1))
     except Exception:
         top = 1
-    if iso.suffix.lower() != ".iso" or not iso.is_file():
+    kindp = media_kind(iso)
+    if kindp not in ("iso", "bdfolder", "dvdfolder"):
         return _process_iso_one(iso, c)
-    dvd = scan_dvd(iso)
+    if kindp != "iso":
+        iso = disc_root(iso)[1]
+    dvd = scan_dvd_any(iso)
     if top <= 1 and not dvd:      # 蓝光 N=1: 直接用 ffmpeg/libbluray 默认选的主标题(最长的)
         return _process_iso_one(iso, c)
 
@@ -1988,20 +2410,35 @@ def _process_iso_one(iso, cfg):
     """处理单个文件/单个标题. 返回 dict(report, sheet, report_path, skipped). 失败抛 RuntimeError"""
     c = {**DEFAULTS, **cfg}
     iso = Path(iso)
-    if not iso.is_file():
+    kindp = media_kind(iso)
+    if kindp is None:
         raise RuntimeError(f"找不到文件: {iso}")
+    if kindp == "dir":
+        raise RuntimeError("这是普通文件夹, 不是解压的 DVD/蓝光 (请展开成文件处理)")
+    if kindp in ("bdfolder", "dvdfolder"):
+        iso = disc_root(iso)[1]       # 拖的是 BDMV / VIDEO_TS 本身时, 取它的上一级
     outdir, tmpdir = out_dirs(iso, c)
     outdir.mkdir(parents=True, exist_ok=True)
     tmpdir.mkdir(parents=True, exist_ok=True)
     FONT_PATH[0] = str(c.get("font_path") or "").strip()
-    is_iso = iso.suffix.lower() == ".iso"
-    base = iso.stem if is_iso else iso.name   # 非 ISO 保留扩展名, 避免 a.mkv / a.mp4 重名覆盖
+    is_iso = kindp in ("iso", "bdfolder", "dvdfolder")   # 光盘源: ISO 或解压出来的文件夹
+    is_folder = kindp in ("bdfolder", "dvdfolder")
+    src_word = "文件夹" if is_folder else "ISO"
+    # ISO 去掉 .iso 扩展名; 普通视频保留扩展名 (xxx.mkv.jpg), 避免 a.mkv / a.mp4 重名; 文件夹用文件夹名
+    base = iso.stem if kindp == "iso" else iso.name
     tag = f"[{c['_idx']}]" if c.get("_idx") else ""      # 多标题模式: 名字_sheet[1].jpg ...
-    sheet_path = outdir / f"{base}_sheet{tag}.{'png' if c['sheet_fmt'] == 'png' else 'jpg'}"
-    mi_path = outdir / f"{base}.mediainfo{tag}.txt"
+    ssuf, msuf = str(c["sheet_suffix"]), str(c["mi_suffix"])   # 留空 = 无后缀
+    spre, mpre = str(c["sheet_prefix"]), str(c["mi_prefix"])   # 前缀, 默认无
+    sheet_path = outdir / f"{spre}{base}{ssuf}{tag}.{'png' if c['sheet_fmt'] == 'png' else 'jpg'}"
+    mi_path = outdir / f"{mpre}{base}{msuf}{tag}.txt"
+    preview = c.get("_preview_out")                       # GUI 预览: 输出到指定临时文件
+    if preview:
+        sheet_path = Path(preview)
     res = {"report": None, "sheet": None, "report_path": None, "skipped": False}
 
     exist = c["exist_mode"] if c["exist_mode"] in ("overwrite", "skip", "rename") else "overwrite"
+    if preview:
+        exist = "overwrite"
     sheet_skip = mi_skip = False
     if exist == "rename":
         sheet_path, mi_path = unique_path(sheet_path), unique_path(mi_path)
@@ -2039,7 +2476,7 @@ def _process_iso_one(iso, cfg):
     if want_raw and not mediainfo:
         print("未找到 mediainfo, MediaInfo 原生模式不可用, 将改用精简文本")
 
-    dvd = scan_dvd(iso) if is_iso else None
+    dvd = scan_dvd_any(iso) if is_iso else None
     kind = "DVD-Video" if dvd else ("Blu-ray" if is_iso else iso.suffix[1:].upper() + " 视频文件")
     label = iso.name if is_iso else str(iso.resolve())
     probe, mj, raw, inner, extra = None, None, None, None, None
@@ -2049,11 +2486,11 @@ def _process_iso_one(iso, cfg):
     pre, url, cleanup, rng, css_enc = [], None, None, None, False
     header = ""
 
-    def run_brief(lang_mj=None, dur=None):
+    def run_brief(lang_mj=None, dur=None, cc_mj=None):
         nonlocal brief, full, probe
         try:
             brief, full, probe = get_media_info_src(label, ffprobe, pre, url, lang_mj, dur,
-                                                    None if is_iso else url)
+                                                    None if is_iso else url, cc_mj, bool(c["detect_cc"]))
         except MediaInfoError as e:
             print("ffprobe 读取流信息失败:", e)
 
@@ -2089,7 +2526,7 @@ def _process_iso_one(iso, cfg):
             print(f"时长: {fmt_t(duration)}" if duration else "取不到时长, 可在 设置-高级 里手动指定")
             if duration:
                 extra = f"平均码率 {total * 8 / duration / 1e6:.1f} Mb/s"
-            header = (f"ISO            : {iso.name}\n类型           : DVD-Video\n"
+            header = (f"{src_word}{' ' * (15 - len(src_word))}: {iso.name}\n类型           : DVD-Video\n"
                       f"主标题集       : VTS_{n:02d} ({len(vt['vobs'])} 个 VOB, {total / 1024 ** 3:.2f} GiB)\n"
                       + (f"时长           : {fmt_t(duration)}\n" if duration else "") + "\n")
         elif not is_iso:
@@ -2098,7 +2535,7 @@ def _process_iso_one(iso, cfg):
                 raise RuntimeError("找不到 ffmpeg")
             url = str(iso.resolve())
             if ffprobe and want_brief:
-                run_brief()
+                run_brief(cc_mj=detect_cc_json("file", iso, c, mediainfo, sevenz, tmpdir))
             elif ffprobe:
                 probe = get_probe(ffprobe, pre, url)
             if duration is None and probe:
@@ -2117,7 +2554,7 @@ def _process_iso_one(iso, cfg):
                     pre = ["-playlist", str(playlist)] if playlist is not None else []
                     url = bd_src(iso)
                     if want_brief:
-                        run_brief()
+                        run_brief(cc_mj=detect_cc_json("bdfolder" if is_folder else "iso", iso, c, mediainfo, sevenz, tmpdir))
                     else:
                         probe = get_probe(ffprobe, pre, url)
                     if duration is None and probe:
@@ -2126,12 +2563,18 @@ def _process_iso_one(iso, cfg):
                         except Exception:
                             pass
                     print(f"时长: {fmt_t(duration)}" if duration else "ffprobe 读取时长失败")
-            # 只有 MediaInfo 原生模式, 或 ffprobe 读不了时, 才走 7z + mediainfo (读主 m2ts 开头一段)
+            # 只有 MediaInfo 原生模式, 或 ffprobe 读不了时, 才走 mediainfo (ISO 用 7z 读主 m2ts 开头一段, 文件夹直接读整个 m2ts)
             need_old = want_raw or (brief is None and want_brief)
-            if need_old and sevenz and mediainfo:
+            if need_old and is_folder and mediainfo:
+                raw, mj, inner, msize = do_mediainfo_bd_folder(mediainfo, iso, raw_mode)
+                header = (f"{src_word}{' ' * (15 - len(src_word))}: {iso.name}\n类型           : Blu-ray\n"
+                          f"主视频流       : {inner}\n"
+                          f"该文件实际大小 : {msize} bytes ({msize / 1024 ** 3:.2f} GiB)\n"
+                          + (f"播放列表时长   : {fmt_t(duration)} (ffprobe/libbluray)\n" if duration else "") + "\n")
+            elif need_old and sevenz and mediainfo and not is_folder:
                 raw, mj, inner, msize = do_mediainfo_bd(sevenz, mediainfo, iso, int(c["head_mb"]),
                                                         raw_mode, tmpdir)
-                header = (f"ISO            : {iso.name}\n类型           : Blu-ray\n"
+                header = (f"{src_word}{' ' * (15 - len(src_word))}: {iso.name}\n类型           : Blu-ray\n"
                           f"主视频流       : {inner}\n"
                           f"该文件实际大小 : {msize} bytes ({msize / 1024 ** 3:.2f} GiB)\n"
                           + (f"播放列表时长   : {fmt_t(duration)} (ffprobe/libbluray)\n" if duration else "")
@@ -2142,7 +2585,7 @@ def _process_iso_one(iso, cfg):
         check_cancel()
 
         info = collect_info(iso, kind, duration, inner, mj, probe, extra, css_enc, brief,
-                            "ISO 大小" if is_iso else "文件大小")
+                            {"iso": "ISO 大小", "bdfolder": "文件夹大小", "dvdfolder": "文件夹大小"}.get(kindp, "文件大小"))
 
         # ---- MediaInfo 报告
         if do_mi:
@@ -2191,12 +2634,12 @@ def _process_iso_one(iso, cfg):
             if c["keep_thumbs"]:
                 files = make_thumbs(*args, outdir=outdir / f"{base}_thumbs", **kw)
                 ok = make_sheet(files, sheet_path, cols, rows, lines, c["show_timestamp"],
-                                c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"])
+                                c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"], c)
             else:
                 with tempfile.TemporaryDirectory(dir=tmpdir) as td:
                     files = make_thumbs(*args, outdir=Path(td), **kw)
                     ok = make_sheet(files, sheet_path, cols, rows, lines, c["show_timestamp"],
-                                    c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"])
+                                    c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"], c)
             if ok:
                 res["sheet"] = str(sheet_path)
         return res
@@ -2251,6 +2694,46 @@ def build_cli_command(cfg, files, script=None):
             a.append("--no-save-mediainfo")
     val("head_mb", "--head-mb")
     val("top_n", "--top")
+    for key, flag in (("bg_color", "--bg-color"), ("text_color", "--text-color"),
+                      ("name_color", "--name-color"), ("ts_color", "--ts-color")):
+        val(key, flag)
+    def pos_args(flag, kp, kx, ky):
+        if c[kp] == "custom":
+            a.extend([flag, f"{float(c[kx]):g},{float(c[ky]):g}"])
+        elif c[kp] != d[kp]:
+            a.extend([flag, str(c[kp])])
+    if c["wm_enable"] and str(c["wm_path"]).strip():
+        a.extend(["--watermark", str(c["wm_path"])])
+        val("wm_scale", "--wm-scale")
+        val("wm_opacity", "--wm-opacity")
+        pos_args("--wm-pos", "wm_pos", "wm_x", "wm_y")
+    if c["tx_enable"] and str(c["tx_text"]).strip():
+        a.extend(["--tx-text", str(c["tx_text"])])
+        val("tx_color", "--tx-color")
+        val("tx_size", "--tx-size")
+        val("tx_opacity", "--tx-opacity")
+        pos_args("--tx-pos", "tx_pos", "tx_x", "tx_y")
+        if not c["tx_stroke"]:
+            a.append("--tx-no-stroke")
+    if not c["detect_cc"]:
+        a.append("--no-cc")
+    # 后缀: 命令行不写 = 默认后缀; 写 "" = 无后缀 (所以和默认不同时, 即使是空串也要写出来)
+    try:
+        for sign, pat in parse_rules_text(c.get("filter_rules", "")):
+            a.extend(["--filter", f"{sign} {pat}"])
+    except ValueError:
+        pass
+    for key, flag in (("min_size", "--min-size"), ("max_size", "--max-size"),
+                      ("min_age", "--min-age"), ("max_age", "--max-age")):
+        val(key, flag)
+    if not c.get("filter_ignore_case", True):
+        a.append("--case-sensitive")
+    val("sheet_prefix", "--sheet-prefix")
+    val("mi_prefix", "--mi-prefix")
+    if c["sheet_suffix"] != d["sheet_suffix"]:
+        a.extend(["--sheet-suffix", str(c["sheet_suffix"])])
+    if c["mi_suffix"] != d["mi_suffix"]:
+        a.extend(["--mi-suffix", str(c["mi_suffix"])])
     val("exist_mode", "--exists")
     if c["keep_thumbs"]:
         a.append("--keep-thumbs")
@@ -2273,6 +2756,269 @@ def build_cli_command(cfg, files, script=None):
         return subprocess.list2cmdline(parts)
     import shlex
     return " ".join(shlex.quote(x) for x in parts)
+
+
+# ============================================================ 过滤规则 (rclone 风格)
+def _glob_to_re(pat):
+    """rclone 的通配符 -> 正则: * 不跨 /, ** 可跨 /, ? 单个字符, [a-z] [!a-z], {a,b}, \\ 转义"""
+    i, n, out = 0, len(pat), []
+    while i < n:
+        ch = pat[i]
+        if ch == "*":
+            if pat[i:i + 3] == "**/":
+                out.append("(?:.*/)?")
+                i += 3
+            elif pat[i:i + 2] == "**":
+                out.append(".*")
+                i += 2
+            else:
+                out.append("[^/]*")
+                i += 1
+        elif ch == "?":
+            out.append("[^/]")
+            i += 1
+        elif ch == "[":
+            j = pat.find("]", i + 2 if pat[i + 1:i + 2] in ("!", "^") else i + 1)
+            if j == -1:
+                out.append(re.escape(ch))
+                i += 1
+            else:
+                body = pat[i + 1:j]
+                neg = body[:1] in ("!", "^")
+                body = (body[1:] if neg else body).replace("\\", "\\\\")
+                out.append("[" + ("^" if neg else "") + body + "]")
+                i = j + 1
+        elif ch == "{":
+            j = pat.find("}", i + 1)
+            if j == -1:
+                out.append(re.escape(ch))
+                i += 1
+            else:
+                out.append("(?:" + "|".join(_glob_to_re(a) for a in pat[i + 1:j].split(",")) + ")")
+                i = j + 1
+        elif ch == "\\" and i + 1 < n:
+            out.append(re.escape(pat[i + 1]))
+            i += 2
+        else:
+            out.append(re.escape(ch))
+            i += 1
+    return "".join(out)
+
+
+class _Rule:
+    def __init__(self, sign, pat, flags=0):
+        self.sign, self.pat = sign, pat
+        p = pat.strip()
+        self.anchored = p.startswith("/")          # 以 / 开头: 相对根目录; 否则在任意层级匹配 (路径末尾)
+        if self.anchored:
+            p = p[1:]
+        self.dir_only = p.endswith("/")            # 以 / 结尾: 只匹配目录 (及其下所有内容)
+        p = p.rstrip("/")
+        core = _glob_to_re(p)
+        prefix = "^" if self.anchored else "^(?:.*/)?"
+        self.re = re.compile(prefix + core + "$", flags)
+        self.re_under = re.compile(prefix + core + "/.+$", flags)
+
+    def matches(self, full, rel, is_dir):
+        t = rel if self.anchored else full
+        if self.dir_only:
+            return bool(self.re_under.search(t)) or (is_dir and bool(self.re.search(t)))
+        # 普通模式: 路径本身, 或它的任何一级上层目录 (目录被排除/包含 = 其下所有内容)
+        parts = t.split("/")
+        for k in range(1, len(parts) + 1):
+            if self.re.search("/".join(parts[:k])):
+                return True
+        return False
+
+
+def parse_rule_line(line):
+    """一行 rclone --filter 语法 -> ("+"|"-", 模式) / ("!", None) 清空 / None 忽略 (空行和注释)"""
+    ln = line.strip()
+    if not ln or ln.startswith(("#", ";")):
+        return None
+    if ln == "!":
+        return ("!", None)
+    if len(ln) > 2 and ln[0] in "+-" and ln[1] in " \t":
+        return (ln[0], ln[2:].strip())
+    raise ValueError(f"无法识别的过滤规则: {line!r}  (每行应为 '+ 模式' 或 '- 模式', 和 rclone --filter 一样)")
+
+
+def parse_rules_text(text):
+    out = []
+    for line in str(text or "").splitlines():
+        r = parse_rule_line(line)
+        if r is None:
+            continue
+        if r[0] == "!":
+            out.clear()
+        else:
+            out.append(r)
+    return out
+
+
+def parse_size(v):
+    """1.5G / 700M / 100k / 123456 -> 字节 (二进制进位, 和 rclone 一样); 空 -> None"""
+    v = str(v or "").strip()
+    if not v:
+        return None
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*([kKmMgGtT]?)(?:i?[bB])?$", v)
+    if not m:
+        raise ValueError(f"无法识别的大小: {v!r}  (例: 500M, 1.5G, 100k)")
+    return float(m.group(1)) * 1024 ** ("kmgt".index(m.group(2).lower()) + 1 if m.group(2) else 0)
+
+
+def parse_age(v):
+    """1d / 2w / 1h30m / 3M(月) / 1y -> 秒; 空 -> None"""
+    v = str(v or "").strip()
+    if not v:
+        return None
+    unit = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800, "M": 2592000, "y": 31536000}
+    toks = re.findall(r"(\d+(?:\.\d+)?)(ms|s|m|h|d|w|M|y)", v)
+    if not toks or "".join(a + b for a, b in toks) != v:
+        raise ValueError(f"无法识别的时间: {v!r}  (例: 7d, 2w, 1h30m, 3M=三个月, 1y)")
+    return sum(float(a) * unit[b] for a, b in toks)
+
+
+class Filter:
+    """rclone 风格过滤: 规则按顺序, 第一条匹配的生效; 有 + 规则时, 没匹配到任何规则的默认排除 (等于末尾隐含 - **);
+    之后再看大小/时间"""
+
+    def __init__(self, rules=(), min_size=None, max_size=None, min_age=None, max_age=None, ignore_case=True):
+        flags = re.IGNORECASE if ignore_case else 0
+        self.rules = [_Rule(sg, pt, flags) for sg, pt in rules]
+        self.has_include = any(r.sign == "+" for r in self.rules)
+        self.min_size, self.max_size = min_size, max_size
+        self.min_age, self.max_age = min_age, max_age
+
+    def active(self):
+        return bool(self.rules) or any(x is not None for x in (self.min_size, self.max_size, self.min_age, self.max_age))
+
+    def test(self, path):
+        """返回 (是否保留, 原因)"""
+        path = Path(path)
+        try:
+            rp = path.resolve()
+        except OSError:
+            rp = path
+        full = rp.as_posix()
+        root = INPUT_ROOT.get(str(rp))
+        try:
+            rel = rp.relative_to(Path(root).resolve()).as_posix() if root else path.name
+        except ValueError:
+            rel = path.name
+        is_dir = path.is_dir()
+        for r in self.rules:
+            if r.matches(full, rel, is_dir):
+                if r.sign == "-":
+                    return False, f"被排除规则匹配: - {r.pat}"
+                break
+        else:
+            if self.has_include:
+                return False, "没有匹配任何包含规则 (+)"
+        if self.min_size is not None or self.max_size is not None:
+            sz = path_size(path)
+            if self.min_size is not None and sz < self.min_size:
+                return False, f"小于 --min-size ({sz / 1024 ** 2:.1f} MiB)"
+            if self.max_size is not None and sz > self.max_size:
+                return False, f"大于 --max-size ({sz / 1024 ** 2:.1f} MiB)"
+        if self.min_age is not None or self.max_age is not None:
+            try:
+                age = time.time() - os.path.getmtime(path)
+            except OSError:
+                age = 0
+            if self.min_age is not None and age < self.min_age:
+                return False, "比 --min-age 新"
+            if self.max_age is not None and age > self.max_age:
+                return False, "比 --max-age 旧"
+        return True, ""
+
+
+def make_filter(c, extra_rules=()):
+    """从设置 (filter_rules 文本 + min/max 大小/时间 + 忽略大小写) 加上额外规则(命令行) 生成 Filter; 写错抛 ValueError"""
+    rules = parse_rules_text(c.get("filter_rules", "")) + list(extra_rules)
+    return Filter(rules, parse_size(c.get("min_size")), parse_size(c.get("max_size")),
+                  parse_age(c.get("min_age")), parse_age(c.get("max_age")),
+                  bool(c.get("filter_ignore_case", True)))
+
+
+def resolve_disc_folders(entries, mode, recursive, exts, ask=input):
+    """命令行: 遇到解压的 DVD/蓝光文件夹时询问: y 按整盘处理 / a 此后都按整盘 / n 当普通文件夹批量处理.
+    mode: ask(默认, 询问) / yes / no. 普通文件夹和文件不问"""
+    out = []
+    for e in entries:
+        k = media_kind(e)
+        if k not in ("bdfolder", "dvdfolder"):
+            out.append(e)
+            continue
+        ans = "y" if mode == "yes" else ("n" if mode == "no" else None)
+        while ans is None:
+            what = "蓝光 (BDMV)" if k == "bdfolder" else "DVD (VIDEO_TS)"
+            try:
+                r = ask(f"识别到 {what} 文件夹: {e}\n  按整盘处理? [y]es 是 / [a]ll 是且以后都是 / [n]o 当普通文件夹批量处理 (默认 y): ")
+            except EOFError:
+                r = "y"
+            r = r.strip().lower()
+            if r in ("", "y", "yes"):
+                ans = "y"
+            elif r in ("a", "all"):
+                ans, mode = "y", "yes"
+            elif r in ("n", "no"):
+                ans = "n"
+        if ans == "y":
+            out.append(e)
+        else:
+            out.extend(collect_inputs([e], recursive, exts, strict=False, disc_folders=False))
+    seen, uniq = set(), []
+    for f in out:
+        key = str(Path(f).resolve())
+        if key not in seen:
+            seen.add(key)
+            uniq.append(f)
+    return uniq
+
+
+class _RuleAction(argparse.Action):
+    """--include/--exclude/--filter 以及 *-from 文件: 全部累积到同一个列表, 保持命令行里的先后顺序 (rclone 同款)"""
+
+    def __call__(self, parser, ns, values, option_string=None):
+        rules = list(getattr(ns, "rules", None) or [])
+
+        def push(r):
+            if r is None:
+                return
+            if r[0] == "!":
+                rules.clear()
+            else:
+                rules.append(r)
+        try:
+            if option_string == "--include":
+                push(("+", values))
+            elif option_string == "--exclude":
+                push(("-", values))
+            elif option_string == "--filter":
+                push(parse_rule_line(values))
+            else:
+                for line in Path(values).read_text(encoding="utf-8-sig").splitlines():
+                    if option_string == "--filter-from":
+                        push(parse_rule_line(line))
+                    else:
+                        ln = line.strip()
+                        if ln and not ln.startswith(("#", ";")):
+                            push(("+" if option_string == "--include-from" else "-", ln))
+        except (ValueError, OSError) as e:
+            parser.error(f"{option_string}: {e}")
+        ns.rules = rules
+
+
+def parse_pos(v):
+    """--wm-pos / --tx-pos: tl tc tr cl cc cr bl bc br, 或 'x,y' (百分比) -> (pos, x, y)"""
+    v = str(v).strip().lower()
+    if v in WM_POS:
+        return v, 100.0, 0.0
+    m = re.match(r"^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$", v)
+    if not m:
+        raise ValueError(f"位置应为 tl tc tr / cl cc cr / bl bc br 之一, 或 'x,y' 百分比 (如 80,5): {v!r}")
+    return "custom", float(m.group(1)), float(m.group(2))
 
 
 def cli(argv):
@@ -2313,6 +3059,46 @@ def cli(argv):
     ap.add_argument("--comment-color", help="注释颜色, 如 red / #FF8800")
     ap.add_argument("--check-font", action="store_true", help="检查会用哪个字体、是否支持中文/日文, 然后退出")
     ap.add_argument("--font", help="联系表用的字体文件 (.ttf/.ttc/.otf), 需支持中文; 默认自动查找系统字体")
+    fg = ap.add_argument_group("过滤 (和 rclone 一样: 规则按命令行里的先后顺序, 第一条匹配的生效; "
+                               "有 --include 时没匹配到任何规则的默认排除; * 不跨目录, ** 跨目录, ? {a,b} [a-z] 都支持; "
+                               "以 / 开头=相对根目录, 以 / 结尾=只匹配目录, 不以 / 开头=在任意层级匹配)")
+    for opt, hlp in (("--include", "只处理匹配的, 如 --include '*.iso'"),
+                     ("--exclude", "排除匹配的, 如 --exclude '*sample*' / --exclude 'extras/'"),
+                     ("--filter", "一条规则 '+ 模式' (包含) 或 '- 模式' (排除), '!' 清空之前的规则"),
+                     ("--include-from", "从文件读取包含规则 (每行一个模式, # 开头为注释)"),
+                     ("--exclude-from", "从文件读取排除规则"),
+                     ("--filter-from", "从文件读取 '+ 模式' / '- 模式' 规则")):
+        fg.add_argument(opt, action=_RuleAction, dest="rules", default=None, metavar="规则/文件", help=hlp)
+    fg.add_argument("--min-size", help="只处理不小于这个大小的, 如 500M / 1.5G (ISO=文件大小, 光盘文件夹=整个文件夹)")
+    fg.add_argument("--max-size", help="只处理不大于这个大小的")
+    fg.add_argument("--min-age", help="只处理比这个更旧的 (修改时间), 如 1d / 2w / 1h30m / 3M(月) / 1y")
+    fg.add_argument("--max-age", help="只处理比这个更新的 (修改时间)")
+    fg.add_argument("--case-sensitive", action="store_true", help="规则区分大小写 (默认不区分, Windows 文件名本来就不分)")
+    fg.add_argument("--dry-run", action="store_true", help="只列出哪些会处理 / 哪些被排除 (及原因), 不实际处理")
+    ap.add_argument("--max", type=int, metavar="N", help="最多处理 N 个 (展开通配符/目录之后, 按顺序取前 N 个)")
+    ap.add_argument("--disc-folder", choices=["ask", "yes", "no"], default="ask",
+                    help="遇到解压出来的 DVD/蓝光文件夹: ask 询问 y/a/n (默认) / yes 都按整盘 / no 都当普通文件夹")
+    ap.add_argument("--sheet-suffix", help='联系表文件名后缀, 默认 "_sheet"; 写 "" (空) = 不加后缀, 如 xxx.mkv.jpg')
+    ap.add_argument("--mi-suffix", help='MediaInfo 文件名后缀, 默认 ".mediainfo"; 写 "" (空) = 不加后缀, 如 xxx.mkv.txt')
+    ap.add_argument("--sheet-prefix", help="联系表文件名前缀, 默认无, 如 pic_ -> pic_xxx.mkv_sheet.jpg")
+    ap.add_argument("--mi-prefix", help="MediaInfo 文件名前缀, 默认无, 如 media_ -> media_xxx.mkv.mediainfo.txt "
+                                        "(配合 --mi-suffix \"\" 就是 media_xxx.mkv.txt)")
+    ap.add_argument("--bg-color", help="联系表背景色, 如 #18181C / black")
+    ap.add_argument("--text-color", help="信息文字颜色")
+    ap.add_argument("--name-color", help="信息区第一行(文件名/类型行)的颜色")
+    ap.add_argument("--ts-color", help="截图上时间戳的颜色")
+    ap.add_argument("--watermark", help="图片水印 (透明 PNG), 放在整张联系表上, 默认右上角")
+    ap.add_argument("--wm-scale", type=float, help="水印宽度占整张联系表宽度的比例, 默认 0.15 (随图片大小等比变化)")
+    ap.add_argument("--wm-opacity", type=int, help="水印不透明度 0-100, 默认 100")
+    ap.add_argument("--wm-pos", help="水印位置: tl tc tr / cl cc cr / bl bc br (默认 tr 右上), 或 'x,y' 百分比 "
+                                     "(0=贴左/上边, 100=贴右/下边), 如 --wm-pos 80,5")
+    ap.add_argument("--tx-text", help="文字水印的内容 (\\n 换行), 放在整张联系表上, 默认右下角")
+    ap.add_argument("--tx-color", help="文字水印颜色, 默认 #FFFFFF")
+    ap.add_argument("--tx-size", type=float, help="文字水印字号, 占联系表宽度的比例, 默认 0.03")
+    ap.add_argument("--tx-opacity", type=int, help="文字水印不透明度 0-100, 默认 100")
+    ap.add_argument("--tx-pos", help="文字水印位置, 同 --wm-pos, 默认 br 右下")
+    ap.add_argument("--tx-no-stroke", action="store_true", help="文字水印不描黑边")
+    ap.add_argument("--no-cc", action="store_true", help="不检测隐藏字幕 (EIA-608/708)")
     ap.add_argument("--top", type=int, metavar="N",
                     help="DVD/蓝光 ISO: 取时长最长的前 N 个标题各出一张联系表 (默认 1; N>1 时输出名加 [1][2]…)")
     ap.add_argument("--playlist", type=int, help="蓝光: 指定 mpls 编号, 如 800")
@@ -2347,7 +3133,13 @@ def cli(argv):
         if not m:
             sys.exit("--grid 格式应为 列x行, 例如 2x3")
         cfg["grid_cols"], cfg["grid_rows"] = int(m.group(1)), int(m.group(2))
-    for src, key in (("top", "top_n"), ("comment", "comment"), ("comment_color", "comment_color"), ("font", "font_path"), ("exists", "exist_mode"),
+    for src, key in (("min_size", "min_size"), ("max_size", "max_size"), ("min_age", "min_age"), ("max_age", "max_age"),
+                     ("sheet_suffix", "sheet_suffix"), ("mi_suffix", "mi_suffix"), ("sheet_prefix", "sheet_prefix"),
+                     ("mi_prefix", "mi_prefix"), ("bg_color", "bg_color"),
+                     ("text_color", "text_color"), ("name_color", "name_color"), ("ts_color", "ts_color"),
+                     ("watermark", "wm_path"), ("wm_scale", "wm_scale"), ("wm_opacity", "wm_opacity"),
+                     ("tx_text", "tx_text"), ("tx_color", "tx_color"), ("tx_size", "tx_size"), ("tx_opacity", "tx_opacity"),
+                     ("top", "top_n"), ("comment", "comment"), ("comment_color", "comment_color"), ("font", "font_path"), ("exists", "exist_mode"),
                      ("ext", "extra_exts"), ("preroll", "preroll"), ("width", "thumb_width"), ("quality", "jpeg_quality"), ("font_scale", "font_scale"),
                      ("fmt", "sheet_fmt"), ("playlist", "playlist"), ("head_mb", "head_mb"),
                      ("duration", "duration"), ("tmpdir", "tmp_dir"), ("ffmpeg", "ffmpeg"),
@@ -2388,9 +3180,51 @@ def cli(argv):
         cfg["exist_mode"] = "skip"
     if a.recursive:
         cfg["recursive"] = True
-    files = collect_inputs(a.iso, cfg["recursive"], media_exts(cfg["extra_exts"]), strict=False)
+    exts = media_exts(cfg["extra_exts"])
+    entries = collect_inputs(a.iso, cfg["recursive"], exts, strict=False)
+    files = resolve_disc_folders(entries, a.disc_folder, cfg["recursive"], exts)
+    if a.case_sensitive:
+        cfg["filter_ignore_case"] = False
+    if a.watermark:
+        cfg["wm_enable"] = True
+    if a.tx_text:
+        cfg["tx_enable"] = True
+    if a.tx_no_stroke:
+        cfg["tx_stroke"] = False
+    if a.no_cc:
+        cfg["detect_cc"] = False
+    try:
+        for opt, (kp, kx, ky) in ((a.wm_pos, ("wm_pos", "wm_x", "wm_y")), (a.tx_pos, ("tx_pos", "tx_x", "tx_y"))):
+            if opt:
+                cfg[kp], cfg[kx], cfg[ky] = parse_pos(opt)
+    except ValueError as e:
+        print("位置参数有误:", e)
+        return 2
+    try:
+        flt = make_filter(cfg, a.rules or [])
+    except ValueError as e:
+        print("过滤规则有误:", e)
+        return 2
+    excluded = []
+    if flt.active():
+        kept = []
+        for f in files:
+            ok, why = flt.test(f)
+            (kept if ok else excluded).append(f if ok else (f, why))
+        files = kept
+        print(f"过滤: 保留 {len(files)} 个, 排除 {len(excluded)} 个")
+    if a.max and a.max > 0 and len(files) > a.max:
+        print(f"共 {len(files)} 个, 只处理前 {a.max} 个 (--max)")
+        files = files[:a.max]
+    if a.dry_run:
+        for f in files:
+            print("+", f)
+        for f, why in excluded:
+            print("-", f, f"({why})")
+        print(f"[dry-run] 会处理 {len(files)} 个, 排除 {len(excluded)} 个, 未实际处理")
+        return 0
     if not files:
-        print("没有找到可处理的文件 (目录是否需要 -r? 扩展名可用 --ext 追加)")
+        print("没有可处理的文件 (目录是否需要 -r? 扩展名可用 --ext 追加; 或者都被过滤规则排除了)")
         return 1
     fails = 0
     for i, f in enumerate(files, 1):
@@ -2424,7 +3258,7 @@ class QWriter:
 
 def run_gui(initial=()):
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import colorchooser, filedialog, messagebox, ttk
 
     dnd_ok = False
     DND_FILES = None
@@ -2441,8 +3275,9 @@ def run_gui(initial=()):
     root.minsize(900, 560)
     q = queue.Queue()
     V = {}
-    state = {"running": False, "worker": None}
+    state = {"running": False, "worker": None, "pending_ready": False, "photo": None, "preview": None}
     reports = {}
+    disc_on = {}      # 解压出来的 DVD/蓝光文件夹: iid -> 是否按整盘处理 (☑/☐)
     mono = ("Consolas", 10) if os.name == "nt" else ("DejaVu Sans Mono", 10)
 
     def var(key):
@@ -2469,7 +3304,29 @@ def run_gui(initial=()):
                 out[k] = DEFAULTS[k]
         out["geometry"] = root.geometry()
         out["last_dir"] = cfg.get("last_dir", "")
+        out["pending"] = pending_snapshot()
+        try:
+            out["filter_rules"] = filter_text.get("1.0", "end").strip()
+        except Exception:
+            out["filter_rules"] = cfg.get("filter_rules", "")
         return out
+
+    def pending_snapshot():
+        """没处理完 / 失败 / 中断的条目, 写进 json, 下次打开可以载入"""
+        res = []
+        try:
+            for iid in tree.get_children():
+                st = tree.set(iid, "status")
+                if st in ("完成", "已跳过", "已过滤"):
+                    continue
+                res.append({"path": iid, "disc": disc_on.get(iid), "status": st})
+        except Exception:
+            pass
+        return res
+
+    def persist():
+        if state["pending_ready"]:
+            save_config(collect())
 
     # ---------- 布局: 左 文件列表 / 右 设置页
     pw = ttk.PanedWindow(root, orient="horizontal")
@@ -2484,10 +3341,12 @@ def run_gui(initial=()):
 
     tb = ttk.Frame(left)
     tb.pack(fill="x")
+    tbx = ttk.Frame(left)
+    tbx.pack(fill="x", pady=(3, 0))
     tree_fr = ttk.Frame(left)
     tree_fr.pack(fill="both", expand=True, pady=4)
-    tree = ttk.Treeview(tree_fr, columns=("name", "type", "status"), show="headings", selectmode="extended")
-    for col, txt, wd in (("name", "文件", 300), ("type", "类型", 70), ("status", "状态", 80)):
+    tree = ttk.Treeview(tree_fr, columns=("name", "type", "disc", "status"), show="headings", selectmode="extended")
+    for col, txt, wd in (("name", "文件", 190), ("type", "类型", 82), ("disc", "整盘", 40), ("status", "状态", 78)):
         tree.heading(col, text=txt)
         tree.column(col, width=wd, anchor="w" if col == "name" else "center", stretch=(col == "name"))
     sb = ttk.Scrollbar(tree_fr, orient="vertical", command=tree.yview)
@@ -2527,6 +3386,33 @@ def run_gui(initial=()):
                 if p:
                     V[key].set(p)
             ttk.Button(parent, text="浏览", width=6, command=pick).grid(row=row, column=2, padx=4)
+
+    def color_row(parent, text, key, row):
+        """颜色: 输入框 (名字或 #RRGGBB) + 色块 + [选色…] (Windows 上是和画图一样的系统颜色对话框)"""
+        v = var(key)
+        ttk.Label(parent, text=text).grid(row=row, column=0, sticky="w", pady=3, padx=(0, 6))
+        fr = ttk.Frame(parent)
+        fr.grid(row=row, column=1, columnspan=2, sticky="w")
+        ttk.Entry(fr, textvariable=v, width=12).pack(side="left")
+        sw = tk.Label(fr, width=4, relief="solid", bd=1)
+        sw.pack(side="left", padx=6)
+
+        def hexof():
+            return "#%02x%02x%02x" % _rgb(v.get(), (200, 200, 200))
+
+        def refresh(*_):
+            try:
+                sw.configure(bg=hexof())
+            except Exception:
+                pass
+
+        def pick():
+            r = colorchooser.askcolor(color=hexof(), parent=root, title=text)
+            if r and r[1]:
+                v.set(r[1].upper())
+        ttk.Button(fr, text="选色…", width=7, command=pick).pack(side="left")
+        v.trace_add("write", refresh)
+        refresh()
 
     # -- 截图
     t1 = tab("截图")
@@ -2580,13 +3466,135 @@ def run_gui(initial=()):
         check(t2, txt, k, i)
     spin(t2, "文字缩放", "font_scale", 0.5, 3.0, 6, inc=0.1)
     entry(t2, "注释 (最后一行)", "comment", 7, width=40)
-    entry(t2, "注释颜色", "comment_color", 8, width=14)
+    color_row(t2, "注释颜色", "comment_color", 8)
     entry(t2, "字体文件", "font_path", 10, "file", width=40)
     ttk.Label(t2, text="字体留空 = 自动找系统中文字体 (Windows 微软雅黑等)。", foreground="#666").grid(
         row=11, column=0, columnspan=3, sticky="w")
     ttk.Label(t2, text="注释显示在信息区最后一行, 可写广告 / 备注; 想换行写 \\n; 留空则不显示。\n"
                        "颜色可写名字 (red) 或 #RRGGBB。", foreground="#666").grid(
         row=9, column=0, columnspan=3, sticky="w")
+
+    # -- 过滤 (rclone 风格)
+    t9 = tab("过滤")
+    ttk.Label(t9, text="过滤规则: 每行一条, 和 rclone 的 --filter 一样。运行时, 列表里不满足的会被跳过 (状态显示「已过滤」)。",
+              foreground="#444").pack(anchor="w")
+    filter_text = tk.Text(t9, height=8, wrap="none", font=mono)
+    filter_text.pack(fill="x", pady=4)
+    filter_text.insert("1.0", str(cfg.get("filter_rules", "")))
+    ttk.Label(t9, justify="left", foreground="#666", text=(
+        "+ 模式   只要匹配的 (有 + 规则时, 没匹配到任何规则的默认排除)        - 模式   排除匹配的\n"
+        "规则按从上到下的顺序, 第一条匹配的生效; # 开头是注释; 单独一行 ! 清空前面的规则。\n"
+        "模式: * 不跨目录  ** 跨目录  ? 单个字符  [a-z] [!a-z]  {a,b} 二选一  \\ 转义\n"
+        "      不以 / 开头 = 在任意层级匹配;  /开头 = 相对添加的那个文件夹;  以 / 结尾 = 只匹配目录 (及其下所有内容)\n"
+        "例:   - *sample*           排除名字带 sample 的\n"
+        "      - extras/            排除所有叫 extras 的文件夹里的东西\n"
+        "      + *.{iso,mkv}        只要 iso 和 mkv        (这行单独写时, 其他类型自动被排除)")).pack(anchor="w")
+    ffr = ttk.Frame(t9)
+    ffr.pack(fill="x", pady=(8, 0))
+    entry(ffr, "最小大小", "min_size", 0, width=10)
+    entry(ffr, "最大大小", "max_size", 1, width=10)
+    entry(ffr, "至少这么旧 (min-age)", "min_age", 2, width=10)
+    entry(ffr, "至多这么旧 (max-age)", "max_age", 3, width=10)
+    ttk.Label(ffr, text="大小: 500M / 1.5G / 100k    时间: 1d / 2w / 1h30m / 3M(月) / 1y (按修改时间); 留空 = 不限。",
+              foreground="#666").grid(row=4, column=0, columnspan=3, sticky="w")
+    ttk.Checkbutton(ffr, text="规则忽略大小写 (默认; Windows 文件名本来就不分大小写)",
+                    variable=var("filter_ignore_case")).grid(row=5, column=0, columnspan=3, sticky="w", pady=4)
+    ttk.Button(ffr, text="检查列表 (把会被跳过的标出来)", command=lambda: check_list()).grid(
+        row=6, column=0, columnspan=2, sticky="w", pady=4)
+    ffr.columnconfigure(1, weight=1)
+
+    # -- 外观 (颜色 / 水印)
+    t8 = tab("外观")
+    color_row(t8, "背景色", "bg_color", 0)
+    color_row(t8, "信息文字颜色", "text_color", 1)
+    color_row(t8, "第一行颜色 (文件名/类型行)", "name_color", 2)
+    color_row(t8, "时间戳颜色", "ts_color", 3)
+    ttk.Label(t8, text="(注释文字颜色在「联系表内容」里设置)  颜色框可手输名字或 #RRGGBB, 也可点「选色…」。",
+              foreground="#666").grid(row=4, column=0, columnspan=3, sticky="w", pady=(0, 6))
+
+    def reset_colors():
+        for k in ("bg_color", "text_color", "name_color", "ts_color", "comment_color"):
+            V[k].set(DEFAULTS[k])
+    ttk.Button(t8, text="颜色恢复默认", command=reset_colors).grid(row=5, column=0, sticky="w", pady=4)
+    POS_LABELS = [("tr", "右上"), ("tl", "左上"), ("tc", "上中"), ("cr", "右中"), ("cc", "正中"),
+                  ("cl", "左中"), ("br", "右下"), ("bl", "左下"), ("bc", "下中"), ("custom", "自定义")]
+
+    def pos_row(parent, row, kp, kx, ky):
+        """位置: 九宫格预设 + 自定义 (x% / y%: 0 = 贴左/上边, 100 = 贴右/下边, 按联系表宽高的比例, 不随图片大小变化)"""
+        code = var(kp)
+        names, inv = dict(POS_LABELS), {t: c for c, t in POS_LABELS}
+        ttk.Label(parent, text="位置").grid(row=row, column=0, sticky="w", pady=2, padx=(0, 6))
+        fr = ttk.Frame(parent)
+        fr.grid(row=row, column=1, columnspan=2, sticky="w")
+        lab = tk.StringVar(value=names.get(code.get(), "右上"))
+        cb = ttk.Combobox(fr, textvariable=lab, values=[t for _, t in POS_LABELS], state="readonly", width=8)
+        cb.pack(side="left")
+        ttk.Label(fr, text="   x%").pack(side="left")
+        sx = ttk.Spinbox(fr, from_=0, to=100, increment=1, textvariable=var(kx), width=5)
+        sx.pack(side="left")
+        ttk.Label(fr, text=" y%").pack(side="left")
+        sy = ttk.Spinbox(fr, from_=0, to=100, increment=1, textvariable=var(ky), width=5)
+        sy.pack(side="left")
+
+        def upd(*_):
+            lab.set(names.get(code.get(), "右上"))
+            st = "normal" if code.get() == "custom" else "disabled"
+            sx.configure(state=st)
+            sy.configure(state=st)
+        cb.bind("<<ComboboxSelected>>", lambda e: code.set(inv.get(lab.get(), "tr")))
+        code.trace_add("write", upd)
+        upd()
+
+    lfw = ttk.LabelFrame(t8, labelwidget=ttk.Checkbutton(t8, text="水印 (透明 PNG 图片)", variable=var("wm_enable")),
+                         padding=8)
+    lfw.grid(row=6, column=0, columnspan=3, sticky="we", pady=(8, 4))
+    entry(lfw, "图片", "wm_path", 0, "file", width=36)
+    spin(lfw, "大小 (占联系表宽度)", "wm_scale", 0.03, 0.8, 1, inc=0.01)
+    spin(lfw, "不透明度 0-100", "wm_opacity", 0, 100, 2, inc=5)
+    pos_row(lfw, 3, "wm_pos", "wm_x", "wm_y")
+    lfw.columnconfigure(1, weight=1)
+    lft = ttk.LabelFrame(t8, labelwidget=ttk.Checkbutton(t8, text="文字 (自定义文字水印)", variable=var("tx_enable")),
+                         padding=8)
+    lft.grid(row=7, column=0, columnspan=3, sticky="we", pady=4)
+    entry(lft, "文字", "tx_text", 0, width=36)
+    color_row(lft, "颜色", "tx_color", 1)
+    spin(lft, "字号 (占联系表宽度)", "tx_size", 0.01, 0.3, 2, inc=0.005)
+    spin(lft, "不透明度 0-100", "tx_opacity", 0, 100, 3, inc=5)
+    check(lft, "描边 (黑色, 更清晰)", "tx_stroke", 4, span=3)
+    pos_row(lft, 5, "tx_pos", "tx_x", "tx_y")
+    lft.columnconfigure(1, weight=1)
+    ttk.Label(t8, foreground="#666", justify="left", text=(
+        "水印放在整张联系表上, 大小和位置都按联系表的宽高比例算, 改单格宽度(-w)时不会错位。\n"
+        "位置选「自定义」时用 x%/y%: 0 = 贴左/上边, 100 = 贴右/下边。文字换行写 \\n。\n"
+        "勾选标题上的「水印」「文字」才会生效, 两个可以同时开。")).grid(row=8, column=0, columnspan=3, sticky="w")
+    t8.columnconfigure(1, weight=1)
+
+    # -- 预览
+    t7 = tab("预览")
+    pbar = ttk.Frame(t7)
+    pbar.pack(fill="x")
+    b_prev = ttk.Button(pbar, text="生成预览 (用当前所有设置, 对选中的/第一个文件)", command=lambda: preview())
+    b_prev.pack(side="left")
+    fit_var = tk.BooleanVar(value=True)
+    ttk.Checkbutton(pbar, text="适应窗口", variable=fit_var, command=lambda: render_preview()).pack(side="left", padx=10)
+    pv_status = tk.StringVar(value="")
+    ttk.Label(pbar, textvariable=pv_status, foreground="#666").pack(side="left")
+    pv_fr = ttk.Frame(t7)
+    pv_fr.pack(fill="both", expand=True, pady=(6, 0))
+    canvas = tk.Canvas(pv_fr, bg="#2b2b2b", highlightthickness=0)
+    pvy = ttk.Scrollbar(pv_fr, orient="vertical", command=canvas.yview)
+    pvx = ttk.Scrollbar(pv_fr, orient="horizontal", command=canvas.xview)
+    canvas.configure(yscrollcommand=pvy.set, xscrollcommand=pvx.set)
+    pvx.pack(side="bottom", fill="x")
+    pvy.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+    _pv_after = [None]
+
+    def on_canvas_cfg(_e=None):
+        if _pv_after[0]:
+            root.after_cancel(_pv_after[0])
+        _pv_after[0] = root.after(150, lambda: render_preview())
+    canvas.bind("<Configure>", on_canvas_cfg)
 
     # -- MediaInfo
     t3 = tab("MediaInfo")
@@ -2595,6 +3603,8 @@ def run_gui(initial=()):
     ttk.Checkbutton(top, text="读取 MediaInfo", variable=var("do_mediainfo")).grid(row=0, column=0, sticky="w")
     ttk.Checkbutton(top, text="同时生成 txt 文件", variable=var("save_mediainfo")).grid(row=0, column=1,
                                                                                   sticky="w", padx=10)
+    ttk.Checkbutton(top, text="检测隐藏字幕 (EIA-608/708, ffmpeg 读不到, 需要 mediainfo)",
+                    variable=var("detect_cc")).grid(row=1, column=0, columnspan=3, sticky="w")
     mrow = ttk.Frame(t3)
     mrow.pack(fill="x", pady=4)
     ttk.Label(mrow, text="模式:").pack(side="left")
@@ -2631,6 +3641,14 @@ def run_gui(initial=()):
     for i, (val, txt) in enumerate((("overwrite", "覆盖"), ("skip", "跳过 (批量续跑)"),
                                     ("rename", "自动改名, 文件名后加 (1)(2)…"))):
         ttk.Radiobutton(lf2, text=txt, value=val, variable=var("exist_mode")).grid(row=i, column=0, sticky="w")
+    entry(t4, "联系表文件名前缀", "sheet_prefix", 6, width=20)
+    entry(t4, "联系表文件名后缀", "sheet_suffix", 7, width=20)
+    entry(t4, "MediaInfo 文件名前缀", "mi_prefix", 8, width=20)
+    entry(t4, "MediaInfo 文件名后缀", "mi_suffix", 9, width=20)
+    ttk.Label(t4, text="文件名 = 前缀 + 原名 + 后缀 (+ 扩展名)。前缀默认无, 如填 media_ → media_xxx.mkv.mediainfo.txt;\n"
+                       "后缀留空 = 不加: 如 xxx.mkv.jpg / xxx.mkv.txt (默认 _sheet 和 .mediainfo)。\n"
+                       "ISO 取多个标题时, 序号 [1] [2]… 仍会加在最后 (如 xxx[1].jpg)。",
+              foreground="#666").grid(row=10, column=0, columnspan=3, sticky="w")
     t4.columnconfigure(1, weight=1)
 
     # -- 高级
@@ -2639,17 +3657,22 @@ def run_gui(initial=()):
     entry(t5, "手动指定时长(秒)", "duration", 1, width=10)
     entry(t5, "ffmpeg 路径", "ffmpeg", 2, "file")
     entry(t5, "ffprobe 路径", "ffprobe", 3, "file")
-    entry(t5, "7z 路径", "sevenz", 4, "file")
+    entry(t5, "7z 路径 (可选)", "sevenz", 4, "file")
     entry(t5, "mediainfo 路径", "mediainfo", 5, "file")
     ttk.Label(t5, text="(路径留空 = 自动从 PATH / 常见位置查找)", foreground="#666").grid(
         row=6, column=0, columnspan=3, sticky="w")
     check(t5, "调试: 日志里打印 ffmpeg 完整命令", "debug", 7, span=3)
 
     def reset_defaults():
-        if messagebox.askyesno("恢复默认", "把所有设置恢复为默认值?"):
+        if messagebox.askyesno("恢复默认设置",
+                               "确定要把所有设置恢复为默认值吗?\n\n"
+                               "包括 截图 / 外观 / 水印 / 过滤规则 / 输出 / 高级 里的全部设置 (文件列表不受影响)。\n"
+                               "此操作无法撤销。", icon="warning", default="no"):
             for k, v in V.items():
                 if k not in ("geometry", "last_dir"):
                     v.set(DEFAULTS[k])
+            filter_text.delete("1.0", "end")
+            status.set("已恢复默认设置")
     ttk.Button(t5, text="恢复默认设置", command=reset_defaults).grid(row=8, column=0, sticky="w", pady=10)
     t5.columnconfigure(1, weight=1)
 
@@ -2668,7 +3691,7 @@ def run_gui(initial=()):
         log.configure(state="disabled")
 
     # ---------- 文件列表操作
-    def add_paths(paths):
+    def add_paths(paths, restore=None, quiet=False):
         exts = media_exts(V["extra_exts"].get())
         found = collect_inputs(list(paths), bool(V["recursive"].get()), exts, strict=True)
         added = 0
@@ -2676,20 +3699,51 @@ def run_gui(initial=()):
             iid = str(f)
             if tree.exists(iid):
                 continue
-            if f.suffix.lower() == ".iso":
+            k = media_kind(f)
+            disc = ""
+            if k == "iso":
                 try:
                     typ = "DVD" if scan_dvd(f) else "蓝光"
                 except Exception:
                     typ = "?"
+            elif k == "dvdfolder":
+                typ, disc = "DVD文件夹", "☑"
+            elif k == "bdfolder":
+                typ, disc = "蓝光文件夹", "☑"
             else:
                 typ = "视频"
-            tree.insert("", "end", iid=iid, values=(f.name, typ, "等待"))
+            st = "等待"
+            if restore and iid in restore:
+                if restore[iid].get("disc") is False and disc:
+                    disc = "☐"
+                if restore[iid].get("status") in ("失败", "处理中") or str(restore[iid].get("status", "")).startswith("完成("):
+                    st = "待重试"
+            tree.insert("", "end", iid=iid, values=(f.name, typ, disc, st))
+            if disc:
+                disc_on[iid] = (disc == "☑")
             added += 1
-        if paths and not found:
-            status.set("没有可添加的文件 (扩展名不支持? 可在 设置-文件 里追加; 目录是否要勾选递归?)")
-        elif added:
-            status.set(f"已添加 {added} 个, 共 {len(tree.get_children())} 个")
-            cfg["last_dir"] = str(Path(str(list(paths)[0]).strip("{}")).parent)
+        if not quiet:
+            if paths and not found:
+                status.set("没有可添加的文件 (扩展名不支持? 可在 设置-文件 里追加; 目录是否要勾选递归?)")
+            elif added:
+                status.set(f"已添加 {added} 个, 共 {len(tree.get_children())} 个")
+                cfg["last_dir"] = str(Path(str(list(paths)[0]).strip("{}")).parent)
+        persist()
+
+    def on_tree_click(e):
+        """点「整盘」列的 ☑/☐ 切换: ☑ 按整盘(一个DVD/蓝光)处理, ☐ 当普通文件夹批量处理其中的视频文件"""
+        if tree.identify_region(e.x, e.y) != "cell" or tree.identify_column(e.x) != "#3":
+            return None
+        iid = tree.identify_row(e.y)
+        if iid in disc_on and not state["running"]:
+            disc_on[iid] = not disc_on[iid]
+            tree.set(iid, "disc", "☑" if disc_on[iid] else "☐")
+            status.set("按整盘处理" if disc_on[iid] else
+                       "取消勾选: 当普通文件夹批量处理其中的视频文件 (需勾选「文件」页的递归才会进入子目录)")
+            persist()
+            return "break"
+        return None
+    tree.bind("<Button-1>", on_tree_click, add="+")
 
     def add_files():
         exts = sorted(media_exts(V["extra_exts"].get()))
@@ -2709,12 +3763,32 @@ def run_gui(initial=()):
         for i in tree.selection():
             tree.delete(i)
             reports.pop(i, None)
+            disc_on.pop(i, None)
+        persist()
+
+    def remove_status(kind):
+        """移除成功 (完成 / 已跳过) 或 失败 (失败 / 部分失败 / 待重试) 的行"""
+        if state["running"]:
+            return
+        n = 0
+        for iid in list(tree.get_children()):
+            st = tree.set(iid, "status")
+            hit = st in ("完成", "已跳过") if kind == "ok" else (st in ("失败", "待重试") or st.startswith("完成("))
+            if hit:
+                tree.delete(iid)
+                reports.pop(iid, None)
+                disc_on.pop(iid, None)
+                n += 1
+        status.set(f"已移除 {n} 个{'成功' if kind == 'ok' else '失败'}的")
+        persist()
 
     def clear_all():
         for i in tree.get_children():
             tree.delete(i)
         reports.clear()
+        disc_on.clear()
         mi_text.delete("1.0", "end")
+        persist()
 
     if dnd_ok:
         for w in (root, tree):
@@ -2724,34 +3798,68 @@ def run_gui(initial=()):
     # ---------- 运行
     def set_running(on):
         state["running"] = on
-        for b in (b_start, b_start_sel, b_mi):
+        for b in (b_start, b_start_sel, b_mi, b_prev):
             b.configure(state="disabled" if on else "normal")
         b_stop.configure(state="normal" if on else "disabled")
 
-    def worker(items, c):
+    def expand_job(iid, c):
+        """一行 -> 要处理的路径列表. 光盘文件夹取消 ☑ 时, 按普通文件夹批量处理其中的视频文件"""
+        k = media_kind(iid)
+        if k in ("bdfolder", "dvdfolder") and not disc_on.get(iid, True):
+            return collect_inputs([iid], bool(c["recursive"]), media_exts(c["extra_exts"]),
+                                  strict=False, disc_folders=False)
+        return [Path(iid)]
+
+    def worker(jobs, c):
         CANCEL.clear()
         w = QWriter(q)
         with contextlib.redirect_stdout(w), contextlib.redirect_stderr(w):
-            for k, iid in enumerate(items):
+            for k, (iid, paths) in enumerate(jobs):
                 if CANCEL.is_set():
                     q.put(("status", iid, "已停止"))
                     continue
+                print(f"\n===== [{k + 1}/{len(jobs)}] {Path(iid).name} =====")
+                if not paths:
+                    print("没有可处理的文件 (取消整盘后是普通文件夹批量: 需要勾选递归才会进入子目录; 扩展名可在 设置-文件 追加)")
+                    q.put(("status", iid, "无文件"))
+                    q.put(("progress", k + 1, len(jobs)))
+                    continue
                 q.put(("status", iid, "处理中"))
-                print(f"\n===== [{k + 1}/{len(items)}] {Path(iid).name} =====")
-                try:
-                    r = process_iso(iid, c)
-                    if r.get("report"):
-                        q.put(("report", iid, r["report"]))
-                    q.put(("status", iid, "已跳过" if r.get("skipped") else "完成"))
-                except Cancelled:
-                    print("已停止")
-                    q.put(("status", iid, "已停止"))
-                except Exception as e:
-                    print("失败:", e)
-                    if c.get("debug"):
-                        traceback.print_exc()
-                    q.put(("status", iid, "失败"))
-                q.put(("progress", k + 1, len(items)))
+                fails, stopped, reps, skipped = 0, False, [], True
+                for j, pth in enumerate(paths, 1):
+                    if CANCEL.is_set():
+                        stopped = True
+                        break
+                    if len(paths) > 1:
+                        print(f"\n--- [{j}/{len(paths)}] {Path(pth).name}")
+                        q.put(("status", iid, f"处理中 {j}/{len(paths)}"))
+                    try:
+                        r = process_iso(pth, c)
+                        skipped = skipped and bool(r.get("skipped"))
+                        if r.get("report"):
+                            reps.append((f"===== {Path(pth).name} =====\n" if len(paths) > 1 else "") + r["report"])
+                    except Cancelled:
+                        print("已停止")
+                        stopped = True
+                        break
+                    except Exception as e:
+                        fails += 1
+                        skipped = False
+                        print("失败:", e)
+                        if c.get("debug"):
+                            traceback.print_exc()
+                if reps:
+                    q.put(("report", iid, "\n\n".join(reps)))
+                if stopped:
+                    final = "已停止"
+                elif fails and fails == len(paths):
+                    final = "失败"
+                elif fails:
+                    final = f"完成({fails}失败)"
+                else:
+                    final = "已跳过" if skipped else "完成"
+                q.put(("status", iid, final))
+                q.put(("progress", k + 1, len(jobs)))
         q.put(("done",))
 
     def start(selected=False, mi_only=False):
@@ -2767,18 +3875,132 @@ def run_gui(initial=()):
         save_config(c)
         if mi_only:
             c.update(make_sheet=False, do_mediainfo=True, save_mediainfo=False, exist_mode="overwrite")
+        try:
+            flt = make_filter(c)
+        except ValueError as e:
+            messagebox.showerror("过滤规则有误", str(e))
+            return
+        jobs = [(i, expand_job(i, c)) for i in items]
+        if mi_only:
+            jobs = [(jobs[0][0], jobs[0][1][:1])]
         for i in items:
             tree.set(i, "status", "等待")
-        prog.configure(maximum=len(items), value=0)
+        if flt.active() and not mi_only:        # 过滤规则: 不满足的直接跳过 (只读 MediaInfo 的单个文件不过滤)
+            kept_jobs, nskip = [], 0
+            for iid, paths in jobs:
+                kept = [pth for pth in paths if flt.test(pth)[0]]
+                if paths and not kept:
+                    tree.set(iid, "status", "已过滤")
+                    nskip += 1
+                else:
+                    kept_jobs.append((iid, kept if paths else paths))
+            jobs = kept_jobs
+            log_add(f"\n[过滤] 按规则跳过 {nskip} 项, 处理 {len(jobs)} 项\n")
+            if not jobs:
+                status.set("所有项目都被过滤规则排除了")
+                persist()
+                return
+        prog.configure(maximum=len(jobs), value=0)
         set_running(True)
         status.set("处理中 ...")
-        t = threading.Thread(target=worker, args=(items, c), daemon=True)
+        t = threading.Thread(target=worker, args=(jobs, c), daemon=True)
         state["worker"] = t
         t.start()
         if not mi_only:
             nb.select(t6)
         else:
             nb.select(t3)
+
+    def check_list():
+        """按当前过滤规则检查列表: 会被跳过的标成「将跳过」"""
+        c = collect()
+        try:
+            flt = make_filter(c)
+        except ValueError as e:
+            messagebox.showerror("过滤规则有误", str(e))
+            return
+        skip = 0
+        for iid in tree.get_children():
+            paths = expand_job(iid, c)
+            res = [flt.test(pth) for pth in paths] if flt.active() else [(True, "")]
+            bad = bool(paths) and not any(ok for ok, _ in res)
+            cur = tree.set(iid, "status")
+            if bad:
+                skip += 1
+                tree.set(iid, "status", "将跳过")
+                log_add(f"[过滤] {Path(iid).name}: {res[0][1]}\n")
+            elif cur in ("将跳过", "已过滤"):
+                tree.set(iid, "status", "等待")
+        status.set(f"检查完成: 共 {len(tree.get_children())} 个, 将跳过 {skip} 个" if flt.active()
+                   else "没有填写过滤规则")
+
+    # ---------- 预览: 用当前所有设置, 对选中的 (没选就第一个) 文件生成一张联系表, 显示在「预览」页
+    def preview():
+        if state["running"]:
+            return
+        sel = list(tree.selection()) or list(tree.get_children())
+        if not sel:
+            messagebox.showinfo("提示", "请先添加文件 (然后选中一个再预览)")
+            return
+        c = collect()
+        paths = expand_job(sel[0], c)
+        if not paths:
+            messagebox.showinfo("提示", "这一项没有可处理的文件")
+            return
+        pvdir = Path(tempfile.mkdtemp(prefix="bdtool_pv_"))     # 预览用的临时目录, 生成并读进内存后立刻删除
+        out = pvdir / "preview.png"
+        c.update(make_sheet=True, do_mediainfo=False, save_mediainfo=False, top_n=1, keep_thumbs=False,
+                 exist_mode="overwrite", _preview_out=str(out))
+        pv_status.set(f"正在生成预览: {Path(paths[0]).name} …")
+        set_running(True)
+        nb.select(t7)
+
+        def pw():
+            CANCEL.clear()
+            wr = QWriter(q)
+            with contextlib.redirect_stdout(wr), contextlib.redirect_stderr(wr):
+                print(f"\n===== 预览: {Path(paths[0]).name} =====")
+                try:
+                    process_iso(paths[0], c)
+                    if out.exists():
+                        from PIL import Image
+                        im = Image.open(out)
+                        im.load()                      # 读进内存, 之后磁盘上的临时图就可以删了
+                        q.put(("preview", im))
+                    else:
+                        q.put(("preview_err", "没有生成图片, 详见日志"))
+                except Cancelled:
+                    q.put(("preview_err", "已停止"))
+                except Exception as e:
+                    print("失败:", e)
+                    q.put(("preview_err", str(e)))
+                finally:
+                    shutil.rmtree(pvdir, ignore_errors=True)
+            q.put(("pdone",))
+        threading.Thread(target=pw, daemon=True).start()
+
+    def render_preview():
+        im0 = state.get("preview")
+        if im0 is None:
+            return
+        try:
+            import base64
+            import io
+
+            im = im0.convert("RGB")
+            cw, ch = canvas.winfo_width(), canvas.winfo_height()
+            if fit_var.get() and cw > 40 and ch > 40:
+                sc = min(cw / im.width, ch / im.height, 1.0)
+                if sc < 1.0:
+                    im = im.resize((max(1, int(im.width * sc)), max(1, int(im.height * sc))))
+            buf = io.BytesIO()
+            im.save(buf, "PNG")
+            state["photo"] = tk.PhotoImage(data=base64.b64encode(buf.getvalue()))
+            canvas.delete("all")
+            canvas.create_image(0, 0, anchor="nw", image=state["photo"])
+            canvas.configure(scrollregion=(0, 0, im.width, im.height))
+        except Exception as e:
+            pv_status.set(f"预览显示失败: {e}")
 
     def stop():
         CANCEL.set()
@@ -2805,6 +4027,7 @@ def run_gui(initial=()):
                 elif m[0] == "status":
                     if tree.exists(m[1]):
                         tree.set(m[1], "status", m[2])
+                        persist()          # 每次状态变化都落盘, 断电/崩溃后下次能恢复队列
                 elif m[0] == "report":
                     reports[m[1]] = m[2]
                     sel = tree.selection()
@@ -2816,6 +4039,15 @@ def run_gui(initial=()):
                 elif m[0] == "done":
                     set_running(False)
                     status.set("全部完成" if not CANCEL.is_set() else "已停止")
+                    persist()
+                elif m[0] == "preview":
+                    state["preview"] = m[1]
+                    pv_status.set("预览已生成 (所有设置都已应用)")
+                    render_preview()
+                elif m[0] == "preview_err":
+                    pv_status.set("预览失败: " + m[1][:120])
+                elif m[0] == "pdone":
+                    set_running(False)
         except queue.Empty:
             pass
         root.after(100, poll)
@@ -2862,6 +4094,8 @@ def run_gui(initial=()):
     btn(tb, "添加文件夹", add_folder)
     btn(tb, "移除选中", remove_sel)
     btn(tb, "清空", clear_all)
+    ttk.Button(tbx, text="移除成功", command=lambda: remove_status("ok")).pack(side="left", padx=2)
+    ttk.Button(tbx, text="移除失败", command=lambda: remove_status("fail")).pack(side="left", padx=2)
     tb2 = ttk.Frame(left)
     tb2.pack(fill="x", pady=(2, 0))
     b_start = btn(tb2, "▶ 开始(全部)", lambda: start())
@@ -2881,10 +4115,23 @@ def run_gui(initial=()):
 
     def on_close():
         c = collect()
+        state["pending_ready"] = True
         save_config(c)
         CANCEL.set()
         root.destroy()
     root.protocol("WM_DELETE_WINDOW", on_close)
+
+    # ---------- 崩溃/断电/失败后的队列恢复: 上次没处理完的 (含失败/中断) 问一下是否载入
+    pend = [x for x in (cfg.get("pending") or []) if isinstance(x, dict) and x.get("path")
+            and os.path.exists(str(x["path"]))]
+    if pend:
+        nbad = sum(1 for x in pend if x.get("status") in ("失败", "处理中") or str(x.get("status", "")).startswith("完成("))
+        if messagebox.askyesno("载入上次的队列",
+                               f"上次有 {len(pend)} 个文件没处理完 (其中失败/中断 {nbad} 个)。\n是否载入到列表?"):
+            add_paths([x["path"] for x in pend], restore={str(x["path"]): x for x in pend}, quiet=True)
+            status.set(f"已载入上次未完成的 {len(tree.get_children())} 个文件")
+    state["pending_ready"] = True
+    persist()          # 用户选了"否"时, 这里会把旧队列清掉
 
     if initial:
         add_paths(list(initial))
