@@ -69,6 +69,7 @@ DEFAULTS = {
     "tx_enable": False, "tx_text": "", "tx_color": "#FFFFFF", "tx_size": 0.03, "tx_opacity": 100, "tx_stroke": True,
     "tx_pos": "br", "tx_x": 100.0, "tx_y": 100.0,
     "detect_cc": True,             # 检测隐藏字幕 (EIA-608/708, 用 mediainfo 命令行)
+    "enhance_shots": True,         # 加强截图: 有 1~2 张画面单调(黑/白/绿屏等)或失败, 就在附近关键帧重截; 超过 2 张则判断为视频可能损坏, 不重截
     # 高级
     "recursive": False, "extra_exts": "", "preroll": 10,
     "top_n": 1,                    # DVD/蓝光 ISO: 最多截取时长最长的前 N 个标题
@@ -385,8 +386,110 @@ def hdr_kind(probe):
     return None
 
 
+MONO_STD = 6.0      # 缩小后三个通道的最大标准差低于它 = 画面单调 (纯黑/纯白/纯绿/纯色)
+
+
+def frame_score(path):
+    """画面丰富度: 纯色画面 ≈ 0, 有内容的画面一般 > 15. 读不了就当正常"""
+    try:
+        from PIL import Image, ImageStat
+        im = Image.open(path).convert("RGB").resize((64, 36))
+        return max(ImageStat.Stat(im).stddev)
+    except Exception:
+        return 99.0
+
+
+def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats):
+    """加强截图: 先每个位置截一张; 只有 1~2 张单调/失败时才在附近关键帧 (上下各最多 2 个) 重截,
+    都单调就取最丰富的一张; 超过 2 张单调/失败 → 大概率视频本身有问题, 不重截, 只告警"""
+    def shot(method, frac, t, out):
+        if method == "bytes":
+            f = min(max(frac, 0.0), 0.995)
+            ok, err, pts = grab_bytes(f, out)
+            return ok, (byte_time(f, pts) if ok else t), err
+        t2 = min(max(t, 0), max(duration - 1, 0))
+        ok, err = grab(t2, out)
+        return ok, t2, err
+
+    def keyframes_near(t0):
+        """目标时间附近的关键帧 (I 帧) 时间: 用 ffmpeg 从目标前 30 秒起往后找"""
+        ss = max(t0 - 30, 0)
+        cmd = [ffmpeg, "-hide_banner", "-loglevel", "info"] + pre + [
+            "-ss", f"{ss:.3f}", "-i", url, "-map", "0:v:0", "-an", "-t", "90",
+            "-vf", "select='eq(pict_type\\,I)',showinfo", "-frames:v", "60", "-f", "null", "-"]
+        try:
+            r = run(cmd)
+            return sorted(ss + float(m) for m in re.findall(r"pts_time:\s*(-?[\d.]+)", r.stderr or ""))
+        except Exception:
+            return []
+
+    R = []
+    for i in range(n):
+        check_cancel()
+        frac0 = (i + 1) / (n + 1)
+        t0 = duration * frac0
+        out = outdir / f"thumb_{i + 1:02d}.jpg"
+        ok, t_used, err = shot(order[0], frac0, t0, out)
+        sc = frame_score(out) if ok else -1.0
+        R.append({"i": i, "frac": frac0, "t0": t0, "out": out, "ok": ok, "t": t_used, "score": sc})
+        tag = "ok" if ok and sc >= MONO_STD else ("失败: " + err[-120:] if not ok else "画面单调")
+        print(f"  [{i + 1}/{n}] {fmt_t(t_used if ok else t0)} {tag}")
+
+    def bad_of(rs):
+        return [r for r in rs if (not r["ok"]) or r["score"] < MONO_STD]
+    bad = bad_of(R)
+    st = stats if stats is not None else {}
+    st.update(total=n, bad_initial=len(bad), warn="")
+    if len(bad) > 2:
+        st["warn"] = f"{len(bad)}/{n} 张截图画面单调或失败, 视频可能已损坏"
+        print(f"!! {st['warn']} (超过 2 张, 不再重新截图)")
+    elif bad:
+        for r in bad:
+            check_cancel()
+            i = r["i"]
+            cands = []
+            if len(order) > 1:
+                cands.append((order[1], r["frac"], r["t0"]))
+            if order[0] == "time":
+                kfs = keyframes_near(r["t0"])
+                if kfs:
+                    idx = min(range(len(kfs)), key=lambda k: abs(kfs[k] - r["t0"]))
+                    for d in (-1, 1, -2, 2):
+                        if 0 <= idx + d < len(kfs):
+                            cands.append(("time", r["frac"], kfs[idx + d]))
+                else:
+                    cands += [("time", r["frac"], r["t0"] + d) for d in (-2, 2, -4, 4)]
+            else:
+                cands += [("bytes", r["frac"] + d * 0.004, r["t0"]) for d in (-1, 1, -2, 2)]
+            print(f"  [{i + 1}/{n}] 画面单调/失败, 在附近关键帧重截 (最多 {len(cands)} 次) ...")
+            best_sc, best_t, best_path = (r["score"], r["t"], r["out"]) if r["ok"] else (-1.0, r["t0"], None)
+            for k, (m, fr, tt) in enumerate(cands):
+                check_cancel()
+                cand = outdir / f"thumb_{i + 1:02d}_c{k}.jpg"
+                ok, t_used, _e = shot(m, fr, tt, cand)
+                if not ok:
+                    continue
+                sc = frame_score(cand)
+                if sc > best_sc:
+                    best_sc, best_t, best_path = sc, t_used, cand
+                if sc >= MONO_STD:
+                    break
+            if best_path is not None and best_path != r["out"]:
+                shutil.copyfile(best_path, r["out"])
+            for k in range(len(cands)):
+                try:
+                    (outdir / f"thumb_{i + 1:02d}_c{k}.jpg").unlink()
+                except OSError:
+                    pass
+            if best_path is not None:
+                r.update(ok=True, t=best_t, score=best_sc)
+                print(f"  [{i + 1}/{n}] 最终取 {fmt_t(best_t)}" + ("" if best_sc >= MONO_STD else " (附近也都是单调画面, 只能选这张)"))
+    st["bad_final"] = len(bad_of(R))
+    return [(r["t"], r["out"]) for r in R if r["ok"]]
+
+
 def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False,
-                dvd_range=None, seek_mode="auto", debug=False, preroll=10):
+                dvd_range=None, seek_mode="auto", debug=False, preroll=10, enhance=False, stats=None):
     """dvd_range = (ISO路径, 标题集起始字节, 结束字节), 用于不依赖时间戳的"按字节偏移"取帧"""
     outdir.mkdir(parents=True, exist_ok=True)
     vf = ["yadif=deint=interlaced",                    # 只处理被标记为隔行的帧 (HDTV 1080i / DVD)
@@ -458,6 +561,9 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
         order.append("bytes")
     if seek_mode in ("auto", "time") or not dvd_range:
         order.append("time")
+
+    if enhance:
+        return _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats)
 
     files, black_cnt, shown = [], 0, False
     for i in range(n):
@@ -1027,7 +1133,7 @@ def _mi_video_codec(s):
 def _mi_lang(lang, title=""):
     code = (lang or "und").lower().strip()
     t = (title or "").lower()
-    is_zh = code in _MI_ZH_CODES or (code in ("und", "") and re.search(r"中文|国语|國語|chinese|mandarin|cantonese", t))
+    is_zh = code in _MI_ZH_CODES or (code in ("und", "") and re.search(r"中文|国语|國語|普通话|普通話|粤语|粵語|广东话|廣東話|chinese|mandarin|cantonese", t))
     if is_zh:
         if code in ("zh-tw", "cht", "zh-hant") or re.search(r"繁|台|taiwan|traditional|\bcht\b", t):
             return "中文-台湾"
@@ -1037,6 +1143,13 @@ def _mi_lang(lang, title=""):
     if code in ("und", "mis", "zxx", ""):
         return ""
     return _MI_LANG_NAMES.get(code, code.upper())
+
+
+def _mi_lang_en(lang, title=""):
+    """精简版的音频(/视频)轨语言: 中文(含台湾/香港/粤语...)统一写 Chinese, 免得被误会成有中文字幕;
+    字幕行和完整模式仍用 _mi_lang (中文 / 中文-台湾 / 中文-香港)"""
+    n = _mi_lang(lang, title)
+    return "Chinese" if n.startswith("中文") else n
 
 
 def _mi_bps(stream):
@@ -1976,7 +2089,7 @@ def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override
         elif ctype == "audio":
             kbps = _mi_kbps(s)
             lines.append("AUDIO: " + _mi_join([
-                _mi_audio_codec(s), _mi_lang(lang, title), kbps,
+                _mi_audio_codec(s), _mi_lang_en(lang, title), kbps,
                 _mi_channels(s), _mi_samplerate(s), _mi_bitdepth(s)
             ]))
         elif ctype == "subtitle":
@@ -2178,7 +2291,7 @@ def _apply_overlays(sheet, st):
 
 
 def make_sheet(files, outpath, cols, rows, lines, show_ts=True, quality=92, font_scale=1.0,
-               comment="", comment_color="#8CC8FF", style=None):
+               comment="", comment_color="#8CC8FF", style=None, warn=""):
     """style: bg_color text_color name_color ts_color 以及 wm_* / tx_* 水印设置 (都可省略)"""
     from PIL import Image, ImageDraw
     st = style or {}
@@ -2211,7 +2324,8 @@ def make_sheet(files, outpath, cols, rows, lines, show_ts=True, quality=92, font
         ccolor = ImageColor.getrgb(comment_color or "#8CC8FF")
     except Exception:
         ccolor = (140, 200, 255)
-    nlines = len(wrapped) + len(cwrapped)
+    wwrapped = wrap(d0, "[!] " + str(warn), font, sheet_w - margin * 2) if warn else []   # 视频可能损坏的警告 (红色)
+    nlines = len(wrapped) + len(wwrapped) + len(cwrapped)
     head_h = (margin * 2 + line_h * nlines) if nlines else margin
     sheet_h = head_h + rows * h + (rows - 1) * gap + margin
 
@@ -2220,6 +2334,9 @@ def make_sheet(files, outpath, cols, rows, lines, show_ts=True, quality=92, font
     y = margin
     for i, ln in enumerate(wrapped):
         d.text((margin, y), ln, font=font, fill=c_name if i == 0 else c_text)
+        y += line_h
+    for ln in wwrapped:
+        d.text((margin, y), ln, font=font, fill=(255, 110, 110))
         y += line_h
     for ln in cwrapped:
         d.text((margin, y), ln, font=font, fill=ccolor)
@@ -2524,8 +2641,6 @@ def _process_iso_one(iso, cfg):
                 except Exception:
                     pass
             print(f"时长: {fmt_t(duration)}" if duration else "取不到时长, 可在 设置-高级 里手动指定")
-            if duration:
-                extra = f"平均码率 {total * 8 / duration / 1e6:.1f} Mb/s"
             header = (f"{src_word}{' ' * (15 - len(src_word))}: {iso.name}\n类型           : DVD-Video\n"
                       f"主标题集       : VTS_{n:02d} ({len(vt['vobs'])} 个 VOB, {total / 1024 ** 3:.2f} GiB)\n"
                       + (f"时长           : {fmt_t(duration)}\n" if duration else "") + "\n")
@@ -2628,20 +2743,25 @@ def _process_iso_one(iso, cfg):
                     print("!! 当前 ffmpeg 缺少 zscale/tonemap 滤镜, 无法做 HDR→SDR, 截图可能发灰 "
                           "(换 gyan.dev full 构建; Linux 用发行版自带的 ffmpeg 一般有)")
                     tonemap = None
-            kw = dict(tonemap=tonemap, dvd=bool(dvd), dvd_range=rng,
+            shot_stats = {}
+            kw = dict(tonemap=tonemap, dvd=bool(dvd), dvd_range=rng, enhance=bool(c["enhance_shots"]), stats=shot_stats,
                       seek_mode=c["seek_mode"], debug=c["debug"],
                       preroll=float(c["preroll"]))
             if c["keep_thumbs"]:
                 files = make_thumbs(*args, outdir=outdir / f"{base}_thumbs", **kw)
                 ok = make_sheet(files, sheet_path, cols, rows, lines, c["show_timestamp"],
-                                c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"], c)
+                                c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"], c,
+                                warn=shot_stats.get("warn", ""))
             else:
                 with tempfile.TemporaryDirectory(dir=tmpdir) as td:
                     files = make_thumbs(*args, outdir=Path(td), **kw)
                     ok = make_sheet(files, sheet_path, cols, rows, lines, c["show_timestamp"],
-                                    c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"], c)
+                                    c["jpeg_quality"], c["font_scale"], c["comment"], c["comment_color"], c,
+                                warn=shot_stats.get("warn", ""))
             if ok:
                 res["sheet"] = str(sheet_path)
+            if shot_stats.get("warn"):
+                res["warn"] = shot_stats["warn"]
         return res
     finally:
         if cleanup:
@@ -2717,6 +2837,8 @@ def build_cli_command(cfg, files, script=None):
             a.append("--tx-no-stroke")
     if not c["detect_cc"]:
         a.append("--no-cc")
+    if not c["enhance_shots"]:
+        a.append("--no-enhance")
     # 后缀: 命令行不写 = 默认后缀; 写 "" = 无后缀 (所以和默认不同时, 即使是空串也要写出来)
     try:
         for sign, pat in parse_rules_text(c.get("filter_rules", "")):
@@ -3099,6 +3221,8 @@ def cli(argv):
     ap.add_argument("--tx-pos", help="文字水印位置, 同 --wm-pos, 默认 br 右下")
     ap.add_argument("--tx-no-stroke", action="store_true", help="文字水印不描黑边")
     ap.add_argument("--no-cc", action="store_true", help="不检测隐藏字幕 (EIA-608/708)")
+    ap.add_argument("--no-enhance", action="store_true",
+                    help="关闭加强截图 (默认开: 1~2 张单调/失败的在附近关键帧重截, 超过 2 张判断为视频可能损坏并告警)")
     ap.add_argument("--top", type=int, metavar="N",
                     help="DVD/蓝光 ISO: 取时长最长的前 N 个标题各出一张联系表 (默认 1; N>1 时输出名加 [1][2]…)")
     ap.add_argument("--playlist", type=int, help="蓝光: 指定 mpls 编号, 如 800")
@@ -3193,6 +3317,8 @@ def cli(argv):
         cfg["tx_stroke"] = False
     if a.no_cc:
         cfg["detect_cc"] = False
+    if a.no_enhance:
+        cfg["enhance_shots"] = False
     try:
         for opt, (kp, kx, ky) in ((a.wm_pos, ("wm_pos", "wm_x", "wm_y")), (a.tx_pos, ("tx_pos", "tx_x", "tx_y"))):
             if opt:
@@ -3317,7 +3443,7 @@ def run_gui(initial=()):
         try:
             for iid in tree.get_children():
                 st = tree.set(iid, "status")
-                if st in ("完成", "已跳过", "已过滤"):
+                if st in ("完成", "已跳过", "已过滤", "完成(疑似损坏)"):
                     continue
                 res.append({"path": iid, "disc": disc_on.get(iid), "status": st})
         except Exception:
@@ -3437,6 +3563,11 @@ def run_gui(initial=()):
         ttk.Radiobutton(lf3, text=txt, value=val, variable=var("tonemap_mode")).grid(row=i, column=0, sticky="w")
     check(t1, "保留单张截图 (<文件名>_thumbs 文件夹)", "keep_thumbs", 8)
     spin(t1, "预解码秒数", "preroll", 0, 120, 9)
+    check(t1, "加强截图 (默认开)", "enhance_shots", 13)
+    ttk.Label(t1, foreground="#666", justify="left", text=(
+        "有 1~2 张画面单调 (黑/白/绿屏等) 或截图失败时, 在附近的关键帧 (上下各最多 2 个) 重新截;\n"
+        "附近也都单调就取最丰富的一张。超过 2 张单调/失败, 大概率是视频损坏, 不重截, "
+        "联系表上会加一行红字提醒。")).grid(row=14, column=0, columnspan=3, sticky="w")
     spin(t1, "ISO 取最长的前 N 个标题", "top_n", 1, 50, 11)
     ttk.Label(t1, text="仅 DVD / 蓝光 ISO: DVD 按标题集(VTS)、蓝光按播放列表(mpls) 取时长最长的 N 个,\n"
                        "每个各出一张联系表 + MediaInfo; N>1 时输出名加 [1] [2]…。默认 1 = 只取主标题。",
@@ -3459,7 +3590,7 @@ def run_gui(initial=()):
     # -- 联系表内容
     t2 = tab("联系表内容")
     for i, (k, txt) in enumerate((("show_filename", "显示文件名"),
-                                  ("show_fileinfo", "显示文件信息行 (类型/大小/时长/平均码率)"),
+                                  ("show_fileinfo", "显示文件信息行 (类型/大小/时长)"),
                                   ("show_video", "显示视频信息 (编码/分辨率/帧率/码率)"),
                                   ("show_audio", "显示音频信息"), ("show_subs", "显示字幕信息"),
                                   ("show_timestamp", "每张截图左下角显示时间"))):
@@ -3716,7 +3847,7 @@ def run_gui(initial=()):
             if restore and iid in restore:
                 if restore[iid].get("disc") is False and disc:
                     disc = "☐"
-                if restore[iid].get("status") in ("失败", "处理中") or str(restore[iid].get("status", "")).startswith("完成("):
+                if restore[iid].get("status") in ("失败", "处理中") or re.match(r"^完成\(\d+失败\)$", str(restore[iid].get("status", ""))):
                     st = "待重试"
             tree.insert("", "end", iid=iid, values=(f.name, typ, disc, st))
             if disc:
@@ -3773,7 +3904,8 @@ def run_gui(initial=()):
         n = 0
         for iid in list(tree.get_children()):
             st = tree.set(iid, "status")
-            hit = st in ("完成", "已跳过") if kind == "ok" else (st in ("失败", "待重试") or st.startswith("完成("))
+            hit = (st in ("完成", "已跳过", "完成(疑似损坏)") if kind == "ok"
+                   else (st in ("失败", "待重试") or bool(re.match(r"^完成\(\d+失败\)$", st))))
             if hit:
                 tree.delete(iid)
                 reports.pop(iid, None)
@@ -3825,7 +3957,7 @@ def run_gui(initial=()):
                     q.put(("progress", k + 1, len(jobs)))
                     continue
                 q.put(("status", iid, "处理中"))
-                fails, stopped, reps, skipped = 0, False, [], True
+                fails, stopped, reps, skipped, warned = 0, False, [], True, False
                 for j, pth in enumerate(paths, 1):
                     if CANCEL.is_set():
                         stopped = True
@@ -3836,6 +3968,7 @@ def run_gui(initial=()):
                     try:
                         r = process_iso(pth, c)
                         skipped = skipped and bool(r.get("skipped"))
+                        warned = warned or bool(r.get("warn"))
                         if r.get("report"):
                             reps.append((f"===== {Path(pth).name} =====\n" if len(paths) > 1 else "") + r["report"])
                     except Cancelled:
@@ -3857,7 +3990,7 @@ def run_gui(initial=()):
                 elif fails:
                     final = f"完成({fails}失败)"
                 else:
-                    final = "已跳过" if skipped else "完成"
+                    final = "已跳过" if skipped else ("完成(疑似损坏)" if warned else "完成")
                 q.put(("status", iid, final))
                 q.put(("progress", k + 1, len(jobs)))
         q.put(("done",))
@@ -4125,7 +4258,8 @@ def run_gui(initial=()):
     pend = [x for x in (cfg.get("pending") or []) if isinstance(x, dict) and x.get("path")
             and os.path.exists(str(x["path"]))]
     if pend:
-        nbad = sum(1 for x in pend if x.get("status") in ("失败", "处理中") or str(x.get("status", "")).startswith("完成("))
+        nbad = sum(1 for x in pend if x.get("status") in ("失败", "处理中")
+                   or re.match(r"^完成\(\d+失败\)$", str(x.get("status", ""))))
         if messagebox.askyesno("载入上次的队列",
                                f"上次有 {len(pend)} 个文件没处理完 (其中失败/中断 {nbad} 个)。\n是否载入到列表?"):
             add_paths([x["path"] for x in pend], restore={str(x["path"]): x for x in pend}, quiet=True)
