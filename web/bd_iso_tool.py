@@ -665,7 +665,26 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
 
 
 # ============================================================ 蓝光: 7z + mediainfo
+_M2TS_CACHE = {}
+
+
 def list_m2ts(sevenz, iso):
+    """BDMV/STREAM 里每个 m2ts 的 (路径, 大小). 只是让 7-Zip 列出 ISO 的目录, 不解压任何内容; 同一个 ISO 只列一次"""
+    try:
+        key = (str(iso), os.path.getmtime(iso), os.path.getsize(iso))
+    except OSError:
+        key = None
+    if key and key in _M2TS_CACHE:
+        return list(_M2TS_CACHE[key])
+    t0 = time.time()
+    res = _list_m2ts_uncached(sevenz, iso)
+    if key:
+        _M2TS_CACHE[key] = list(res)
+    print(f"7-Zip 列出 ISO 里的文件: {time.time() - t0:.1f} 秒 (只读目录, 不解压)")
+    return res
+
+
+def _list_m2ts_uncached(sevenz, iso):
     r = run([sevenz, "l", "-slt", str(iso)])
     items, cur = [], {}
     for line in (r.stdout or "").splitlines() + [""]:
