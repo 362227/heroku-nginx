@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-https://claude.ai/chat/0737b175-063e-401c-9a3e-6f8556c8075b
-
 DVD / 蓝光 ISO / 普通视频文件 -> 缩略图联系表 + MediaInfo  (ISO 不挂载)   GUI + 命令行
 
   python bd_iso_tool.py                      打开 GUI (可把 ISO 拖进去, 批量)
@@ -69,6 +67,9 @@ DEFAULTS = {
     "tx_enable": False, "tx_text": "", "tx_color": "#FFFFFF", "tx_size": 0.03, "tx_opacity": 100, "tx_stroke": True,
     "tx_pos": "br", "tx_x": 100.0, "tx_y": 100.0,
     "detect_cc": True,             # 检测隐藏字幕 (EIA-608/708, 用 mediainfo 命令行)
+    "bd_mode": "auto",             # 蓝光读取方式: auto (libbluray 读不到正常时长时自动改直读 m2ts) / direct (总是直读 m2ts) / libbluray
+    "shot_timeout": 30,            # 单张截图最长等待秒数, 超时强行结束并清除中间文件 (冷门编码/损坏的视频会一直卡住)
+    "deinterlace": True,           # 反交错: 隔行视频截图去拉丝
     "enhance_shots": True,         # 加强截图: 有 1~2 张画面单调(黑/白/绿屏等)或失败, 就在附近关键帧重截; 超过 2 张则判断为视频可能损坏, 不重截
     # 高级
     "recursive": False, "extra_exts": "", "preroll": 10,
@@ -78,7 +79,7 @@ DEFAULTS = {
     "playlist": "", "duration": "", "debug": False,
     "ffmpeg": "", "ffprobe": "", "sevenz": "", "mediainfo": "",
     # 界面记忆
-    "geometry": "", "last_dir": "", "pending": [],     # pending: 上次没处理完/失败的队列 (崩溃恢复, 仅 GUI)
+    "geometry": "", "win_state": "normal", "sash": 0, "last_dir": "", "pending": [],     # pending: 上次没处理完/失败的队列 (崩溃恢复, 仅 GUI)
 }
 
 
@@ -118,7 +119,7 @@ def save_config(cfg):
 
 
 # ============================================================ 通用
-class Cancelled(Exception):
+class Cancelled(BaseException):     # 不继承 Exception: 这样中间的 "except Exception" 吞不掉「用户点了停止」
     pass
 
 
@@ -309,9 +310,32 @@ def find_tool(name, given=None, extra=()):
     return None
 
 
-def run(cmd, **kw):
-    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", creationflags=CREATE_NO_WINDOW, **kw)
+def _kill(p):
+    try:
+        p.kill()
+        p.communicate(timeout=5)
+    except Exception:
+        pass
+
+
+def run(cmd, timeout=None, **kw):
+    """subprocess.run 的升级版: 点「停止」(CANCEL) 立刻强行结束子进程并抛 Cancelled;
+    超过 timeout 秒也强行结束并抛 subprocess.TimeoutExpired (冷门编码 / 损坏文件会让 ffmpeg 一直卡着)"""
+    p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         text=True, encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW, **kw)
+    t0 = time.time()
+    while True:
+        try:
+            out, err = p.communicate(timeout=0.25)
+            return subprocess.CompletedProcess(cmd, p.returncode, out, err)
+        except subprocess.TimeoutExpired:
+            pass
+        if CANCEL.is_set():
+            _kill(p)
+            raise Cancelled()
+        if timeout is not None and time.time() - t0 > timeout:
+            _kill(p)
+            raise subprocess.TimeoutExpired(cmd, timeout)
 
 
 def fmt_size(n):
@@ -337,7 +361,11 @@ def bd_src(iso: Path):
 
 def get_probe(ffprobe, pre, url):
     cmd = [ffprobe, "-v", "error"] + pre + ["-show_format", "-show_streams", "-of", "json", url]
-    r = run(cmd)
+    try:
+        r = run(cmd, timeout=300)
+    except subprocess.TimeoutExpired:
+        print("ffprobe 读取超过 300 秒, 已强制结束")
+        return None
     try:
         return json.loads(r.stdout)
     except Exception:
@@ -399,7 +427,8 @@ def frame_score(path):
         return 99.0
 
 
-def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats):
+def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats, shot_timeout=30,
+                      t_offset=0.0):
     """加强截图: 先每个位置截一张; 只有 1~2 张单调/失败时才在附近关键帧 (上下各最多 2 个) 重截,
     都单调就取最丰富的一张; 超过 2 张单调/失败 → 大概率视频本身有问题, 不重截, 只告警"""
     def shot(method, frac, t, out):
@@ -415,12 +444,12 @@ def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n
         """目标时间附近的关键帧 (I 帧) 时间: 用 ffmpeg 从目标前 30 秒起往后找"""
         ss = max(t0 - 30, 0)
         cmd = [ffmpeg, "-hide_banner", "-loglevel", "info"] + pre + [
-            "-ss", f"{ss:.3f}", "-i", url, "-map", "0:v:0", "-an", "-t", "90",
+            "-ss", f"{ss + t_offset:.3f}", "-i", url, "-map", "0:v:0", "-an", "-t", "90",
             "-vf", "select='eq(pict_type\\,I)',showinfo", "-frames:v", "60", "-f", "null", "-"]
         try:
-            r = run(cmd)
+            r = run(cmd, timeout=shot_timeout * 2)
             return sorted(ss + float(m) for m in re.findall(r"pts_time:\s*(-?[\d.]+)", r.stderr or ""))
-        except Exception:
+        except (subprocess.TimeoutExpired, OSError, ValueError):
             return []
 
     R = []
@@ -489,11 +518,30 @@ def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n
 
 
 def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False,
-                dvd_range=None, seek_mode="auto", debug=False, preroll=10, enhance=False, stats=None):
+                dvd_range=None, seek_mode="auto", debug=False, preroll=10, enhance=False, stats=None,
+                shot_timeout=30, deinterlace=True, t_offset=0.0):
     """dvd_range = (ISO路径, 标题集起始字节, 结束字节), 用于不依赖时间戳的"按字节偏移"取帧"""
     outdir.mkdir(parents=True, exist_ok=True)
-    vf = ["yadif=deint=interlaced",                    # 只处理被标记为隔行的帧 (HDTV 1080i / DVD)
-          "scale='trunc(iw*sar/2)*2':ih", "setsar=1"]  # 按 SAR 还原画面比例 (DVD / 1440x1080 等非方形像素)
+    vf = []
+    if deinterlace:    # 反交错 (去拉丝): 只处理解码器标记为隔行的帧 (HDTV 1080i / DVD), 逐行的帧原样通过
+        vf.append("yadif=mode=0:deint=interlaced")
+    vf += ["scale='trunc(iw*sar/2)*2':ih", "setsar=1"]   # 按 SAR 还原画面比例 (DVD / 1440x1080 等非方形像素)
+    timeouts = [0]
+
+    def run_shot(cmd, out):
+        """单张截图最多 shot_timeout 秒: 超时就强行结束 ffmpeg 并删掉写了一半的图; 连续超时 3 次判定视频无法解码, 放弃"""
+        try:
+            return run(cmd, timeout=shot_timeout)
+        except subprocess.TimeoutExpired:
+            timeouts[0] += 1
+            try:
+                out.unlink()
+            except OSError:
+                pass
+            print(f"   单张截图超过 {shot_timeout} 秒, 已强行结束并清除中间文件 ({timeouts[0]}/3)")
+            if timeouts[0] >= 3:
+                raise RuntimeError(f"截图连续 {timeouts[0]} 次超过 {shot_timeout} 秒, 视频可能已损坏或编码太冷门, 放弃截图")
+            return subprocess.CompletedProcess(cmd, -9, "", f"超时 (>{shot_timeout}s), 已强行结束")
     if tonemap:   # tonemap: "tags" 按流里的标签 / "pq" 流没标签时按 PQ BT.2020 处理
         # 流里本来就有 HDR 标签: 直接按标签映射; 没标签却强制映射: 先用 setparams 补上 PQ/BT.2020 标签
         first = ("setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc:range=tv,"
@@ -506,12 +554,12 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     def grab(t, out):
         # 防白色马赛克: 先 seek 到目标前 preroll 秒(落在关键帧), 再从那里一路解码到目标时间,
         # 这样目标帧一定是从完整的参考帧链解出来的, 而不是从非关键帧起解码 (TS/HDTV 常见)
-        roll = min(float(preroll), t)
+        roll = min(float(preroll), t + t_offset)
         cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "warning"] + pre
         cmd += ["-probesize", "100M", "-analyzeduration", "100M",
-                "-ss", f"{t - roll:.3f}", "-i", url, "-ss", f"{roll:.3f}",
+                "-ss", f"{t + t_offset - roll:.3f}", "-i", url, "-ss", f"{roll:.3f}",
                 "-map", "0:v:0", "-frames:v", "1", "-vf", vf, "-q:v", "2", "-update", "1", str(out)]
-        r = run(cmd)
+        r = run_shot(cmd, out)
         if debug:
             print("   $ " + " ".join(cmd))
             print("   " + clean_err(r.stderr).replace("\n", "\n   "))
@@ -533,7 +581,7 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
         cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "info", "-copyts", "-probesize", "50M",
                "-i", u, "-map", "0:v:0", "-frames:v", "1",
                "-vf", "select=gte(n\\,10),showinfo," + vf, "-q:v", "2", "-update", "1", str(out)]
-        r = run(cmd)
+        r = run_shot(cmd, out)
         m = re.findall(r"pts_time:\s*(-?[\d.]+)", r.stderr or "")
         if debug:
             print("   $ " + " ".join(cmd))
@@ -563,7 +611,8 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
         order.append("time")
 
     if enhance:
-        return _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats)
+        return _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats,
+                                 shot_timeout, t_offset)
 
     files, black_cnt, shown = [], 0, False
     for i in range(n):
@@ -644,6 +693,7 @@ def read_head(sevenz, iso, inner, head_mb, dest):
     try:
         with open(dest, "wb") as f:
             while got < want:
+                check_cancel()
                 chunk = p.stdout.read(min(4 * 1024 * 1024, want - got))
                 if not chunk:
                     break
@@ -677,6 +727,254 @@ def do_mediainfo_bd(sevenz, mediainfo, iso, head_mb, raw_mode, tmpdir):
 
 
 # ============================================================ DVD (ISO9660 直读)
+# ============================================================ 蓝光: 绕过 libbluray 直接读 m2ts
+# 动机: 有些 UHD 蓝光上 ffmpeg 的 bluray: 协议读不到整段时长 (只读到 0~1 秒), 也就没法按时间跳转, 截图全落在开头.
+# 蓝光文件夹: 直接用 BDMV/STREAM 里的 m2ts 文件. 蓝光 ISO: 用 7-Zip 取到 m2ts 大小, 再到 UDF 结构里找它在 ISO 里的位置, 用 subfile 直读.
+def parse_mpls(data):
+    """播放列表 -> [(片段名, 入点, 出点)], 入出点单位 1/45000 秒"""
+    if not data or data[:4] != b"MPLS":
+        return []
+    try:
+        p = int.from_bytes(data[8:12], "big")
+        n = int.from_bytes(data[p + 6:p + 8], "big")
+        p += 10
+        items = []
+        for _ in range(n):
+            ln = int.from_bytes(data[p:p + 2], "big")
+            clip = data[p + 2:p + 7].decode("ascii", "ignore")
+            items.append((clip, int.from_bytes(data[p + 14:p + 18], "big"), int.from_bytes(data[p + 18:p + 22], "big")))
+            p += 2 + ln
+        return items
+    except Exception:
+        return []
+
+
+def parse_clpi_langs(data):
+    """片段信息 CLPI -> {PID: 语言代码}: 蓝光的音轨/字幕语言记在这里 (m2ts 自己的 PMT 里常常没有)"""
+    if not data or data[:4] != b"HDMV":
+        return {}
+    langs = {}
+    try:
+        p = int.from_bytes(data[12:16], "big") + 4          # ProgramInfo, 跳过 length(4)
+        nps = data[p + 1]
+        p += 2
+        for _ in range(nps):
+            p += 6                                           # SPN_program_sequence_start(4) + program_map_PID(2)
+            nst = data[p]
+            p += 2                                           # number_of_streams + number_of_groups
+            for _s in range(nst):
+                pid = int.from_bytes(data[p:p + 2], "big")
+                ln = data[p + 2]
+                info = data[p + 3:p + 3 + ln]
+                p += 3 + ln
+                if not info:
+                    continue
+                ct = info[0]
+                if ct in (0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0xA1, 0xA2):    # 音频: 格式/采样率(1) + 语言(3)
+                    lg = info[2:5]
+                elif ct in (0x90, 0x91):                                             # PG / IG 字幕
+                    lg = info[1:4]
+                elif ct == 0x92:                                                     # 文字字幕: 字符编码(1) + 语言(3)
+                    lg = info[2:5]
+                else:
+                    continue
+                code = lg.decode("ascii", "ignore").strip("\x00 ")
+                if len(code) == 3 and code.isalpha():
+                    langs[pid] = code.lower()
+    except Exception:
+        pass
+    return langs
+
+
+def read_bd_file(is_folder, root, rel, sevenz):
+    """读 BDMV 里的小文件 (mpls / clpi). 文件夹直接读; ISO 用 7z -so 取"""
+    try:
+        if is_folder:
+            q = Path(root)
+            for part in rel.split("/"):
+                q = _child(q, part)
+                if q is None:
+                    return None
+            return q.read_bytes()
+        if sevenz:
+            for name in (rel, rel.replace("/", "\\")):
+                r = subprocess.run([sevenz, "e", "-so", str(root), name], capture_output=True, timeout=60,
+                                   stdin=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW)
+                if r.returncode == 0 and r.stdout:
+                    return r.stdout
+    except Exception:
+        pass
+    return None
+
+
+def _udf_partition_start(f):
+    f.seek(256 * SEC)
+    d = f.read(SEC)
+    if len(d) < SEC or int.from_bytes(d[0:2], "little") != 2:         # 卷描述符指针 AVDP
+        return None
+    vlen, vloc = int.from_bytes(d[16:20], "little"), int.from_bytes(d[20:24], "little")
+    f.seek(vloc * SEC)
+    vds = f.read(min(max(vlen, SEC), 64 * SEC))
+    for i in range(0, len(vds) - SEC + 1, SEC):
+        if int.from_bytes(vds[i:i + 2], "little") == 5:               # 分区描述符
+            return int.from_bytes(vds[i + 188:i + 192], "little")
+    return None
+
+
+def _udf_extents(b, is_efe, ps, size):
+    """File Entry / Extended File Entry -> [(起始字节, 长度)]; 不支持的 (续接/稀疏/内嵌) 返回 None"""
+    adt = int.from_bytes(b[34:36], "little") & 7
+    if is_efe:
+        lea, lad, base = int.from_bytes(b[208:212], "little"), int.from_bytes(b[212:216], "little"), 216
+    else:
+        lea, lad, base = int.from_bytes(b[168:172], "little"), int.from_bytes(b[172:176], "little"), 176
+    base += lea
+    if base + lad > len(b) or adt not in (0, 1):
+        return None
+    step = 8 if adt == 0 else 16
+    out, left = [], size
+    for i in range(0, lad - step + 1, step):
+        v = int.from_bytes(b[base + i:base + i + 4], "little")
+        ln, typ = v & 0x3FFFFFFF, v >> 30
+        if ln == 0:
+            break
+        if typ != 0:
+            return None
+        lbn = int.from_bytes(b[base + i + 4:base + i + 8], "little")
+        take = min(ln, left)
+        out.append(((ps + lbn) * SEC, take))
+        left -= take
+        if left <= 0:
+            break
+    if left > 0 or not out:
+        return None
+    merged = [list(out[0])]
+    for st, ln in out[1:]:                      # 相邻的区段合并
+        if merged[-1][0] + merged[-1][1] == st:
+            merged[-1][1] += ln
+        else:
+            merged.append([st, ln])
+    return [(a, b2) for a, b2 in merged]
+
+
+def udf_find_extents(iso, size):
+    """在 UDF 里找「大小恰好等于 size」的那个文件的数据位置. 不解析目录树 (蓝光的目录在元数据分区里, 绕过它):
+    直接扫描分区开头附近 (和结尾处的元数据镜像) 的 File Entry, 按文件大小匹配, 再用 m2ts 的同步字节 0x47 校验"""
+    try:
+        total = os.path.getsize(iso)
+        with open(iso, "rb") as f:
+            ps = _udf_partition_start(f)
+            if ps is None:
+                return None
+            base = ps * SEC
+            regions = [(base, min(total, base + 256 * 1024 * 1024)),
+                       (base + 256 * 1024 * 1024, min(total, base + 2048 * 1024 * 1024)),
+                       (max(base, total - 256 * 1024 * 1024), total)]
+            for lo, hi in regions:
+                pos = lo
+                while pos < hi:
+                    check_cancel()
+                    f.seek(pos)
+                    buf = f.read(min(8 * 1024 * 1024, hi - pos))
+                    if not buf:
+                        break
+                    for o in range(0, len(buf) - SEC + 1, SEC):
+                        if buf[o + 1] == 1 and buf[o] in (5, 10) and \
+                                int.from_bytes(buf[o + 56:o + 64], "little") == size:
+                            ext = _udf_extents(buf[o:o + SEC], buf[o] == 10, ps, size)
+                            if not ext:
+                                continue
+                            f.seek(ext[0][0])
+                            d = f.read(400)
+                            if len(d) >= 197 and ((d[4] == 0x47 and d[196] == 0x47) or (d[0] == 0x47 and d[188] == 0x47)):
+                                return ext
+                    pos += len(buf)
+    except OSError:
+        return None
+    return None
+
+
+def _bd_stream_files(is_folder, root, sevenz):
+    """{片段名: (路径或ISO内路径, 大小)}"""
+    if is_folder:
+        st = _child(_child(root, "BDMV"), "STREAM")
+        return {x.stem: (x, x.stat().st_size) for x in st.iterdir() if x.suffix.lower() == ".m2ts"} if st else {}
+    if not sevenz:
+        return {}
+    return {Path(pth.replace("\\", "/")).stem: (pth, sz) for pth, sz in list_m2ts(sevenz, root)}
+
+
+def bd_main_clip(is_folder, root, playlist, sevenz):
+    """主片段名 (如 '00000'): 知道播放列表就取它的第一个片段, 否则取最大的 m2ts"""
+    if playlist is not None:
+        mp = parse_mpls(read_bd_file(is_folder, root, f"BDMV/PLAYLIST/{int(playlist):05d}.mpls", sevenz))
+        if mp:
+            return mp[0][0]
+    files = _bd_stream_files(is_folder, root, sevenz)
+    return max(files, key=lambda k: files[k][1]) if files else None
+
+
+def bd_pid_langs(is_folder, root, playlist, sevenz):
+    clip = bd_main_clip(is_folder, root, playlist, sevenz)
+    if not clip:
+        return None
+    return parse_clpi_langs(read_bd_file(is_folder, root, f"BDMV/CLIPINF/{clip}.clpi", sevenz)) or None
+
+
+def bd_direct_source(is_folder, root, playlist, sevenz, tmpdir, ffprobe=None):
+    """蓝光直读 m2ts, 返回 dict(pre, url, cleanup, duration) 或 None"""
+    try:
+        if playlist is None and ffprobe:                       # 没指定播放列表: 取最长的那个
+            lst = list_bd_titles(ffprobe, root)
+            playlist = lst[0][0] if lst else None
+        clips, dur, rng1 = [], None, None
+        if playlist is not None:
+            mp = parse_mpls(read_bd_file(is_folder, root, f"BDMV/PLAYLIST/{int(playlist):05d}.mpls", sevenz))
+            if mp:
+                clips = [c for c, _, _ in mp]
+                dur = sum((o - i) / 45000.0 for _, i, o in mp)
+                if len(mp) == 1:
+                    rng1 = (mp[0][1] / 45000.0, mp[0][2] / 45000.0)      # 单片段播放列表: 用到的入点/出点 (秒)
+        files = _bd_stream_files(is_folder, root, sevenz)
+        if not files:
+            return None
+        if not clips:
+            clips = [max(files, key=lambda k: files[k][1])]
+        if any(c not in files for c in clips):
+            return None
+        if is_folder:
+            paths = [files[c][0].resolve().as_posix() for c in clips]
+            if len(paths) == 1:
+                return {"pre": [], "url": paths[0], "cleanup": None, "duration": dur, "range": rng1}
+            lines = ["ffconcat version 1.0"] + ["file '" + q.replace("'", "'\\''") + "'" for q in paths]
+            lst = Path(tempfile.mkdtemp(dir=tmpdir)) / "clips.ffconcat"
+            lst.write_text("\n".join(lines), encoding="utf-8")
+            return {"pre": ["-f", "concat", "-safe", "0"], "url": str(lst), "cleanup": lst.parent, "duration": dur,
+                    "range": None}
+        isop = Path(root).resolve().as_posix()
+        segs = []
+        for c in clips:
+            ext = udf_find_extents(root, files[c][1])
+            if not ext:
+                print(f"在 ISO 的 UDF 结构里没找到 {c}.m2ts 的位置")
+                return None
+            segs += [(isop, a, a + ln) for a, ln in ext]
+        if len(segs) == 1:
+            return {"pre": [], "url": f"subfile,,start,{segs[0][1]},end,{segs[0][2]},,:{segs[0][0]}",
+                    "cleanup": None, "duration": dur, "range": rng1}
+        lines = ["ffconcat version 1.0"] + [
+            "file '" + f"subfile,,start,{a},end,{b},,:{pth}".replace("'", "'\\''") + "'" for pth, a, b in segs]
+        lst = Path(tempfile.mkdtemp(dir=tmpdir)) / "clips.ffconcat"
+        lst.write_text("\n".join(lines), encoding="utf-8")
+        return {"pre": ["-f", "concat", "-safe", "0", "-protocol_whitelist", "file,subfile,concat"],
+                "url": str(lst), "cleanup": lst.parent, "duration": dur, "range": None}
+    except Cancelled:
+        raise
+    except Exception as e:
+        print("蓝光直读 m2ts 失败:", e)
+        return None
+
+
 def do_mediainfo_bd_folder(mediainfo, root, raw_mode):
     """蓝光文件夹: 直接对 BDMV/STREAM 里最大的 m2ts 跑 mediainfo (整个文件, 数据是准的)"""
     st = _child(_child(root, "BDMV"), "STREAM")
@@ -1525,8 +1823,7 @@ def _mi_probe_video_extra(ffprobe, pre, url):
         cmd = [ffprobe, "-v", "error"] + pre + ["-select_streams", "v:0", "-read_intervals", "%+#8",
                "-show_entries", "packet=pos:frame=interlaced_frame,top_field_first:frame_side_data_list",
                "-print_format", "json", url]
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=60, creationflags=CREATE_NO_WINDOW)
+        proc = run(cmd, timeout=60)
         d = json.loads(proc.stdout or "{}")
     except Exception:
         return info
@@ -2016,13 +2313,12 @@ def _mi_cc_full(tracks):
 
 
 def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override=None, file_path=None, cc_mj=None,
-                       show_cc=True):
+                       show_cc=True, pid_langs=None):
     """对 bluray:/subfile 源生成 (精简文本, 完整文本, ffprobe JSON). 识别不到视频/音频时抛 MediaInfoError"""
     cmd = [ffprobe, "-v", "error", "-probesize", "50M", "-analyzeduration", "50M"] + pre + \
           ["-print_format", "json", "-show_streams", "-show_chapters", "-show_format", url]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=300, creationflags=CREATE_NO_WINDOW)
+        proc = run(cmd, timeout=300)
     except subprocess.TimeoutExpired:
         raise MediaInfoError("ffprobe 读取超时")
     try:
@@ -2040,6 +2336,15 @@ def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override
 
     if lang_mj:
         _mi_apply_langs(streams, lang_mj)
+    if pid_langs:       # 蓝光: 用 CLPI 里的语言补上 (m2ts 自己的 PMT 里常常没有语言, 会显示成 Unknown)
+        for s in streams:
+            if s.get("codec_type") in ("audio", "subtitle"):
+                try:
+                    lg = pid_langs.get(int(str(s.get("id", "")), 16))
+                except ValueError:
+                    continue
+                if lg and (s.get("tags") or {}).get("language") in (None, "", "und"):
+                    s.setdefault("tags", {})["language"] = lg
     fmt = data.setdefault("format", {})
     if duration_override:  # DVD: 用 IFO 里的精确时长, 码率按它重算
         fmt["duration"] = f"{duration_override:.6f}"
@@ -2079,6 +2384,13 @@ def get_media_info_src(label, ffprobe, pre, url, lang_mj=None, duration_override
             is_first = s is first_video
             inter = _mi_is_interlaced(s, extra if is_first else {}, enc if is_first else {})
             codec = _mi_video_codec(s)
+            if (s.get("codec_name") or "").lower() == "prores":      # ProRes 显示 Codec ID: Apple ProRes Video (apch)
+                ctag = (s.get("codec_tag_string") or "").strip()
+                if not ctag or ctag.startswith("[0]"):               # mkv 等容器里没有 fourcc: 按档位推
+                    ctag = {"proxy": "apco", "lt": "apcs", "standard": "apcn", "hq": "apch",
+                            "4444": "ap4h", "4444xq": "ap4x"}.get(str(s.get("profile") or "").lower().replace(" ", ""), "")
+                if ctag:
+                    codec += f" ({ctag})"
             etag = _mi_enc_tag(s, enc) if is_first else ""
             if etag:
                 codec += f" ({etag})"
@@ -2436,18 +2748,40 @@ def list_bd_titles(ffprobe, iso):
     return out
 
 
+def bd_has_audio(ffprobe, iso, pl):
+    """蓝光某个播放列表有没有音轨: True / False / None (读不出来, 不确定)"""
+    try:
+        r = run([ffprobe, "-v", "error", "-playlist", str(pl), "-show_entries", "stream=codec_type",
+                 "-of", "csv=p=0", bd_src(iso)], timeout=120)
+    except subprocess.TimeoutExpired:
+        return None
+    kinds = set((r.stdout or "").split())
+    if "video" not in kinds and "audio" not in kinds:
+        return None
+    return "audio" in kinds
+
+
 def list_dvd_titles(dvd, mediainfo, iso, tmpdir):
     """DVD: 每个标题集(VTS) 一个标题, 返回 [(vts号, 时长秒或None, 总字节)] 按时长(没有就按大小)降序"""
-    out = []
+    out, noaudio = [], []
     for n, vt in dvd.items():
         size = sum(v[2] for v in vt["vobs"])
-        dur = None
+        dur, has_audio = None, None
         if mediainfo and vt["ifo"]:
             try:
-                _, _, dur = do_mediainfo_dvd(mediainfo, iso, n, vt, "simple", tmpdir)
+                _, mj, dur = do_mediainfo_dvd(mediainfo, iso, n, vt, "simple", tmpdir)
+                if mj:
+                    has_audio = any(t.get("@type") == "Audio" for t in mj.get("media", {}).get("track", []))
             except Exception:
                 dur = None
+        if has_audio is False:          # 没有音轨的标题集多半是菜单 / 片头, 取最长标题时跳过
+            noaudio.append(n)
+            continue
         out.append((n, dur, size))
+    if noaudio:
+        print("跳过没有音频的标题集 (可能是菜单): " + ", ".join(f"VTS_{x:02d}" for x in noaudio))
+    if not out and noaudio:             # 全都没音频 (极少见): 别什么都不剩, 退回不过滤
+        out = [(n, None, sum(v[2] for v in dvd[n]["vobs"])) for n in noaudio]
     if out and all(x[1] for x in out):
         out.sort(key=lambda x: (-x[1], -x[2]))
     else:
@@ -2482,8 +2816,19 @@ def process_iso(iso, cfg):
         for n, dur, size in list_dvd_titles(dvd, mediainfo, iso, tmpdir)[:top]:
             titles.append({"_vts": n, "label": f"VTS_{n:02d}  " + (fmt_t(dur) if dur else f"{size / 1024 ** 3:.2f} GB")})
     elif ffmpeg and ffprobe and check_bluray_protocol(ffmpeg):
-        for pl, sec in list_bd_titles(ffprobe, iso)[:top]:
-            titles.append({"_playlist": pl, "label": f"{pl:05d}.mpls  {fmt_t(sec)}"})
+        cands = list_bd_titles(ffprobe, iso)
+        skipped = []
+        for pl, sec in cands[:40]:
+            if len(titles) >= top:
+                break
+            if bd_has_audio(ffprobe, iso, pl) is False:      # 没有音轨的播放列表多半是菜单, 跳过
+                skipped.append(f"{pl:05d}.mpls")
+                continue
+            titles.append({"_playlist": pl, "_dur": sec, "label": f"{pl:05d}.mpls  {fmt_t(sec)}"})
+        if skipped:
+            print("跳过没有音频的播放列表 (可能是菜单): " + ", ".join(skipped))
+        if not titles:
+            titles = [{"_playlist": pl, "_dur": sec, "label": f"{pl:05d}.mpls  {fmt_t(sec)}"} for pl, sec in cands[:top]]
     if not titles:
         print("没能列出该 ISO 的标题 (蓝光需要 ffmpeg 带 libbluray), 只处理主标题")
         return _process_iso_one(iso, c)
@@ -2601,13 +2946,14 @@ def _process_iso_one(iso, cfg):
         inner = f"{int(c['_playlist']):05d}.mpls"
     brief = full = None
     pre, url, cleanup, rng, css_enc = [], None, None, None, False
+    t_offset = 0.0
     header = ""
 
-    def run_brief(lang_mj=None, dur=None, cc_mj=None):
+    def run_brief(lang_mj=None, dur=None, cc_mj=None, pid_langs=None):
         nonlocal brief, full, probe
         try:
             brief, full, probe = get_media_info_src(label, ffprobe, pre, url, lang_mj, dur,
-                                                    None if is_iso else url, cc_mj, bool(c["detect_cc"]))
+                                                    None if is_iso else url, cc_mj, bool(c["detect_cc"]), pid_langs)
         except MediaInfoError as e:
             print("ffprobe 读取流信息失败:", e)
 
@@ -2649,8 +2995,17 @@ def _process_iso_one(iso, cfg):
             if not ffmpeg:
                 raise RuntimeError("找不到 ffmpeg")
             url = str(iso.resolve())
+            m2_langs = None
+            if iso.suffix.lower() == ".m2ts" and iso.parent.name.upper() == "STREAM":
+                # 直接拿蓝光里的 m2ts 来截图: 旁边的 CLIPINF/xxxxx.clpi 里有音轨/字幕语言, 补上 (否则字幕语言全是 Unknown)
+                cl = _child(_child(iso.parent.parent, "CLIPINF"), iso.stem + ".clpi")
+                if cl:
+                    try:
+                        m2_langs = parse_clpi_langs(cl.read_bytes()) or None
+                    except OSError:
+                        m2_langs = None
             if ffprobe and want_brief:
-                run_brief(cc_mj=detect_cc_json("file", iso, c, mediainfo, sevenz, tmpdir))
+                run_brief(cc_mj=detect_cc_json("file", iso, c, mediainfo, sevenz, tmpdir), pid_langs=m2_langs)
             elif ffprobe:
                 probe = get_probe(ffprobe, pre, url)
             if duration is None and probe:
@@ -2668,15 +3023,58 @@ def _process_iso_one(iso, cfg):
                 else:
                     pre = ["-playlist", str(playlist)] if playlist is not None else []
                     url = bd_src(iso)
-                    if want_brief:
-                        run_brief(cc_mj=detect_cc_json("bdfolder" if is_folder else "iso", iso, c, mediainfo, sevenz, tmpdir))
-                    else:
-                        probe = get_probe(ffprobe, pre, url)
-                    if duration is None and probe:
-                        try:
-                            duration = float(probe["format"]["duration"])
-                        except Exception:
-                            pass
+                    kind_s = "bdfolder" if is_folder else "iso"
+                    hint = c.get("_dur")                       # 多标题模式下, ffmpeg 自己列出的这个播放列表的时长
+                    bd_mode = c["bd_mode"] if c.get("bd_mode") in ("auto", "direct", "libbluray") else "auto"
+                    cc_json = detect_cc_json(kind_s, iso, c, mediainfo, sevenz, tmpdir) if want_brief else None
+                    pid_langs = bd_pid_langs(is_folder, iso, playlist, sevenz) if want_brief else None
+                    dsrc, bad = None, False
+                    if bd_mode == "direct":
+                        dsrc = bd_direct_source(is_folder, iso, playlist, sevenz, tmpdir, ffprobe)
+                        if dsrc is None:
+                            print("直接读 m2ts 没成功, 退回 libbluray")
+                    if dsrc is None:
+                        if want_brief:
+                            run_brief(cc_mj=cc_json, pid_langs=pid_langs)
+                        else:
+                            probe = get_probe(ffprobe, pre, url)
+                        if duration is None and probe:
+                            try:
+                                duration = float(probe["format"]["duration"])
+                            except Exception:
+                                pass
+                        bad = (duration is None or duration < 5 or bool(hint and duration < 0.6 * hint))
+                        if bad and bd_mode == "auto":
+                            print(f"libbluray 读到的时长不正常 ({fmt_t(duration or 0)}), 改为直接读 m2ts "
+                                  "(UHD 蓝光上 libbluray 常读不到时长、也没法按时间跳转)")
+                            dsrc = bd_direct_source(is_folder, iso, playlist, sevenz, tmpdir, ffprobe)
+                            if dsrc is None:
+                                print("直接读 m2ts 也没成功" + ("; 改用播放列表里的时长" if hint else ""))
+                    if dsrc:
+                        pre, url, cleanup = dsrc["pre"], dsrc["url"], dsrc["cleanup"]
+                        probe = brief = full = None
+                        duration = float(c["duration"]) if str(c["duration"]).strip() else None
+                        run_brief(cc_mj=cc_json, pid_langs=pid_langs)
+                        if duration is None and probe:
+                            try:
+                                duration = float(probe["format"]["duration"])
+                            except Exception:
+                                pass
+                        if (duration is None or duration < 5) and dsrc.get("duration"):
+                            duration = dsrc["duration"]           # 用 MPLS 里的入点/出点算出来的
+                        elif dsrc.get("range") and duration:      # 播放列表只用了这个 m2ts 的一部分: 截图只在这一段里取
+                            r_in, r_out = dsrc["range"]
+                            if r_out - r_in < duration - 5:
+                                try:
+                                    st0 = float((probe or {}).get("format", {}).get("start_time") or 0)
+                                except (TypeError, ValueError):
+                                    st0 = 0.0
+                                t_offset = max(r_in - st0, 0.0)
+                                duration = r_out - r_in
+                                print(f"播放列表只用了该 m2ts 的一部分 ({fmt_t(duration)}), 截图限定在这一段里")
+                        print("(已直接读取 m2ts)")
+                    elif bad and hint:
+                        duration = float(hint)
                     print(f"时长: {fmt_t(duration)}" if duration else "ffprobe 读取时长失败")
             # 只有 MediaInfo 原生模式, 或 ffprobe 读不了时, 才走 mediainfo (ISO 用 7z 读主 m2ts 开头一段, 文件夹直接读整个 m2ts)
             need_old = want_raw or (brief is None and want_brief)
@@ -2745,6 +3143,8 @@ def _process_iso_one(iso, cfg):
                     tonemap = None
             shot_stats = {}
             kw = dict(tonemap=tonemap, dvd=bool(dvd), dvd_range=rng, enhance=bool(c["enhance_shots"]), stats=shot_stats,
+                      shot_timeout=float(c["shot_timeout"] or 30), deinterlace=bool(c["deinterlace"]),
+                      t_offset=t_offset,
                       seek_mode=c["seek_mode"], debug=c["debug"],
                       preroll=float(c["preroll"]))
             if c["keep_thumbs"]:
@@ -2839,6 +3239,10 @@ def build_cli_command(cfg, files, script=None):
         a.append("--no-cc")
     if not c["enhance_shots"]:
         a.append("--no-enhance")
+    if not c["deinterlace"]:
+        a.append("--no-deinterlace")
+    val("shot_timeout", "--shot-timeout")
+    val("bd_mode", "--bd-mode")
     # 后缀: 命令行不写 = 默认后缀; 写 "" = 无后缀 (所以和默认不同时, 即使是空串也要写出来)
     try:
         for sign, pat in parse_rules_text(c.get("filter_rules", "")):
@@ -3221,6 +3625,11 @@ def cli(argv):
     ap.add_argument("--tx-pos", help="文字水印位置, 同 --wm-pos, 默认 br 右下")
     ap.add_argument("--tx-no-stroke", action="store_true", help="文字水印不描黑边")
     ap.add_argument("--no-cc", action="store_true", help="不检测隐藏字幕 (EIA-608/708)")
+    ap.add_argument("--bd-mode", choices=["auto", "direct", "libbluray"],
+                    help="蓝光读取方式: auto (默认, libbluray 读不到正常时长时自动改直读 m2ts) / direct (总是直读 m2ts) / libbluray")
+    ap.add_argument("--no-deinterlace", action="store_true", help="关闭反交错 (默认开: 隔行视频截图自动去拉丝)")
+    ap.add_argument("--shot-timeout", type=float, metavar="秒",
+                    help="单张截图最长等待秒数, 超时强行结束并清除中间文件 (默认 30); 连续 3 次超时判定视频无法解码, 放弃")
     ap.add_argument("--no-enhance", action="store_true",
                     help="关闭加强截图 (默认开: 1~2 张单调/失败的在附近关键帧重截, 超过 2 张判断为视频可能损坏并告警)")
     ap.add_argument("--top", type=int, metavar="N",
@@ -3319,6 +3728,12 @@ def cli(argv):
         cfg["detect_cc"] = False
     if a.no_enhance:
         cfg["enhance_shots"] = False
+    if a.no_deinterlace:
+        cfg["deinterlace"] = False
+    if a.bd_mode:
+        cfg["bd_mode"] = a.bd_mode
+    if a.shot_timeout:
+        cfg["shot_timeout"] = a.shot_timeout
     try:
         for opt, (kp, kx, ky) in ((a.wm_pos, ("wm_pos", "wm_x", "wm_y")), (a.tx_pos, ("tx_pos", "tx_x", "tx_y"))):
             if opt:
@@ -3397,8 +3812,27 @@ def run_gui(initial=()):
 
     cfg = load_config()
     root.title("DVD / 蓝光 ISO 截图 + MediaInfo")
-    root.geometry(cfg.get("geometry") or "1180x760")
     root.minsize(900, 560)
+
+    def safe_geometry(g):
+        """上次的 窗口大小+位置: 位置落在现有屏幕 (含多显示器的虚拟桌面) 之外时只保留大小, 让系统自己摆; 无效值用默认"""
+        m = re.match(r"^(\d+)x(\d+)(?:([+-]-?\d+)([+-]-?\d+))?$", str(g or "").strip())
+        if not m:
+            return "1180x760"
+        w, h = int(m.group(1)), int(m.group(2))
+        if w < 600 or h < 400:
+            return "1180x760"
+        if not m.group(3):
+            return f"{w}x{h}"
+        x, y = int(m.group(3)), int(m.group(4))
+        vx, vy, vw, vh = root.winfo_vrootx(), root.winfo_vrooty(), root.winfo_vrootwidth(), root.winfo_vrootheight()
+        if vw <= 1 or vh <= 1:
+            vx, vy, vw, vh = 0, 0, root.winfo_screenwidth(), root.winfo_screenheight()
+        if x + w < vx + 120 or x > vx + vw - 120 or y < vy - 5 or y > vy + vh - 80:
+            return f"{w}x{h}"            # 位置跑到屏幕外了 (比如拔掉了副屏)
+        return f"{w}x{h}{x:+d}{y:+d}"
+    root.geometry(safe_geometry(cfg.get("geometry")))
+    last_normal = [cfg.get("geometry") or ""]   # 最近一次「正常(非最大化)」状态下的 大小+位置
     q = queue.Queue()
     V = {}
     state = {"running": False, "worker": None, "pending_ready": False, "photo": None, "preview": None}
@@ -3428,7 +3862,15 @@ def run_gui(initial=()):
                 out[k] = v.get()
             except Exception:
                 out[k] = DEFAULTS[k]
-        out["geometry"] = root.geometry()
+        try:
+            out["win_state"] = "zoomed" if root.state() == "zoomed" else "normal"
+        except Exception:
+            out["win_state"] = cfg.get("win_state", "normal")
+        out["geometry"] = last_normal[0] or cfg.get("geometry", "")
+        try:
+            out["sash"] = int(pw.sashpos(0))
+        except Exception:
+            out["sash"] = int(cfg.get("sash") or 0)
         out["last_dir"] = cfg.get("last_dir", "")
         out["pending"] = pending_snapshot()
         try:
@@ -3461,6 +3903,40 @@ def run_gui(initial=()):
     right = ttk.Frame(pw)
     pw.add(left, weight=2)
     pw.add(right, weight=3)
+
+    def restore_window():
+        try:
+            if int(cfg.get("sash") or 0) > 150:
+                pw.sashpos(0, int(cfg["sash"]))
+        except Exception:
+            pass
+        if cfg.get("win_state") == "zoomed":
+            try:
+                root.state("zoomed")
+            except Exception:
+                try:
+                    root.attributes("-zoomed", True)
+                except Exception:
+                    pass
+    root.after(200, restore_window)
+
+    _sv = [None]
+
+    def on_root_configure(e):
+        if e.widget is not root:
+            return
+        try:
+            if root.state() == "normal":
+                g = root.geometry()
+                m = re.match(r"^(\d+)x(\d+)", g)
+                if m and int(m.group(1)) >= 600 and int(m.group(2)) >= 400:   # 还没显示出来时是 1x1, 不能存
+                    last_normal[0] = g
+        except Exception:
+            return
+        if _sv[0]:                                 # 拖动/缩放结束 1 秒后落盘, 崩溃/被结束进程也不会丢
+            root.after_cancel(_sv[0])
+        _sv[0] = root.after(1000, lambda: persist())
+    root.bind("<Configure>", on_root_configure, add="+")
 
     hint = "把 ISO / 视频文件 / 文件夹拖到这里" if dnd_ok else "点 [添加文件] 选择文件   (pip install tkinterdnd2 后可拖拽)"
     ttk.Label(left, text=hint, foreground="#555").pack(anchor="w", pady=(0, 4))
@@ -3563,6 +4039,11 @@ def run_gui(initial=()):
         ttk.Radiobutton(lf3, text=txt, value=val, variable=var("tonemap_mode")).grid(row=i, column=0, sticky="w")
     check(t1, "保留单张截图 (<文件名>_thumbs 文件夹)", "keep_thumbs", 8)
     spin(t1, "预解码秒数", "preroll", 0, 120, 9)
+    check(t1, "开启反交错 (隔行视频截图去拉丝)", "deinterlace", 15)
+    spin(t1, "单张截图超时(秒)", "shot_timeout", 5, 600, 16)
+    ttk.Label(t1, foreground="#666", justify="left", text=(
+        "超时会强行结束 ffmpeg 并清除中间文件 (冷门编码 / 损坏的视频会一直卡住); 连续 3 次超时就放弃这个视频。\n"
+        "点「停止」也会立刻强行结束正在截图的 ffmpeg。")).grid(row=17, column=0, columnspan=3, sticky="w")
     check(t1, "加强截图 (默认开)", "enhance_shots", 13)
     ttk.Label(t1, foreground="#666", justify="left", text=(
         "有 1~2 张画面单调 (黑/白/绿屏等) 或截图失败时, 在附近的关键帧 (上下各最多 2 个) 重新截;\n"
@@ -3784,6 +4265,13 @@ def run_gui(initial=()):
 
     # -- 高级
     t5 = tab("高级")
+    ttk.Label(t5, text="蓝光读取方式").grid(row=9, column=0, sticky="w", pady=3)
+    ttk.Combobox(t5, textvariable=var("bd_mode"), values=["auto", "direct", "libbluray"], width=12,
+                 state="readonly").grid(row=9, column=1, sticky="w")
+    ttk.Label(t5, foreground="#666", justify="left", text=(
+        "auto: 默认, libbluray 读不到正常时长时 (常见于 UHD 蓝光) 自动改为直接读 m2ts;  direct: 总是直接读 m2ts;\n"
+        "libbluray: 总是用 ffmpeg 的 bluray: 协议。蓝光 ISO 直读 m2ts 需要 7-Zip。")).grid(
+        row=10, column=0, columnspan=3, sticky="w")
     entry(t5, "蓝光播放列表编号", "playlist", 0, width=10)
     entry(t5, "手动指定时长(秒)", "duration", 1, width=10)
     entry(t5, "ffmpeg 路径", "ffmpeg", 2, "file")
