@@ -8,6 +8,7 @@
   --max N 每个通配符参数最多取 N 个文件，--max-order 选取顺序（默认最新修改优先）
   --prefix 给网盘上的文件名加前缀（只改发给 115 的名字，本地文件不动）
   1 秒滑动窗口的实时网速（不再只用全程平均速度）
+  低速自动重试：速度低于 --min-speed 持续 --slow-secs 秒就断开重试（默认开启）
 
 依赖:
   pip install requests cryptography lz4
@@ -201,6 +202,64 @@ def window_rate(samples, now, window=1.0):
     if span < 0.25:
         span = 0.25
     return total / span
+
+
+def parse_speed(text):
+    """解析速度，返回 字节/秒。支持 8、8M、8M/s、8MB/s、500K、500K/s、500KB/s、1.5G 等，
+    不区分大小写；只写数字时按 MB/s。"""
+    raw = str(text).strip()
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(?:([kmg])(?:i?b)?(?:/s|ps)?)?", raw, re.IGNORECASE)
+    if not m:
+        raise argparse.ArgumentTypeError(
+            "速度格式不对：%r（示例：8、8M、8M/s、500K、500K/s）" % raw)
+    unit = (m.group(2) or "m").lower()
+    mult = {"k": 1024, "m": 1024 * 1024, "g": 1024 * 1024 * 1024}[unit]
+    return float(m.group(1)) * mult
+
+
+class SlowSpeedError(Exception):
+    """上传速度持续过低。注意不要继承 OSError，否则会被 urllib3 包装掉。"""
+
+
+class SlowGuard:
+    """低速检测：按约 1 秒一格统计真实吞吐（包含分片之间的空档），
+    连续 secs 秒低于 min_bps 就抛 SlowSpeedError。每个文件一个实例，跨分片累计。"""
+
+    def __init__(self, min_bps, secs):
+        self.min_bps = float(min_bps)
+        self.secs = float(secs)
+        self.enabled = self.min_bps > 0 and self.secs > 0
+        self.last_rate = 0.0
+        self.reset()
+
+    def reset(self):
+        self.bucket_start = time.monotonic()
+        self.bucket_bytes = 0
+        self.slow_since = None
+        self.tripped = False
+
+    def feed(self, nbytes):
+        if not self.enabled or nbytes <= 0:
+            return
+        now = time.monotonic()
+        self.bucket_bytes += nbytes
+        elapsed = now - self.bucket_start
+        if elapsed < 1.0:
+            return
+        rate = self.bucket_bytes / elapsed
+        self.last_rate = rate
+        start = self.bucket_start
+        self.bucket_start = now
+        self.bucket_bytes = 0
+        if rate >= self.min_bps:
+            self.slow_since = None
+            return
+        if self.slow_since is None:
+            self.slow_since = start
+        if now - self.slow_since >= self.secs:
+            self.tripped = True
+            raise SlowSpeedError("速度 %s 持续低于 %s 达 %d 秒" % (
+                fmt_rate(rate), fmt_rate(self.min_bps), int(now - self.slow_since)))
 
 
 class EcdhCipher:
@@ -877,11 +936,12 @@ class OssClient:
                 return upload_id
         raise RuntimeError("初始化分片失败 HTTP %s %s" % (status, last[:300]))
 
-    def upload_part(self, bucket, key, upload_id, number, reader, size, on_abs):
+    def upload_part(self, bucket, key, upload_id, number, reader, size, on_abs, io_timeout=None):
         body = LimitedReader(reader, size, on_abs)
         headers = {"Content-Length": str(size), "Content-Type": "application/octet-stream"}
         params = {"partNumber": str(number), "uploadId": upload_id}
-        resp = self.call("PUT", bucket, key, params, headers, data=body)
+        resp = self.call("PUT", bucket, key, params, headers, data=body,
+                         timeout=(30, io_timeout))
         if resp.status_code // 100 != 2:
             if resp.status_code == 403:
                 self.refresh(force=True)
@@ -1283,6 +1343,20 @@ class App:
         self.net = threading.Semaphore(self.jobs)
         self.put_pool = ThreadPoolExecutor(max_workers=self.jobs, thread_name_prefix="put")
         self.cipher_local = threading.local()
+        # 低速自动重试
+        self.slow_on = not args.no_slow_retry
+        self.slow_min = float(args.min_speed)
+        self.slow_secs = float(args.slow_secs)
+        self.slow_max = max(0, int(args.slow_retry))   # 0 = 无限
+        self.io_timeout = max(20.0, self.slow_secs * 2) if self.slow_on else None
+
+    def new_guard(self):
+        if not self.slow_on:
+            return SlowGuard(0, 0)
+        return SlowGuard(self.slow_min, self.slow_secs)
+
+    def slow_limit_hit(self, count):
+        return self.slow_max > 0 and count > self.slow_max
 
     def cipher(self):
         c = getattr(self.cipher_local, "c", None)
@@ -1418,19 +1492,24 @@ class App:
         self.oss.refresh()
         state = {"n": 0}
         headers = oss_headers_for_callback(callback, callback_var)
-        resp = None
+        guard = self.new_guard()
+        slow_n = 0
+        attempt = 0
         last = None
-        for attempt in range(3):
+        resp = None
+        while True:
             if halted():
                 raise InterruptedError("已中断")
             prog.set_phase("上传")
             state["n"] = 0
+            guard.reset()
 
             def on_abs(n, st=state):
                 delta = n - st["n"]
                 st["n"] = n
                 if delta > 0:
                     prog.add(delta, True, GLOBAL_UI)
+                    guard.feed(delta)
 
             try:
                 with self.net:
@@ -1444,12 +1523,26 @@ class App:
             except InterruptedError:
                 raise
             except Exception as exc:
+                if halted():
+                    raise InterruptedError("已中断")
+                if isinstance(exc, SlowSpeedError) or guard.tripped:
+                    slow_n += 1
+                    if self.slow_limit_hit(slow_n):
+                        raise RuntimeError("低速重试已达 %d 次上限：%s" % (self.slow_max, exc))
+                    log("速度过低，断开重试（第 %d 次%s）：%s" % (
+                        slow_n, "" if not self.slow_max else "/%d" % self.slow_max, exc))
+                    try:
+                        self.oss.session().close()
+                    except Exception:
+                        pass
+                    time.sleep(1)
+                    continue
                 last = exc
-            log("普通上传失败（第 %d 次）：%s" % (attempt + 1, last))
-            if attempt < 2:
-                time.sleep(1 + attempt)
-        else:
-            raise last
+            attempt += 1
+            log("普通上传失败（第 %d 次）：%s" % (attempt, last))
+            if attempt >= 3:
+                raise last
+            time.sleep(attempt)
         if not self.api.verify(cid, sha1, remote_name, size)[0]:
             raise RuntimeError("OSS 返回成功，但在 115 文件列表中未确认，请稍后到网盘查看")
         prog.finish()
@@ -1486,6 +1579,8 @@ class App:
                 prog.done += already
         inflight = {}
         lock = threading.Lock()
+        guard = self.new_guard()
+        slow_n = [0]
 
         def report(number, absolute):
             with lock:
@@ -1494,13 +1589,15 @@ class App:
                 delta = absolute - prev
             if delta > 0:
                 prog.add(delta, True, GLOBAL_UI)
+                guard.feed(delta)
 
         def one(part):
             number = int(part["number"])
             if halted():
                 raise InterruptedError("已中断")
             last_err = None
-            for attempt in range(3):
+            attempt = 0
+            while attempt < 3:
                 if halted():
                     raise InterruptedError("已中断")
                 if attempt and time.monotonic() - self.oss._token_at > 50 * 60:
@@ -1514,12 +1611,14 @@ class App:
                             etag = self.oss.upload_part(
                                 bucket, key, cp["upload_id"], number, f, int(part["size"]),
                                 lambda n, num=number: report(num, n),
+                                io_timeout=self.io_timeout,
                             )
                     with lock:
                         prev = inflight.pop(number, 0)
                     gap = int(part["size"]) - prev
                     if gap > 0:
                         prog.add(gap, True, GLOBAL_UI)
+                        guard.feed(gap)
                     return {"number": number, "etag": etag}
                 except InterruptedError:
                     raise
@@ -1534,12 +1633,29 @@ class App:
                             prog.done = max(0, prog.done - prev)
                     if halted():
                         raise InterruptedError("已中断")
+                    if isinstance(exc, SlowSpeedError) or guard.tripped:
+                        # 低速重试单独计数，不占用普通的 3 次失败额度
+                        slow_n[0] += 1
+                        if self.slow_limit_hit(slow_n[0]):
+                            raise RuntimeError("低速重试已达 %d 次上限：%s" % (self.slow_max, exc))
+                        log("分片 %d 速度过低，断开重试（第 %d 次%s）：%s" % (
+                            number, slow_n[0],
+                            "" if not self.slow_max else "/%d" % self.slow_max, exc))
+                        guard.reset()
+                        try:
+                            self.oss.session().close()
+                        except Exception:
+                            pass
+                        time.sleep(1)
+                        continue
                     last_err = exc
-                    log("分片 %d 上传失败（第 %d 次）：%s" % (number, attempt + 1, exc))
-                    if attempt < 2:
-                        time.sleep(1 + attempt)
+                    attempt += 1
+                    log("分片 %d 上传失败（第 %d 次）：%s" % (number, attempt, exc))
+                    if attempt < 3:
+                        time.sleep(attempt)
             raise RuntimeError("分片 %d 连续失败：%s" % (number, last_err))
 
+        guard.reset()
         futures = []
         error = None
         # 顺序分片不能并发，后一片必须等前一片完成。-j 只并发不同文件。
@@ -1772,11 +1888,15 @@ def build_parser():
             "  python fake115uploader.py -m -j 3 --max 5 \"/content/*.txt\" \"/content/*.jpg\"\n"
             "  python fake115uploader.py -m --prefix 2024_ \"/content/*.jpg\"\n"
             "  python fake115uploader.py -m -c /Photos/2024 \"/content/*.jpg\"\n"
+            "  python fake115uploader.py -m --min-speed 8 --slow-secs 15 --slow-retry 20 \"*.mp4\"\n"
+            "  python fake115uploader.py -m --min-speed 500K/s --slow-secs 20 \"*.mp4\"\n"
+            "  python fake115uploader.py -m --no-slow-retry \"*.mp4\"\n"
             "\n"
             "通配符请加引号，否则会被 shell 提前展开。\n"
             "-j 是同时上传的文件数。单个文件的分片必须按顺序传，不能并发。\n"
             "--max N 对每个通配符参数分别限量，默认按最新修改时间选取，可用 --max-order 改成 size / name。\n"
-            "网速「实时」是最近 1 秒内实际上传的速度，不是从开始算的平均速度。"
+            "网速「实时」是最近 1 秒内实际上传的速度，不是从开始算的平均速度。\n"
+            "低速重试默认开启：单个文件速度连续 10 秒低于 5 MB/s 就断开重试，次数无限（--slow-retry 0）。"
         ),
     )
     mode = parser.add_mutually_exclusive_group()
@@ -1808,6 +1928,16 @@ def build_parser():
                         help="配合 --max 选文件的顺序：mtime=最新修改优先（默认），size=最大优先，name=文件名升序")
     parser.add_argument("--prefix", default="", metavar="前缀",
                         help="给上传到 115 的文件名加前缀，只改网盘上的名字，本地文件不动；不影响文件夹名")
+    parser.add_argument("--min-speed", dest="min_speed", type=parse_speed, default="5M", metavar="速度",
+                        help="低速阈值，默认 5M（单个文件的上传流速度）。\n"
+                             "支持 K、K/s、KB/s、M、M/s、MB/s、G，不区分大小写；只写数字按 MB/s。\n"
+                             "例：--min-speed 8M、--min-speed 500K/s")
+    parser.add_argument("--slow-secs", dest="slow_secs", type=float, default=10.0, metavar="秒",
+                        help="连续低于阈值多少秒就断开重试，默认 10")
+    parser.add_argument("--slow-retry", dest="slow_retry", type=int, default=0, metavar="N",
+                        help="每个文件低速重试次数上限，0 为无限（默认）")
+    parser.add_argument("--no-slow-retry", dest="no_slow_retry", action="store_true",
+                        help="关闭低速自动重试（默认开启）")
     parser.add_argument("-v", action="store_true", help="打印调试信息")
     parser.add_argument("--self-test", action="store_true", help="运行不联网的自检")
     parser.add_argument("files", nargs="*", help="文件、文件夹或通配符")
@@ -1905,6 +2035,9 @@ def run_upload(args):
     if args.max_per < 0:
         log("--max 不能小于 0")
         sys.exit(1)
+    if args.slow_retry < 0 or args.min_speed < 0 or args.slow_secs < 0:
+        log("--slow-retry / --min-speed / --slow-secs 不能为负数")
+        sys.exit(1)
     if args.prefix and (any(c in args.prefix for c in "/\\") or any(ord(c) < 32 for c in args.prefix)):
         log("--prefix 不能包含 / \\ 或控制字符")
         sys.exit(1)
@@ -1946,6 +2079,9 @@ def run_upload(args):
         log("没有可上传的文件")
         sys.exit(1)
     log("共 %d 个文件，并发 %d" % (len(pairs), args.jobs))
+    if not args.no_slow_retry and (args.m or args.u):
+        log("低速重试：低于 %s 持续 %g 秒就断开重试，次数上限 %s" % (
+            fmt_rate(args.min_speed), args.slow_secs, "无限" if args.slow_retry == 0 else args.slow_retry))
     app = App(args, config, api)
     tasks = []
     for path, cid in pairs:
@@ -2014,6 +2150,19 @@ def run_self_tests():
     samples.append((now - 0.8, 1024 * 1024))
     rate = window_rate(samples, now, 1.0)
     assert abs(rate - (3 * 1024 * 1024) / 0.8) < 1, rate
+    # 低速检测
+    g = SlowGuard(5 * 1024 * 1024, 10)
+    g.bucket_start = time.monotonic() - 11      # 11 秒里只来了 1KB
+    try:
+        g.feed(1024)
+        raise AssertionError("应该触发低速")
+    except SlowSpeedError:
+        assert g.tripped
+    g = SlowGuard(5 * 1024 * 1024, 10)
+    g.bucket_start = time.monotonic() - 1.1     # 1.1 秒 10MB，正常
+    g.feed(10 * 1024 * 1024)
+    assert g.slow_since is None and not g.tripped
+    assert not SlowGuard(0, 0).enabled
     # 通配符
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
@@ -2111,8 +2260,23 @@ def run_self_tests():
     ns = parser.parse_args(["-m", "-j", "4", "-c", "0", "-http-proxy", "http://127.0.0.1:1", "-recursive", "a.zip"])
     assert ns.m and ns.jobs == 4 and ns.c == "0" and ns.http_proxy.startswith("http") and ns.recursive
     assert ns.max_per == 0 and ns.max_order == "mtime"
+    assert ns.min_speed == 5 * 1024 * 1024 and ns.slow_secs == 10.0 and ns.slow_retry == 0 and not ns.no_slow_retry
     ns = parser.parse_args(["-m", "--max", "5", "--max-order", "size", "a.zip"])
     assert ns.max_per == 5 and ns.max_order == "size"
+    ns = parser.parse_args(["-m", "--min-speed", "8", "--slow-secs", "15", "--slow-retry", "20", "a.zip"])
+    assert ns.min_speed == 8 * 1024 * 1024 and ns.slow_secs == 15.0 and ns.slow_retry == 20
+    for txt, want in (("8", 8 * 1024 ** 2), ("8M", 8 * 1024 ** 2), ("8m/s", 8 * 1024 ** 2),
+                      ("8MB/s", 8 * 1024 ** 2), ("1.5M", 1.5 * 1024 ** 2), ("500K", 500 * 1024),
+                      ("500k/s", 500 * 1024), ("500KB/s", 500 * 1024), (" 2 G ", 2 * 1024 ** 3)):
+        assert parse_speed(txt) == want, (txt, parse_speed(txt))
+    for bad in ("", "abc", "8B/s", "-1M", "M", "8X"):
+        try:
+            parse_speed(bad)
+            raise AssertionError("应该报错: %r" % bad)
+        except argparse.ArgumentTypeError:
+            pass
+    assert parser.parse_args(["-m", "--min-speed", "500K/s", "a.zip"]).min_speed == 500 * 1024
+    assert parser.parse_args(["-m", "--no-slow-retry", "a.zip"]).no_slow_retry
     ns = parser.parse_args(["-m", "-c", "/Photos/2024", "--no-create", "x.zip"])
     assert ns.c == "/Photos/2024" and ns.no_create
     assert parser.parse_args(["-m", "x.zip"]).c is None
