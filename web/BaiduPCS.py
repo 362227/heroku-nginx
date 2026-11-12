@@ -5,6 +5,7 @@
 # 基本用法:
 #   python3 baidu-upload.py -file ./a.zip -dest /备份/ -parallel 40 -norapid
 #   python3 baidu-upload.py -file '/content/gofile-dl/bd/*.*' -dest /备份/
+#   python3 baidu-upload.py -file ./a.zip -dest /备份/ -v        # 详细模式: 每个分片进度/实时速度/重试情况
 #
 # 文件过滤 (语法同 rclone, 先用 -n 预览再上传):
 #   python3 baidu-upload.py -file './*' -exclude '*.tmp' -exclude '*.part' -n
@@ -29,6 +30,13 @@
 #   overwrite 一律覆盖
 #   rsync     与 size 相同
 # 分片: <8GB 用 4MB，>=8GB 用 16MB，>=32GB 用 64MB; 单文件最多 100 片, 超过就自动加大分片。
+#
+# -v 详细模式会额外打印:
+#   - 每个分片的开始/完成 (大小、用时、速度、线路), 失败原因与重试 (第几次、换到哪条线路、等待多久)
+#   - 每 3 秒列出所有正在上传的分片: 实时速度、重试次数、本次用时 (等待重试的分片也会列出)
+#   - 每 20 秒一行文件总进度: 百分比、实时速度、平均速度、活跃分片数、已完成分片数、重试数、总用时、ETA
+#   - 文件大小/分片数、存在性检查、precreate、create、校验等各步骤信息
+#   - 被排除的文件及原因 / 被包含的文件
 
 import argparse
 import collections
@@ -64,19 +72,20 @@ EMPTY_MD5 = "d41d8cd98f00b204e9800998ecf8427e"
 
 SKIP, OVERWRITE, RSYNC, SIZE = "skip", "overwrite", "rsync", "size"
 UA = "pan.baidu.com"
-FIXED_HOST = "https://d.pcs.baidu.com"
+FIXED_HOST = "https://c2.pcs.baidu.com"
 SLICE_RETRY = 8
-MAX_SLICES = 100  # 单个文件最多切成多少个分片
-DEFAULT_PREFER = "c2,c4"  # 智能择优: 优先测试的线路
+MAX_SLICES = 1000  # 单个文件最多切成多少个分片
+DEFAULT_PREFER = "c2,c5,d"  # 智能择优: 优先测试的线路
 PREFER_STRIKES = 3  # 优先线路连续这么多轮不如主线路, 就不再优先
 SWITCH_MARGIN = 1.15  # 测速线路要比主线路快 15% 以上才切换
 MIN_MAIN_SAMPLES = 3  # 主线路至少有这么多个分片样本才做比较
 MIN_PROBE_SAMPLES = 2  # 测速线路至少有这么多个样本才有资格当主线路
 MAX_CANDIDATES = 8
 HOST_COOLDOWN = 300  # 线路连续失败后冷却秒数
+SPEED_WINDOW = 4.0  # 实时速度的滑动窗口秒数
 QUIET = False  # 多文件并发时关闭每个文件各自的 \r 进度行
-G_DONE = [0]  # 全局已上传字节数 (所有文件)
-G_LOCK = threading.Lock()
+VERBOSE = False  # -v: 详细输出
+PRINT_LOCK = threading.Lock()
 
 
 EXPIRED_CODES = (-6, 110, 111, 20016)  # token 无效/过期 (20016: nas access token expired)
@@ -84,6 +93,60 @@ EXPIRED_CODES = (-6, 110, 111, 20016)  # token 无效/过期 (20016: nas access 
 
 class TokenExpired(RuntimeError):
     pass
+
+
+def log(fid, msg):
+    """带时间戳的整行日志, 多线程下不会串行。"""
+    ts = time.strftime("%H:%M:%S")
+    with PRINT_LOCK:
+        print("%s [%s] %s" % (ts, fid, msg))
+        sys.stdout.flush()
+
+
+def log_lines(fid, msgs):
+    """一次锁住多行, 避免同一文件的分片进度被别的线程插开。"""
+    if not msgs:
+        return
+    ts = time.strftime("%H:%M:%S")
+    with PRINT_LOCK:
+        for msg in msgs:
+            print("%s [%s] %s" % (ts, fid, msg))
+        sys.stdout.flush()
+
+
+def vlog(fid, msg):
+    if VERBOSE:
+        log(fid, msg)
+
+
+class Meter:
+    """字节计数 + 滑动窗口实时速度。add() 可传负数 (分片失败时回滚已计字节)。"""
+
+    def __init__(self, window=SPEED_WINDOW):
+        self.lock = threading.Lock()
+        self.total = 0
+        self.window = window
+        self.samples = collections.deque([(time.time(), 0)])
+
+    def add(self, n):
+        with self.lock:
+            self.total += n
+
+    def rate(self):
+        """采样一次并返回窗口内平均速度 (B/s); 建议每秒调用一次。"""
+        now = time.time()
+        with self.lock:
+            self.samples.append((now, self.total))
+            while len(self.samples) > 2 and self.samples[1][0] <= now - self.window:
+                self.samples.popleft()
+            t0, b0 = self.samples[0]
+            dt = now - t0
+            if dt < 0.3:
+                return 0.0
+            return max(0.0, (self.total - b0) / dt)
+
+
+G_METER = Meter()  # 所有文件的全局已发送字节
 
 
 def norm_host(h):
@@ -188,7 +251,8 @@ class LineSelector:
             self.stats[old]["probe"].extend([m, m])  # 让旧主线路以后还能被比较
         self.main = new
         self.main_win.clear()
-        print("[smart] 主线路切换: %s -> %s (%s)" % (short_host(old), short_host(new), why))
+        with PRINT_LOCK:
+            print("%s [smart] 主线路切换: %s -> %s (%s)" % (time.strftime("%H:%M:%S"), short_host(old), short_host(new), why))
 
     def _replace_main(self):
         now = time.time()
@@ -216,6 +280,9 @@ class LineSelector:
                 st["cons_fail"] += 1
                 if st["cons_fail"] >= 3:
                     st["dead_until"] = time.time() + HOST_COOLDOWN
+                    if VERBOSE:
+                        print("%s [smart] 线路 %s 连续失败 %d 次, 冷却 %d 秒" % (
+                            time.strftime("%H:%M:%S"), short_host(host), st["cons_fail"], HOST_COOLDOWN))
                     if host == self.main:
                         self._replace_main()
                 if role == "probe" and st["prefer"]:
@@ -236,6 +303,10 @@ class LineSelector:
             if role != "probe":
                 return
             st["probe"].append(speed)
+            if VERBOSE:
+                print("%s [smart] 测速 %s: %s/s (主线路 %s: %s/s)" % (
+                    time.strftime("%H:%M:%S"), short_host(host), convert_size(speed, 1), short_host(self.main),
+                    convert_size(mean(self.main_win), 1) if self.main_win else "?"))
             if len(self.main_win) < MIN_MAIN_SAMPLES:
                 return
             main_mean = mean(self.main_win)
@@ -255,6 +326,35 @@ class LineSelector:
             if best and best_speed > main_mean * SWITCH_MARGIN:
                 self._switch(best, "测速 %s/s > 主线路 %s/s" % (convert_size(best_speed, 1), convert_size(main_mean, 1)))
 
+    def note_live(self, host, speed):
+        """用进行中的分片速度更新择优, 不必等一整片传完。"""
+        if speed <= 0:
+            return
+        with self.lock:
+            host = norm_host(host)
+            st = self.stats.get(host)
+            if st is None:
+                return
+            if host == self.main:
+                self.main_win.append(speed)
+            else:
+                st["probe"].append(speed)
+            if len(self.main_win) < MIN_MAIN_SAMPLES:
+                return
+            main_mean = mean(self.main_win)
+            if main_mean <= 0:
+                return
+            now = time.time()
+            best, best_speed = None, 0.0
+            for h, s in self.stats.items():
+                if h == self.main or s["dead_until"] > now or len(s["probe"]) < MIN_PROBE_SAMPLES:
+                    continue
+                sp = mean(s["probe"])
+                if sp > best_speed:
+                    best, best_speed = h, sp
+            if best and best_speed > main_mean * SWITCH_MARGIN:
+                self._switch(best, "实时 %s/s > 主线路 %s/s" % (convert_size(best_speed, 1), convert_size(main_mean, 1)))
+
     def summary(self):
         with self.lock:
             lines = []
@@ -268,16 +368,28 @@ class LineSelector:
 
 
 class SliceBody:
-    """分片请求体: 边读文件边发送, 不把整片装进内存 (multipart 头 + 文件片段 + 尾)。"""
+    """分片请求体: 边读文件边发送, 不把整片装进内存 (multipart 头 + 文件片段 + 尾)。
+    每读出一块文件数据就回调 progress(n), 用来得到真实的实时上传字节数。"""
 
-    def __init__(self, path, offset, n, head, tail):
+    def __init__(self, path, offset, n, head, tail, progress=None, cancel=None, deadline=None):
         self.f = open(path, "rb")
         self.f.seek(offset)
         self.left = n
         self.head, self.tail = head, tail
         self.length = len(head) + n + len(tail)
+        self.progress = progress
+        self.cancel = cancel
+        self.deadline = deadline
+        self.sent = 0  # 本次尝试已发出的文件字节数
+
+    def _check_cancel(self):
+        if self.deadline and time.time() >= self.deadline:
+            raise TimeoutError("超过分片时限")
+        if self.cancel is not None and self.cancel.is_set():
+            raise TimeoutError(self.cancel.reason or "分片尝试被中断")
 
     def read(self, size=-1):
+        self._check_cancel()
         if size is None or size < 0:
             size = self.length
         out = b""
@@ -289,6 +401,9 @@ class SliceBody:
             if not chunk:
                 raise IOError("读取本地文件失败 (文件被截断?)")
             self.left -= len(chunk)
+            self.sent += len(chunk)
+            if self.progress:
+                self.progress(len(chunk))
             out += chunk
             size -= len(chunk)
         if size > 0 and self.left == 0 and self.tail:
@@ -312,6 +427,94 @@ def slice_md5(path, offset, n):
             h.update(chunk)
             left -= len(chunk)
     return h.hexdigest()
+
+
+class Cancel:
+    def __init__(self):
+        self._ev = threading.Event()
+        self.reason = ""
+
+    def set(self, reason):
+        if not self.reason:
+            self.reason = reason
+        self._ev.set()
+
+    def is_set(self):
+        return self._ev.is_set()
+
+
+class Inflight:
+    """正在发送的分片。单次时限一到就中断换线, 不管还在不在出数据。"""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.items = {}
+        self.tick = 0
+        self.explained = False
+
+    def begin(self, seq, host, cancel, size, budget=None):
+        now = time.time()
+        with self.lock:
+            self.items[seq] = {
+                "host": norm_host(host) or host,
+                "cancel": cancel,
+                "t0": now,
+                "last": now,
+                "sent": 0,
+                "size": size,
+                "budget": budget,
+            }
+
+    def add(self, seq, n):
+        if n <= 0:
+            return
+        with self.lock:
+            st = self.items.get(seq)
+            if not st or st["cancel"].is_set():
+                return
+            st["sent"] += n
+            st["last"] = time.time()
+
+    def end(self, seq):
+        with self.lock:
+            self.items.pop(seq, None)
+
+    def poll(self, timeout, sel, log_fn=None, total=0):
+        if not timeout or timeout <= 0:
+            return
+        now = time.time()
+        self.tick += 1
+        with self.lock:
+            notes, by_host = [], {}
+            for seq, st in self.items.items():
+                if st["cancel"] is None or st["cancel"].is_set():
+                    continue
+                el = now - st["t0"]
+                idle = now - st["last"]
+                spd = st["sent"] / el if el >= 0.3 else 0.0
+                if el >= 5 and spd > 0:
+                    by_host.setdefault(st["host"], []).append(spd)
+                budget = st.get("budget") or timeout
+                if budget and el >= budget:
+                    # 到了本次时限就换线, 不管还在不在出数据
+                    st["cancel"].set("超过时限 %ds" % int(budget))
+                    notes.append((seq, "deadline", st["host"], spd, el, budget))
+                elif idle >= timeout:
+                    st["cancel"].set("超过 %d 秒没有新数据" % int(timeout))
+                    notes.append((seq, "stall", st["host"], spd, el, timeout))
+        if sel and self.tick % 5 == 0:
+            for h, spds in by_host.items():
+                sel.note_live(h, mean(spds))
+        if not log_fn:
+            return
+        for note in notes:
+            seq, kind, host, spd, el, limit = note
+            if kind == "stall":
+                log_fn("分片 %d/%d 超过 %ds 没有新数据 (速度 %s/s, 线路 %s), 换线重试" % (
+                    seq + 1, total or (seq + 1), int(limit), convert_size(spd, 1), short_host(host)))
+            else:
+                log_fn("分片 %d/%d 超过时限 %ds 仍未完成 (速度 %s/s, 线路 %s, 用时 %s), 换线重试" % (
+                    seq + 1, total or (seq + 1), int(limit), convert_size(spd, 1), short_host(host), fmt_elapsed(el)))
 
 
 def is_timeout(e):
@@ -406,6 +609,23 @@ def parse_api_code(body):
     return code, True
 
 
+def fmt_elapsed(sec):
+    sec = max(0, sec)
+    if sec >= 3600:
+        s = int(sec)
+        return "%dh%dm%ds" % (s // 3600, (s % 3600) // 60, s % 60)
+    if sec >= 60:
+        s = int(sec)
+        return "%dm%ds" % (s // 60, s % 60)
+    return "%.1fs" % sec
+
+
+def err_text(e, n=160):
+    if isinstance(e, ApiError):
+        return "errno=%s %s" % (e.code, truncate(e.body, n))
+    return "%s: %s" % (type(e).__name__, truncate(str(e), n))
+
+
 class Client:
     def __init__(self, cfg_path, parallel=4, rotate_host=False, norefresh=False, slice_timeout=60.0,
                  line_host=None, smart=True, prefer=DEFAULT_PREFER, probes=0):
@@ -478,6 +698,9 @@ class Client:
             if force and self.cfg.get("access_token") and time.time() - self.refreshed_at < 10:
                 return
             if force or not self.cfg.get("access_token") or time.time() > int(self.cfg.get("expires_at") or 0) - 300:
+                if VERBOSE:
+                    print("%s [token] 需要刷新 access_token (force=%s)" % (time.strftime("%H:%M:%S"), force),
+                          file=sys.stderr)
                 self.refresh()
 
     def with_auth(self, do):
@@ -492,6 +715,9 @@ class Client:
             if self.norefresh and code in EXPIRED_CODES:
                 raise TokenExpired("access_token 无效或已过期 (errno=%s), 已启用 -norefresh 不会刷新, 请更新 config 里的 access_token" % code)
             if attempt == 0 and code in EXPIRED_CODES:
+                if VERBOSE:
+                    print("%s [token] 接口返回 token 过期 (errno=%s), 重新获取后重试" % (time.strftime("%H:%M:%S"), code),
+                          file=sys.stderr)
                 continue
             if code != 0:
                 raise ApiError(code, body.decode("utf-8", "replace"))
@@ -636,7 +862,7 @@ class Client:
             add(s.get("server"))
         return hosts or [FIXED_HOST]
 
-    def post_slice(self, host, remote, upload_id, seq, src, counter):
+    def post_slice(self, host, remote, upload_id, seq, src, progress, cancel=None, deadline=None):
         local, offset, n = src
         q = urllib.parse.urlencode({
             "method": "upload", "access_token": self.cfg["access_token"],
@@ -646,63 +872,103 @@ class Client:
         head = ("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"file\"\r\n"
                 "Content-Type: application/octet-stream\r\n\r\n" % boundary).encode()
         tail = ("\r\n--%s--\r\n" % boundary).encode()
-        counter[0] += n
         url = host.rstrip("/") + "/rest/2.0/pcs/superfile2?" + q
-        body = SliceBody(local, offset, n, head, tail)
+        body = SliceBody(local, offset, n, head, tail, progress, cancel, deadline)
+        ok = False
         try:
             status, resp = self._request("POST", url, body, {
                 "Content-Type": "multipart/form-data; boundary=%s" % boundary,
                 "Content-Length": str(body.length),
             }, timeout=self.slice_timeout)
+            if status >= 400 and not resp:
+                raise RuntimeError("HTTP %d 空响应" % status)
+            code, parsed = parse_api_code(resp)
+            if not parsed:
+                raise RuntimeError("百度接口返回无法解析: HTTP %d %s" % (status, truncate(resp)))
+            if code != 0:
+                raise ApiError(code, resp.decode("utf-8", "replace"))
+            ok = True
+            return resp
         finally:
             body.close()
-        if status >= 400 and not resp:
-            raise RuntimeError("HTTP %d 空响应" % status)
-        code, ok = parse_api_code(resp)
-        if not ok:
-            raise RuntimeError("百度接口返回无法解析: HTTP %d %s" % (status, truncate(resp)))
-        if code != 0:
-            raise ApiError(code, resp.decode("utf-8", "replace"))
-        return resp
+            if not ok and body.sent and progress:
+                progress(-body.sent)  # 失败: 回滚这次尝试已计入的字节, 重试时不会重复统计
 
-    def upload_slice(self, remote, upload_id, seq, src, counter, hosts, hosts_cb=None, report=None, rotate=False):
+    def upload_slice(self, remote, upload_id, seq, src, progress, hosts, hosts_cb=None, report=None, rotate=False,
+                     lg=None, on_retry=None, total=0, tag="", on_attempt=None, on_wait=None):
         hosts = hosts or [self.line_host]
         idx = 0
         last = None
+        n = src[2]
+        label = "分片 %d/%d" % (seq + 1, total) if total else "分片 %d" % (seq + 1)
         for i in range(SLICE_RETRY):
             if i > 0 and isinstance(last, ApiError) and last.code in EXPIRED_CODES:
                 self.ensure_token(True)
             else:
                 self.ensure_token(False)
             host = hosts[idx % len(hosts)]
-            t0 = None
+            t0 = time.time()
+            # 每一次尝试都是同一个时限, 到点就换线, 不随重试次数放宽
+            limit = self.slice_timeout if self.slice_timeout else None
+            deadline = (t0 + limit) if limit else None
+            cancel = Cancel()
+            if on_attempt:
+                on_attempt(host, i, cancel, limit)
+            if lg:
+                lg("%s 开始 %s 线路 %s%s 第 %d/%d 次%s" % (
+                    label, convert_size(n, 2), short_host(host), (" (%s)" % tag) if tag and i == 0 else "",
+                    i + 1, SLICE_RETRY, (" 时限 %ds" % int(limit)) if limit else ""))
             try:
-                t0 = time.time()
-                body = self.post_slice(host, remote, upload_id, seq, src, counter)
+                body = self.post_slice(host, remote, upload_id, seq, src, progress, cancel, deadline)
+                el = time.time() - t0
                 if report:
-                    report(host, src[2], time.time() - t0, True, i)
+                    report(host, n, el, True, i)
                 md5 = ""
                 try:
                     md5 = json.loads(body).get("md5") or ""
                 except Exception:
                     pass
+                if lg:
+                    lg("%s 完成 %s 用时 %.1fs 速度 %s/s 线路 %s%s" % (
+                        label, convert_size(n, 2), el, convert_size(n / max(el, 1e-3), 2), short_host(host),
+                        " (重试 %d 次后成功)" % i if i else ""))
                 return md5 or slice_md5(*src)
             except Exception as e:
                 last = e
+                el = time.time() - t0
                 if report and not isinstance(e, ApiError):  # 接口有响应说明线路通, 不算线路问题
-                    report(host, 0, time.time() - (t0 or time.time()), False, i)
+                    report(host, 0, el, False, i)
                 if isinstance(e, ApiError) and (e.code in (400, 413, 31024, 31364) or (self.norefresh and e.code in EXPIRED_CODES)):
+                    if lg:
+                        lg("%s 失败 (不可重试): %s" % (label, err_text(e)))
                     raise
-                if is_timeout(e):
+                timed_out = is_timeout(e)
+                if timed_out:
                     # 超时一定换服务器: 先拿最新列表, 再切到当前之后的下一个
                     if hosts_cb:
                         hosts = hosts_cb() or hosts
                     idx = (hosts.index(host) + 1) % len(hosts) if host in hosts else 0
-                    print("分片 %d 超时 (%s 秒), 第 %d/%d 次, 切换服务器 %s -> %s" % (
-                        seq, self.slice_timeout, i + 1, SLICE_RETRY, short_host(host), short_host(hosts[idx % len(hosts)])))
                 elif self.rotate_host or rotate:
                     idx += 1
-                time.sleep((i + 1) * 2)
+                nxt = hosts[idx % len(hosts)]
+                last_try = (i == SLICE_RETRY - 1)
+                if on_retry and not last_try:
+                    on_retry()
+                if lg:
+                    if last_try:
+                        lg("%s 第 %d/%d 次失败 [用时 %.1fs]: %s | 已用完重试次数, 放弃" % (
+                            label, i + 1, SLICE_RETRY, el, err_text(e)))
+                    else:
+                        lg("%s 第 %d/%d 次失败 [用时 %.1fs]: %s | 线路 %s%s | %d 秒后重试" % (
+                            label, i + 1, SLICE_RETRY, el, err_text(e), short_host(host),
+                            (" -> 切换 %s" % short_host(nxt)) if nxt != host else "", (i + 1) * 2))
+                elif timed_out:
+                    print("分片 %d 超时 (%s 秒), 第 %d/%d 次, 切换服务器 %s -> %s" % (
+                        seq, self.slice_timeout, i + 1, SLICE_RETRY, short_host(host), short_host(nxt)))
+                if not last_try:
+                    if on_wait:
+                        on_wait(el)
+                    time.sleep((i + 1) * 2)
         raise last
 
     def create(self, remote, upload_id, sums, policy, block_md5):
@@ -723,10 +989,12 @@ class Client:
         for i in range(5):
             if i:
                 time.sleep(2)
+                vlog(fid, "校验重试 %d/5 ..." % (i + 1))
             try:
                 listing = self.list_dir(directory)
             except Exception as e:
                 last = e
+                vlog(fid, "读取目录失败: %s" % err_text(e))
                 continue
             for e in listing:
                 if e.get("server_filename") != name or int(e.get("isdir") or 0) == 1:
@@ -742,17 +1010,99 @@ class Client:
 
     def upload_blocks(self, fid, local, remote, upload_id, sums, need, policy):
         blocks = list(sums["blocks"])
+        total_slices = len(blocks)
         if not need:
             need = list(range(len(blocks)))
         need = [x for x in need if 0 <= x < len(blocks)]
+        size = sums["size"]
+        block = sums["block"]
         host_lock = threading.Lock()
         host_list = [self.line_host]
         host_at = 0.0
-        counter = [0]
         done_seqs = set()
-        done = [0]
+        st_lock = threading.Lock()
+        state = {"active": 0, "done": 0, "retries": 0}
+        meter = Meter()
+        todo_bytes = sum(min(block, max(0, size - s * block)) for s in need)
+        pre_done = size - todo_bytes  # 秒传/断点续传时已经在网盘上的字节
         start = time.time()
         sel = self.selector
+        lg = (lambda m: log(fid, m)) if VERBOSE else None
+
+        if VERBOSE:
+            log(fid, "开始分片上传: 共 %d 片, 需上传 %d 片 (%s), 并发 %d, 分片大小 %s, uploadid=%s" % (
+                total_slices, len(need), convert_size(todo_bytes, 2), self.parallel, convert_size(block, 2), upload_id))
+
+        def progress(n):
+            meter.add(n)
+            G_METER.add(n)
+
+        def on_retry():
+            with st_lock:
+                state["retries"] += 1
+
+        # -v: 每个正在上传的分片单独计时/计字节, 供每 3 秒打印实时速度
+        live_lock = threading.Lock()
+        live = {}
+        inflight = Inflight()
+
+        def slice_add(seq, n):
+            meter.add(n)
+            G_METER.add(n)
+            with live_lock:
+                st = live.get(seq)
+                if st is None or st["waiting"]:
+                    return
+                if n < 0:
+                    st["sent"] = max(0, st["sent"] + n)
+                    st["samples"].clear()
+                    st["samples"].append((time.time(), st["sent"]))
+                else:
+                    st["sent"] += n
+
+        def slice_begin(seq, host, attempt, nbytes):
+            now = time.time()
+            with live_lock:
+                live[seq] = {
+                    "host": short_host(host),
+                    "attempt": attempt,
+                    "size": nbytes,
+                    "sent": 0,
+                    "t0": now,
+                    "last_el": 0.0,
+                    "samples": collections.deque([(now, 0)]),
+                    "waiting": False,
+                }
+
+        def slice_wait(seq, elapsed):
+            with live_lock:
+                st = live.get(seq)
+                if st and not st["waiting"]:
+                    st["waiting"] = True
+                    st["last_el"] = elapsed
+                    st["attempt"] += 1
+
+        def slice_end(seq):
+            with live_lock:
+                live.pop(seq, None)
+
+        def sample_live(now):
+            rows = []
+            with live_lock:
+                for seq, st in live.items():
+                    spd_s = 0.0
+                    if not st["waiting"]:
+                        st["samples"].append((now, st["sent"]))
+                        while len(st["samples"]) > 2 and st["samples"][1][0] <= now - SPEED_WINDOW:
+                            st["samples"].popleft()
+                        t0s, b0 = st["samples"][0]
+                        dt = now - t0s
+                        if dt >= 0.3:
+                            spd_s = max(0.0, (st["sent"] - b0) / dt)
+                    rows.append((seq, st["host"], st["attempt"], st["sent"], st["size"],
+                                 spd_s, now - st["t0"], st["last_el"], st["waiting"]))
+            rows.sort(key=lambda r: r[0])
+            return rows
 
         def pick_host(seq, force=False):
             nonlocal host_list, host_at
@@ -778,32 +1128,62 @@ class Client:
             def worker(seq):
                 if stop.is_set():
                     return
-                off = seq * sums["block"]
-                n = min(sums["block"], max(0, sums["size"] - off))
+                off = seq * block
+                n = min(block, max(0, size - off))
                 src = (local, off, n)
+                with st_lock:
+                    state["active"] += 1
+
+                def progress_one(nbytes, seq=seq):
+                    if VERBOSE:
+                        slice_add(seq, nbytes)
+                    else:
+                        progress(nbytes)
+                    if nbytes > 0:
+                        inflight.add(seq, nbytes)
+
+                def began(host, attempt, cancel=None, limit=None, seq=seq, nbytes=n):
+                    if cancel is not None:
+                        inflight.begin(seq, host, cancel, nbytes, limit)
+                    if VERBOSE:
+                        slice_begin(seq, host, attempt, nbytes)
+
+                def waited(elapsed, seq=seq):
+                    if VERBOSE:
+                        slice_wait(seq, elapsed)
+
+                hooks = {"on_attempt": began, "on_wait": waited}
                 try:
                     if smart_mode:
                         host, role = sel.assign()
                         try:
                             def report(h, nbytes, elapsed, ok, attempt, role=role):
                                 sel.record(h, nbytes, elapsed, ok, role if attempt == 0 else "retry")
-                            md5 = self.upload_slice(remote, upload_id, seq, src, counter, sel.order(host),
-                                                    lambda: sel.order(None), report, True)
+                            md5 = self.upload_slice(remote, upload_id, seq, src, progress_one, sel.order(host),
+                                                    lambda: sel.order(None), report, True,
+                                                    lg=lg, on_retry=on_retry, total=total_slices,
+                                                    tag="测速" if role == "probe" else "主线路", **hooks)
                         finally:
                             sel.release(role)
                     else:
-                        md5 = self.upload_slice(remote, upload_id, seq, src, counter, pick_host(seq),
-                                                lambda: pick_host(seq, True))
+                        md5 = self.upload_slice(remote, upload_id, seq, src, progress_one, pick_host(seq),
+                                                lambda: pick_host(seq, True),
+                                                lg=lg, on_retry=on_retry, total=total_slices, **hooks)
                 except Exception as e:
                     if err[0] is None:
                         err[0] = RuntimeError("分片 %d 上传失败: %s" % (seq, e))
                         stop.set()
                     return
+                finally:
+                    inflight.end(seq)
+                    if VERBOSE:
+                        slice_end(seq)
+                    with st_lock:
+                        state["active"] -= 1
                 blocks[seq] = md5
-                done_seqs.add(seq)
-                done[0] += n
-                with G_LOCK:
-                    G_DONE[0] += n
+                with st_lock:
+                    done_seqs.add(seq)
+                    state["done"] += 1
 
             with ThreadPoolExecutor(max_workers=self.parallel) as pool:
                 futs = [pool.submit(worker, x) for x in seqs]
@@ -814,28 +1194,64 @@ class Client:
         pstop = threading.Event()
 
         def printer():
-            last = start
-            last_n = 0
-            while not pstop.wait(3):
+            # 每秒采样一次算实时速度.
+            # -v: 每 3 秒打印所有正在上传的分片, 每 20 秒打印一行文件总进度.
+            # 普通模式每秒刷新 \r 行.
+            tick = 0
+            while not pstop.wait(1):
+                spd = meter.rate()
+                tick += 1
                 now = time.time()
-                n = done[0]
-                speed = int((n - last_n) / max(now - last, 0.001))
-                sys.stdout.write("\r[%s] ↑ %s/%s %s/s in %s ............" % (
-                    fid, convert_size(n, 2), convert_size(sums["size"], 2),
-                    convert_size(speed, 2), fmt_elapsed(now - start)))
-                sys.stdout.flush()
-                last, last_n = now, n
+                if VERBOSE:
+                    rows = sample_live(now)
+                    if tick % 3 == 0:
+                        lines = []
+                        for seq, host, attempt, sent_b, sl_size, sspd, el, last_el, waiting in rows:
+                            label = "分片 %d/%d" % (seq + 1, total_slices)
+                            if waiting:
+                                lines.append("%s 等待重试 重试 %d 次 上次用时 %s 线路 %s" % (
+                                    label, attempt, fmt_elapsed(last_el), host))
+                            else:
+                                lines.append("%s 实时 %s/s 重试 %d 次 本次用时 %s 线路 %s 已传 %s/%s" % (
+                                    label, convert_size(sspd, 2), attempt, fmt_elapsed(el), host,
+                                    convert_size(max(sent_b, 0), 2), convert_size(sl_size, 2)))
+                        log_lines(fid, lines)
+                    if tick % 20 == 0:
+                        sent = min(size, pre_done + max(meter.total, 0))
+                        with st_lock:
+                            act, dn, rt = state["active"], state["done"], state["retries"]
+                        avg = meter.total / max(now - start, 1e-3)
+                        remain = size - sent
+                        eta = fmt_elapsed(remain / spd) if spd > 1024 else "--"
+                        log(fid, "↑ %s/%s (%.1f%%) 实时 %s/s 平均 %s/s 活跃 %d 片 完成 %d/%d 重试 %d 次 用时 %s ETA %s" % (
+                            convert_size(sent, 2), convert_size(size, 2), sent * 100.0 / size if size else 100.0,
+                            convert_size(spd, 2), convert_size(avg, 2), act, dn, len(need), rt,
+                            fmt_elapsed(now - start), eta))
+                else:
+                    sent = min(size, pre_done + max(meter.total, 0))
+                    sys.stdout.write("\r[%s] ↑ %s/%s %s/s in %s ............" % (
+                        fid, convert_size(sent, 2), convert_size(size, 2),
+                        convert_size(spd, 2), fmt_elapsed(now - start)))
+                    sys.stdout.flush()
+
+        def guard():
+            while not pstop.wait(1):
+                inflight.poll(self.slice_timeout, sel, lambda m: log(fid, m), total_slices)
 
         t = threading.Thread(target=printer, daemon=True)
-        if not QUIET:
+        g = threading.Thread(target=guard, daemon=True)
+        g.start()
+        if VERBOSE or not QUIET:
             t.start()
 
         def learn_hosts():
             if sel:
                 try:
-                    sel.add_hosts(self.locate_upload(remote, upload_id))
-                except Exception:
-                    pass
+                    hs = self.locate_upload(remote, upload_id)
+                    sel.add_hosts(hs)
+                    vlog(fid, "locateupload 返回线路: %s" % ", ".join(short_host(h) for h in hs))
+                except Exception as e:
+                    vlog(fid, "locateupload 失败: %s" % err_text(e))
 
         # 没指定线路: 一开始就智能择优; 指定了线路: 先走指定线路, 整体失败才启用智能择优
         smart_first = sel is not None and not self.user_line
@@ -851,15 +1267,26 @@ class Client:
             err = run_phase(left, True)
 
         pstop.set()
-        if not QUIET:
-            t.join(timeout=1)
-            uploaded = sums["size"] if err is None else done[0]
-            sys.stdout.write("\r[%s] ↑ %s/%s %s/s in %s ............\n" % (
-                fid, convert_size(uploaded, 2), convert_size(sums["size"], 2),
-                convert_size(0, 2), fmt_elapsed(time.time() - start)))
+        elapsed = time.time() - start
+        avg = max(meter.total, 0) / max(elapsed, 1e-3)
+        g.join(timeout=1.5)
+        if t.ident is not None:
+            t.join(timeout=1.5)
+        if VERBOSE:
+            with st_lock:
+                dn, rt = state["done"], state["retries"]
+            log(fid, "分片阶段%s: 完成 %d/%d 片, 重试 %d 次, 用时 %s, 平均 %s/s" % (
+                "失败" if err else "结束", dn, len(need), rt, fmt_elapsed(elapsed), convert_size(avg, 2)))
+        elif not QUIET:
+            uploaded = size if err is None else min(size, pre_done + max(meter.total, 0))
+            sys.stdout.write("\r[%s] ↑ %s/%s 平均 %s/s in %s ............\n" % (
+                fid, convert_size(uploaded, 2), convert_size(size, 2),
+                convert_size(avg, 2), fmt_elapsed(elapsed)))
         if err:
             raise err
+        vlog(fid, "调用 create 合并分片 ...")
         self.create(remote, upload_id, sums, policy, blocks)
+        vlog(fid, "create 完成")
 
     def upload(self, fid, local, remote, policy, rapid, scan_md5):
         print("[%s] 准备上传: %s" % (fid, local))
@@ -879,10 +1306,15 @@ class Client:
         if block > MIN_BLOCK and block_count(size, block) <= MAX_SLICES and block not in (MID_BLOCK, MAX_BLOCK):
             print("[%s] 单文件最多 %d 个分片, 分片大小调整为 %s (共 %d 片)" % (
                 fid, MAX_SLICES, convert_size(block, 2), block_count(size, block)))
+        vlog(fid, "本地文件 %s, 大小 %s, mtime %s, 分片大小 %s, 共 %d 片, 目标 %s, 策略 %s, 秒传 %s" % (
+            local, convert_size(size, 2), time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime)),
+            convert_size(block, 2), block_count(size, block), remote, policy, "是" if rapid else "否"))
         try:
             state, remote_size = self.check_exist(remote)
-        except ApiError:
+        except ApiError as e:
+            vlog(fid, "检查目标是否存在失败 (按不存在处理): %s" % err_text(e))
             state, remote_size = "none", 0
+        vlog(fid, "目标检查结果: %s%s" % (state, (", 网盘大小 %s" % convert_size(remote_size, 2)) if state == "file" else ""))
         if state == "dir":
             raise RuntimeError("保存路径不可以覆盖目录")
         if state == "file":
@@ -901,7 +1333,10 @@ class Client:
         if scan_md5:
             print("[%s] 开始计算文件元信息, 请稍候..." % fid)
             print("[%s] 开始计算文件分块md5, 请稍候..." % fid)
+            t_scan = time.time()
             sums = sum_file(local, block, True, fid)
+            vlog(fid, "MD5 扫描完成, 用时 %s, content-md5=%s, 分块数 %d" % (
+                fmt_elapsed(time.time() - t_scan), sums["content"], len(sums["blocks"])))
             if state == "none":
                 try:
                     again, _ = self.check_exist(remote, sums["content"])
@@ -915,6 +1350,7 @@ class Client:
             sums = sums_no_scan(size, st.st_mtime, block)
 
         self.mkdirp(remote)
+        vlog(fid, "目录已就绪, 调用 precreate ...")
         try:
             pre = self.precreate(remote, sums, policy, rapid)
         except ApiError as e:
@@ -927,6 +1363,9 @@ class Client:
             self.verify_remote(fid, remote, sums["size"])
             print()
             return sums["size"], False
+        vlog(fid, "precreate 返回: uploadid=%s, return_type=%s, 需要上传的分片: %s" % (
+            pre.get("uploadid"), pre.get("return_type"),
+            pre.get("block_list") if pre.get("block_list") is not None else "全部"))
 
         print("[%s] 开始上传文件...\n" % fid)
         need = pre.get("block_list") or []
@@ -936,11 +1375,6 @@ class Client:
         self.verify_remote(fid, remote, sums["size"])
         print("[%s] 上传文件成功, 保存到网盘路径: %s" % (fid, remote))
         return sums["size"], False
-
-
-def fmt_elapsed(sec):
-    sec = int(sec)
-    return "%dm%d.%ds" % (sec // 60, sec % 60, 0) if sec >= 60 else "%.1fs" % sec
 
 
 def read_slice(local, seq, block, size):
@@ -975,6 +1409,8 @@ def sum_file(local, block, with_content, fid):
     block_hash = hashlib.md5()
     filled = in_block = read = 0
     last = start = time.time()
+    last_read = 0
+    show = bool(fid) and (VERBOSE or not QUIET)
     with open(local, "rb") as f:
         while True:
             buf = f.read(MB)
@@ -997,18 +1433,24 @@ def sum_file(local, block, with_content, fid):
                     sums["blocks"].append(block_hash.hexdigest())
                     block_hash = hashlib.md5()
                     in_block = 0
-            if fid and not QUIET and time.time() - last >= 3:
-                speed = int(read / max(time.time() - start, 0.001))
-                sys.stdout.write("\r[%s] 扫描 MD5 %s/%s %s/s" % (
-                    fid, convert_size(read, 2), convert_size(st.st_size, 2), convert_size(speed, 2)))
-                sys.stdout.flush()
-                last = time.time()
+            now = time.time()
+            if show and now - last >= 3:
+                speed = int((read - last_read) / max(now - last, 0.001))  # 区间速度, 而不是从头平均
+                if VERBOSE:
+                    log(fid, "扫描 MD5 %s/%s (%.1f%%) 实时 %s/s" % (
+                        convert_size(read, 2), convert_size(st.st_size, 2), read * 100.0 / st.st_size,
+                        convert_size(speed, 2)))
+                else:
+                    sys.stdout.write("\r[%s] 扫描 MD5 %s/%s %s/s" % (
+                        fid, convert_size(read, 2), convert_size(st.st_size, 2), convert_size(speed, 2)))
+                    sys.stdout.flush()
+                last, last_read = now, read
     if in_block:
         sums["blocks"].append(block_hash.hexdigest())
     if with_content:
-        sums["content"] = content.hexdigest()
+        sums["content"] = sums["md5"] = content.hexdigest() if False else content.hexdigest()
         sums["slice"] = sums["content"] if st.st_size <= SLICE_MD5 else slice_hash.hexdigest()
-    if fid and not QUIET:
+    if show and not VERBOSE:
         print("\r[%s] 扫描 MD5 %s/%s 完成" % (fid, convert_size(st.st_size, 2), convert_size(st.st_size, 2)))
     return sums
 
@@ -1326,7 +1768,7 @@ def main():
     p.add_argument("-nosmart", "--nosmart", action="store_true", help="同 -smart=false")
     p.add_argument("-prefer", "--prefer", default=DEFAULT_PREFER, help="智能择优时优先测试的线路, 逗号分隔, 默认 c2,c4; 留空则不优先")
     p.add_argument("-probes", "--probes", type=int, default=0, help="同时测速的分片数, 默认自动 (按 -parallel/4, 限制 1~5)")
-    p.add_argument("-timeout", "--timeout", type=float, default=60.0, help="单个分片请求的超时秒数, 默认 60; 超时会自动换服务器重试 (最多 8 次); 0 表示不限")
+    p.add_argument("-timeout", "--timeout", type=float, default=60.0, help="每次分片尝试的时限, 默认 60 秒。到点无论快慢、第几次重试, 都中断并换线。0 表示关闭")
     p.add_argument("-norefresh", "--norefresh", action="store_true", help="只用 config 里的 access_token, 绝不刷新 (过期直接报错); 此时不要求 client_id/secret/refresh_token")
 
     g = p.add_argument_group("文件过滤 (rclone 风格)")
@@ -1347,15 +1789,19 @@ def main():
     g.add_argument("-max-depth", "--max-depth", type=int, default=0, metavar="N", help="递归深度, 1 = 只有目录下一层文件, 0 = 不限; 大于 1 自动开启递归")
     g.add_argument("-exclude-if-present", "--exclude-if-present", metavar="NAME", help="目录里存在该文件名则整个目录跳过 (递归时有效)")
     g.add_argument("-n", "--dry-run", action="store_true", help="只列出将要上传的文件, 不连接网盘")
-    g.add_argument("-v", "--verbose", action="store_true", help="显示被排除的文件及原因")
+    g.add_argument("-v", "--verbose", action="store_true",
+                   help="详细模式: 每 3 秒列出所有正在上传的分片(实时速度/重试次数/本次用时), 每 20 秒一行文件总进度, 以及各步骤详细信息")
     args = p.parse_args()
+
+    global QUIET, VERBOSE
+    VERBOSE = bool(args.verbose)
 
     if args.policy not in (SIZE, SKIP, OVERWRITE, RSYNC):
         print("未知重名策略 %r，可选 size | skip | overwrite | rsync" % args.policy, file=sys.stderr)
         return 2
     if (not args.file and not args.files_from) or not args.dest.startswith("/"):
         print("用法: python3 baidu-upload.py -file 本地文件或通配符 [-dest /网盘目录/] [-exclude PAT] [-include PAT] "
-              "[-min-size 1M] [-R] [-n] ...  (-h 查看全部)", file=sys.stderr)
+              "[-min-size 1M] [-R] [-n] [-v] ...  (-h 查看全部)", file=sys.stderr)
         return 2
     if args.max_depth > 1:
         args.recursive = True
@@ -1375,6 +1821,14 @@ def main():
         print("参数错误: %s" % e, file=sys.stderr)
         return 2
 
+    if VERBOSE:
+        print("[v] 详细模式已开启; 参数: parallel=%d transfers=%d policy=%s timeout=%s norapid=%s md5=%s rotatehost=%s host=%s "
+              "smart=%s prefer=%s probes=%d norefresh=%s" % (
+                  args.parallel, args.transfers, args.policy, args.timeout, args.norapid, args.md5, args.rotatehost,
+                  args.host or "-", args.smart and not args.nosmart, args.prefer or "-", args.probes, args.norefresh))
+        if filt.rules:
+            print("[v] 过滤规则 (按顺序): %s" % " | ".join(r.text() for r in filt.rules))
+
     cands, dirs_skipped = gather(args, filt, files_from)
     picked, excluded = [], 0
     for path, rel, remote_rel, bypass in cands:
@@ -1388,6 +1842,8 @@ def main():
                 ok, why = False, str(e)
         if ok:
             picked.append((path, remote_rel))
+            if VERBOSE:
+                print("[包含] %s%s" % (rel, "  (来自 files-from, 绕过名字规则)" if bypass else (("  (" + why + ")") if why else "")))
         else:
             excluded += 1
             if args.verbose:
@@ -1409,7 +1865,6 @@ def main():
         print("未检测到上传的文件", file=sys.stderr)
         return 1
 
-    global QUIET
     if args.host and args.rotatehost:
         print("-host 与 -rotatehost 同时指定, 忽略 -host")
     client = Client(args.config, args.parallel, args.rotatehost, args.norefresh, args.timeout,
@@ -1456,17 +1911,28 @@ def main():
 
     finished = [0]
     stop_progress = threading.Event()
+    plan_bytes = 0
+    for path, _rel in picked:
+        try:
+            plan_bytes += os.path.getsize(path)
+        except OSError:
+            pass
 
     def global_progress():
-        last_t, last_n = time.time(), G_DONE[0]
-        while not stop_progress.wait(5):
-            now, n = time.time(), G_DONE[0]
-            speed = int((n - last_n) / max(now - last_t, 0.001))
-            print("[进度] 已完成 %d/%d 个文件, 已上传 %s, %s/s, 用时 %s" % (
-                finished[0], len(picked), convert_size(n, 2), convert_size(speed, 2), fmt_elapsed(now - started)))
-            last_t, last_n = now, n
+        # 每秒采样算实时速度; 不开 -v 时每 2 秒打印一行总进度
+        tick = 0
+        while not stop_progress.wait(1):
+            spd = G_METER.rate()
+            tick += 1
+            if tick % 2:
+                continue
+            now = time.time()
+            avg = max(G_METER.total, 0) / max(now - started, 1e-3)
+            print("[进度] 已完成 %d/%d 个文件, 已上传 %s / %s, 实时 %s/s, 平均 %s/s, 用时 %s" % (
+                finished[0], len(picked), convert_size(max(G_METER.total, 0), 2), convert_size(plan_bytes, 2),
+                convert_size(spd, 2), convert_size(avg, 2), fmt_elapsed(now - started)))
 
-    if QUIET:
+    if QUIET and not VERBOSE:
         threading.Thread(target=global_progress, daemon=True).start()
     with ThreadPoolExecutor(max_workers=transfers) as pool:
         futs = [pool.submit(job, str(i), path, rel) for i, (path, rel) in enumerate(picked, 1)]
@@ -1487,7 +1953,8 @@ def main():
         for line in client.selector.summary():
             print("[smart] " + line)
     elapsed = time.time() - started
-    print("\n上传结束, 时间: %s, 总大小: %s" % (fmt_elapsed(elapsed), convert_size(total)))
+    print("\n上传结束, 时间: %s, 总大小: %s, 平均速度: %s/s" % (
+        fmt_elapsed(elapsed), convert_size(total), convert_size(total / max(elapsed, 1e-3), 2)))
     if checks:
         print("开始核对目标目录同名文件及大小...")
         for fid, remote, size in checks:
