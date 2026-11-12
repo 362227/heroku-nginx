@@ -37,6 +37,7 @@ import json
 import os
 import posixpath
 import re
+import socket
 import sys
 import threading
 import time
@@ -74,6 +75,14 @@ EXPIRED_CODES = (-6, 110, 111, 20016)  # token 无效/过期 (20016: nas access 
 
 class TokenExpired(RuntimeError):
     pass
+
+
+def is_timeout(e):
+    if isinstance(e, (socket.timeout, TimeoutError)):
+        return True
+    if isinstance(e, urllib.error.URLError) and isinstance(getattr(e, "reason", None), (socket.timeout, TimeoutError)):
+        return True
+    return "timed out" in str(e).lower()
 
 
 class ApiError(Exception):
@@ -156,11 +165,12 @@ def parse_api_code(body):
 
 
 class Client:
-    def __init__(self, cfg_path, parallel=4, rotate_host=False, norefresh=False):
+    def __init__(self, cfg_path, parallel=4, rotate_host=False, norefresh=False, slice_timeout=60.0):
         self.cfg_path = cfg_path
         self.parallel = parallel if parallel > 0 else 20
         self.rotate_host = rotate_host
         self.norefresh = norefresh
+        self.slice_timeout = slice_timeout if slice_timeout and slice_timeout > 0 else None
         self.lock = threading.Lock()
         self.refreshed_at = 0.0
         self.dir_lock = threading.Lock()
@@ -390,7 +400,7 @@ class Client:
         status, resp = self._request("POST", url, body, {
             "Content-Type": "multipart/form-data; boundary=%s" % boundary,
             "Content-Length": str(len(body)),
-        }, timeout=None)
+        }, timeout=self.slice_timeout)
         if status >= 400 and not resp:
             raise RuntimeError("HTTP %d 空响应" % status)
         code, ok = parse_api_code(resp)
@@ -400,16 +410,18 @@ class Client:
             raise ApiError(code, resp.decode("utf-8", "replace"))
         return resp
 
-    def upload_slice(self, remote, upload_id, seq, data, counter, hosts):
+    def upload_slice(self, remote, upload_id, seq, data, counter, hosts, hosts_cb=None):
         hosts = hosts or [FIXED_HOST]
+        idx = 0
         last = None
         for i in range(SLICE_RETRY):
             if i > 0 and isinstance(last, ApiError) and last.code in EXPIRED_CODES:
                 self.ensure_token(True)
             else:
                 self.ensure_token(False)
+            host = hosts[idx % len(hosts)]
             try:
-                body = self.post_slice(hosts[i % len(hosts)], remote, upload_id, seq, data, counter)
+                body = self.post_slice(host, remote, upload_id, seq, data, counter)
                 md5 = ""
                 try:
                     md5 = json.loads(body).get("md5") or ""
@@ -420,6 +432,15 @@ class Client:
                 last = e
                 if isinstance(e, ApiError) and (e.code in (400, 413, 31024, 31364) or (self.norefresh and e.code in EXPIRED_CODES)):
                     raise
+                if is_timeout(e):
+                    # 超时一定换服务器: 先拿最新列表 (没开 -rotatehost 也会去查), 再切到当前之后的下一个
+                    if hosts_cb:
+                        hosts = hosts_cb() or hosts
+                    idx = (hosts.index(host) + 1) % len(hosts) if host in hosts else 0
+                    print("分片 %d 超时 (%s 秒), 第 %d/%d 次, 切换服务器 %s -> %s" % (
+                        seq, self.slice_timeout, i + 1, SLICE_RETRY, host, hosts[idx % len(hosts)]))
+                elif self.rotate_host:
+                    idx += 1
                 time.sleep((i + 1) * 2)
         raise last
 
@@ -470,9 +491,9 @@ class Client:
         stop = threading.Event()
         err_box = [None]
 
-        def pick_host(seq):
+        def pick_host(seq, force=False):
             nonlocal host_list, host_at
-            if not self.rotate_host:
+            if not self.rotate_host and not force:
                 return [FIXED_HOST]
             with host_lock:
                 if time.time() - host_at > 30 or not host_list or host_at == 0:
@@ -481,6 +502,7 @@ class Client:
                         if fresh:
                             host_list = fresh
                             host_at = time.time()
+                            print("[%s] 上传服务器列表: %s" % (fid, ", ".join(fresh)))
                     except Exception:
                         pass
                 n = len(host_list)
@@ -491,7 +513,7 @@ class Client:
                 return
             data = read_slice(local, seq, sums["block"], sums["size"])
             try:
-                md5 = self.upload_slice(remote, upload_id, seq, data, counter, pick_host(seq))
+                md5 = self.upload_slice(remote, upload_id, seq, data, counter, pick_host(seq), lambda: pick_host(seq, True))
             except Exception as e:
                 if err_box[0] is None:
                     err_box[0] = RuntimeError("分片 %d 上传失败: %s" % (seq, e))
@@ -997,6 +1019,7 @@ def main():
     p.add_argument("-norapid", "--norapid", action="store_true")
     p.add_argument("-md5", "--md5", type=bool_arg, default=True)
     p.add_argument("-rotatehost", "--rotatehost", action="store_true")
+    p.add_argument("-timeout", "--timeout", type=float, default=60.0, help="单个分片请求的超时秒数, 默认 60; 超时会自动换服务器重试 (最多 8 次); 0 表示不限")
     p.add_argument("-norefresh", "--norefresh", action="store_true", help="只用 config 里的 access_token, 绝不刷新 (过期直接报错); 此时不要求 client_id/secret/refresh_token")
 
     g = p.add_argument_group("文件过滤 (rclone 风格)")
@@ -1080,7 +1103,7 @@ def main():
         return 1
 
     global QUIET
-    client = Client(args.config, args.parallel, args.rotatehost, args.norefresh)
+    client = Client(args.config, args.parallel, args.rotatehost, args.norefresh, args.timeout)
     try:
         name, uk = client.whoami()
         print("[0] 当前账号: %s (uk=%s)%s" % (name, uk, ", -norefresh: 不会刷新 token" if args.norefresh else ""))
