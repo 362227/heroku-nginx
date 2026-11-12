@@ -28,9 +28,10 @@
 #   skip      只要同名就跳过
 #   overwrite 一律覆盖
 #   rsync     与 size 相同
-# 分片: <8GB 用 4MB，>=8GB 用 16MB，>=32GB 用 64MB。默认只用 d.pcs.baidu.com。
+# 分片: <8GB 用 4MB，>=8GB 用 16MB，>=32GB 用 64MB; 单文件最多 100 片, 超过就自动加大分片。
 
 import argparse
+import collections
 import glob
 import hashlib
 import json
@@ -65,6 +66,14 @@ SKIP, OVERWRITE, RSYNC, SIZE = "skip", "overwrite", "rsync", "size"
 UA = "pan.baidu.com"
 FIXED_HOST = "https://d.pcs.baidu.com"
 SLICE_RETRY = 8
+MAX_SLICES = 100  # 单个文件最多切成多少个分片
+DEFAULT_PREFER = "c2,c4"  # 智能择优: 优先测试的线路
+PREFER_STRIKES = 3  # 优先线路连续这么多轮不如主线路, 就不再优先
+SWITCH_MARGIN = 1.15  # 测速线路要比主线路快 15% 以上才切换
+MIN_MAIN_SAMPLES = 3  # 主线路至少有这么多个分片样本才做比较
+MIN_PROBE_SAMPLES = 2  # 测速线路至少有这么多个样本才有资格当主线路
+MAX_CANDIDATES = 8
+HOST_COOLDOWN = 300  # 线路连续失败后冷却秒数
 QUIET = False  # 多文件并发时关闭每个文件各自的 \r 进度行
 G_DONE = [0]  # 全局已上传字节数 (所有文件)
 G_LOCK = threading.Lock()
@@ -75,6 +84,234 @@ EXPIRED_CODES = (-6, 110, 111, 20016)  # token 无效/过期 (20016: nas access 
 
 class TokenExpired(RuntimeError):
     pass
+
+
+def norm_host(h):
+    h = (h or "").strip()
+    if not h:
+        return ""
+    if "://" not in h:
+        if "." not in h:
+            h = "%s.pcs.baidu.com" % h  # c2 -> c2.pcs.baidu.com
+        h = "https://" + h
+    u = urllib.parse.urlparse(h)
+    if not u.hostname:
+        return ""
+    return "%s://%s" % ("https" if u.scheme == "http" else (u.scheme or "https"), u.hostname)
+
+
+def short_host(h):
+    n = urllib.parse.urlparse(h).hostname or h
+    return n[:-len(".pcs.baidu.com")] if n.endswith(".pcs.baidu.com") else n
+
+
+def mean(xs):
+    xs = list(xs)
+    return sum(xs) / len(xs) if xs else 0.0
+
+
+class LineSelector:
+    """智能择优线路: 始终有 slots 个分片在轮流测速, 其余分片走主线路; 测速最快且明显超过主线路就切换。"""
+
+    def __init__(self, main, prefer, slots):
+        self.lock = threading.Lock()
+        self.main = main
+        self.slots = slots
+        self.probing = 0
+        self.main_win = collections.deque(maxlen=15)
+        self.stats = {}
+        self.hints = []
+        prefer = [norm_host(x) for x in prefer if norm_host(x)]
+        for h in prefer:
+            self.add(h, True)
+        self.add(main)
+        self.add(FIXED_HOST)
+
+    def add(self, h, prefer=False):
+        h = norm_host(h)
+        if not h or h in self.stats or len(self.stats) >= MAX_CANDIDATES:
+            return
+        self.stats[h] = {"probe": collections.deque(maxlen=3), "n": 0, "slow": 0, "cons_fail": 0, "fails": 0,
+                         "dead_until": 0.0, "prefer": prefer, "bytes": 0, "time": 0.0, "ok": 0}
+        self.hints.append(h)
+
+    def add_hosts(self, hosts):
+        with self.lock:
+            for h in hosts or []:
+                self.add(h)
+
+    def _speed(self, h):
+        return mean(self.stats[h]["probe"])
+
+    def _pick_probe(self):
+        now = time.time()
+        cands = [h for h in self.hints if h != self.main and self.stats[h]["dead_until"] <= now]
+        if not cands:
+            return None
+
+        def key(h):
+            st = self.stats[h]
+            return (st["n"] / (2.0 if st["prefer"] else 1.0), self.hints.index(h))  # 优先线路测得更勤
+        h = min(cands, key=key)
+        self.stats[h]["n"] += 1
+        return h
+
+    def assign(self):
+        with self.lock:
+            if self.probing < self.slots:
+                h = self._pick_probe()
+                if h:
+                    self.probing += 1
+                    return h, "probe"
+            return self.main, "main"
+
+    def release(self, role):
+        if role == "probe":
+            with self.lock:
+                self.probing -= 1
+
+    def order(self, first=None):
+        with self.lock:
+            now = time.time()
+            rest = sorted([h for h in self.hints if h != self.main and self.stats[h]["dead_until"] <= now],
+                          key=lambda h: -self._speed(h))
+            out = []
+            for h in [first, self.main] + rest:
+                if h and h not in out:
+                    out.append(h)
+            return out or [self.main]
+
+    def _switch(self, new, why):
+        old = self.main
+        if self.main_win:
+            m = mean(self.main_win)
+            self.stats[old]["probe"].extend([m, m])  # 让旧主线路以后还能被比较
+        self.main = new
+        self.main_win.clear()
+        print("[smart] 主线路切换: %s -> %s (%s)" % (short_host(old), short_host(new), why))
+
+    def _replace_main(self):
+        now = time.time()
+        cands = [h for h in self.hints if h != self.main and self.stats[h]["dead_until"] <= now]
+        if cands:
+            cands.sort(key=lambda h: (-self._speed(h), self.hints.index(h)))
+            self._switch(cands[0], "原主线路不可用")
+
+    def fallback_from(self, host):
+        with self.lock:
+            host = norm_host(host)
+            if host in self.stats:
+                self.stats[host]["dead_until"] = time.time() + HOST_COOLDOWN
+                self.stats[host]["cons_fail"] = 3
+            if self.main == host:
+                self._replace_main()
+
+    def record(self, host, nbytes, elapsed, ok, role):
+        with self.lock:
+            st = self.stats.get(host)
+            if st is None:
+                return
+            if not ok:
+                st["fails"] += 1
+                st["cons_fail"] += 1
+                if st["cons_fail"] >= 3:
+                    st["dead_until"] = time.time() + HOST_COOLDOWN
+                    if host == self.main:
+                        self._replace_main()
+                if role == "probe" and st["prefer"]:
+                    st["slow"] += 1
+                    if st["slow"] >= PREFER_STRIKES:
+                        st["prefer"] = False
+                        print("[smart] %s 连续 %d 轮测速失败/偏慢, 不再优先测试" % (short_host(host), PREFER_STRIKES))
+                return
+            st["cons_fail"] = 0
+            speed = nbytes / max(elapsed, 1e-3)
+            st["ok"] += 1
+            st["bytes"] += nbytes
+            st["time"] += elapsed
+            if role == "main":
+                if host == self.main:
+                    self.main_win.append(speed)
+                return
+            if role != "probe":
+                return
+            st["probe"].append(speed)
+            if len(self.main_win) < MIN_MAIN_SAMPLES:
+                return
+            main_mean = mean(self.main_win)
+            if st["prefer"]:
+                st["slow"] = st["slow"] + 1 if speed < main_mean else 0
+                if st["slow"] >= PREFER_STRIKES:
+                    st["prefer"] = False
+                    print("[smart] %s 连续 %d 轮不如主线路, 不再优先测试" % (short_host(host), PREFER_STRIKES))
+            now = time.time()
+            best, best_speed = None, 0.0
+            for h, s in self.stats.items():
+                if h == self.main or s["dead_until"] > now or len(s["probe"]) < MIN_PROBE_SAMPLES:
+                    continue
+                sp = mean(s["probe"])
+                if sp > best_speed:
+                    best, best_speed = h, sp
+            if best and best_speed > main_mean * SWITCH_MARGIN:
+                self._switch(best, "测速 %s/s > 主线路 %s/s" % (convert_size(best_speed, 1), convert_size(main_mean, 1)))
+
+    def summary(self):
+        with self.lock:
+            lines = []
+            for h in self.hints:
+                st = self.stats[h]
+                if st["ok"] or st["fails"]:
+                    avg = st["bytes"] / st["time"] if st["time"] else 0
+                    lines.append("%s%s: 平均 %s/s, 成功 %d 片, 失败 %d 次" % (
+                        short_host(h), "(主)" if h == self.main else "", convert_size(avg, 1), st["ok"], st["fails"]))
+            return lines
+
+
+class SliceBody:
+    """分片请求体: 边读文件边发送, 不把整片装进内存 (multipart 头 + 文件片段 + 尾)。"""
+
+    def __init__(self, path, offset, n, head, tail):
+        self.f = open(path, "rb")
+        self.f.seek(offset)
+        self.left = n
+        self.head, self.tail = head, tail
+        self.length = len(head) + n + len(tail)
+
+    def read(self, size=-1):
+        if size is None or size < 0:
+            size = self.length
+        out = b""
+        if self.head:
+            out, self.head = self.head[:size], self.head[size:]
+            size -= len(out)
+        if size > 0 and self.left > 0:
+            chunk = self.f.read(min(size, self.left))
+            if not chunk:
+                raise IOError("读取本地文件失败 (文件被截断?)")
+            self.left -= len(chunk)
+            out += chunk
+            size -= len(chunk)
+        if size > 0 and self.left == 0 and self.tail:
+            t, self.tail = self.tail[:size], self.tail[size:]
+            out += t
+        return out
+
+    def close(self):
+        self.f.close()
+
+
+def slice_md5(path, offset, n):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        f.seek(offset)
+        left = n
+        while left > 0:
+            chunk = f.read(min(MB, left))
+            if not chunk:
+                break
+            h.update(chunk)
+            left -= len(chunk)
+    return h.hexdigest()
 
 
 def is_timeout(e):
@@ -119,10 +356,15 @@ def same_size_policy(policy):
 
 def block_size_of(size):
     if size >= MAX_THRESHOLD:
-        return MAX_BLOCK
-    if size >= MID_THRESHOLD:
-        return MID_BLOCK
-    return MIN_BLOCK
+        base = MAX_BLOCK
+    elif size >= MID_THRESHOLD:
+        base = MID_BLOCK
+    else:
+        base = MIN_BLOCK
+    if block_count(size, base) > MAX_SLICES:  # 分片数最多 MAX_SLICES, 超过就加大分片, 按 MB 向上取整
+        need = -(-size // MAX_SLICES)
+        base = -(-need // MB) * MB
+    return base
 
 
 def block_count(size, block):
@@ -165,7 +407,8 @@ def parse_api_code(body):
 
 
 class Client:
-    def __init__(self, cfg_path, parallel=4, rotate_host=False, norefresh=False, slice_timeout=60.0):
+    def __init__(self, cfg_path, parallel=4, rotate_host=False, norefresh=False, slice_timeout=60.0,
+                 line_host=None, smart=True, prefer=DEFAULT_PREFER, probes=0):
         self.cfg_path = cfg_path
         self.parallel = parallel if parallel > 0 else 20
         self.rotate_host = rotate_host
@@ -173,6 +416,14 @@ class Client:
         self.slice_timeout = slice_timeout if slice_timeout and slice_timeout > 0 else None
         self.lock = threading.Lock()
         self.refreshed_at = 0.0
+        self.user_line = bool(norm_host(line_host)) and not rotate_host  # 用户指定了线路
+        self.line_host = norm_host(line_host) if self.user_line else FIXED_HOST
+        self.smart = bool(smart) and not rotate_host and self.parallel >= 2
+        self.selector = None
+        if self.smart:
+            slots = probes if probes and probes > 0 else max(1, min(5, self.parallel // 4))
+            slots = min(slots, max(1, self.parallel - 1))
+            self.selector = LineSelector(self.line_host, [x for x in str(prefer or "").split(",") if x.strip()], slots)
         self.dir_lock = threading.Lock()
         self.dirs_done = set()
         with open(cfg_path, "r", encoding="utf-8") as f:
@@ -385,7 +636,8 @@ class Client:
             add(s.get("server"))
         return hosts or [FIXED_HOST]
 
-    def post_slice(self, host, remote, upload_id, seq, data, counter):
+    def post_slice(self, host, remote, upload_id, seq, src, counter):
+        local, offset, n = src
         q = urllib.parse.urlencode({
             "method": "upload", "access_token": self.cfg["access_token"],
             "type": "tmpfile", "path": remote, "uploadid": upload_id, "partseq": str(seq),
@@ -394,13 +646,16 @@ class Client:
         head = ("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"file\"\r\n"
                 "Content-Type: application/octet-stream\r\n\r\n" % boundary).encode()
         tail = ("\r\n--%s--\r\n" % boundary).encode()
-        body = head + data + tail
-        counter[0] += len(data)
+        counter[0] += n
         url = host.rstrip("/") + "/rest/2.0/pcs/superfile2?" + q
-        status, resp = self._request("POST", url, body, {
-            "Content-Type": "multipart/form-data; boundary=%s" % boundary,
-            "Content-Length": str(len(body)),
-        }, timeout=self.slice_timeout)
+        body = SliceBody(local, offset, n, head, tail)
+        try:
+            status, resp = self._request("POST", url, body, {
+                "Content-Type": "multipart/form-data; boundary=%s" % boundary,
+                "Content-Length": str(body.length),
+            }, timeout=self.slice_timeout)
+        finally:
+            body.close()
         if status >= 400 and not resp:
             raise RuntimeError("HTTP %d 空响应" % status)
         code, ok = parse_api_code(resp)
@@ -410,8 +665,8 @@ class Client:
             raise ApiError(code, resp.decode("utf-8", "replace"))
         return resp
 
-    def upload_slice(self, remote, upload_id, seq, data, counter, hosts, hosts_cb=None):
-        hosts = hosts or [FIXED_HOST]
+    def upload_slice(self, remote, upload_id, seq, src, counter, hosts, hosts_cb=None, report=None, rotate=False):
+        hosts = hosts or [self.line_host]
         idx = 0
         last = None
         for i in range(SLICE_RETRY):
@@ -420,26 +675,32 @@ class Client:
             else:
                 self.ensure_token(False)
             host = hosts[idx % len(hosts)]
+            t0 = None
             try:
-                body = self.post_slice(host, remote, upload_id, seq, data, counter)
+                t0 = time.time()
+                body = self.post_slice(host, remote, upload_id, seq, src, counter)
+                if report:
+                    report(host, src[2], time.time() - t0, True, i)
                 md5 = ""
                 try:
                     md5 = json.loads(body).get("md5") or ""
                 except Exception:
                     pass
-                return md5 or hashlib.md5(data).hexdigest()
+                return md5 or slice_md5(*src)
             except Exception as e:
                 last = e
+                if report and not isinstance(e, ApiError):  # 接口有响应说明线路通, 不算线路问题
+                    report(host, 0, time.time() - (t0 or time.time()), False, i)
                 if isinstance(e, ApiError) and (e.code in (400, 413, 31024, 31364) or (self.norefresh and e.code in EXPIRED_CODES)):
                     raise
                 if is_timeout(e):
-                    # 超时一定换服务器: 先拿最新列表 (没开 -rotatehost 也会去查), 再切到当前之后的下一个
+                    # 超时一定换服务器: 先拿最新列表, 再切到当前之后的下一个
                     if hosts_cb:
                         hosts = hosts_cb() or hosts
                     idx = (hosts.index(host) + 1) % len(hosts) if host in hosts else 0
                     print("分片 %d 超时 (%s 秒), 第 %d/%d 次, 切换服务器 %s -> %s" % (
-                        seq, self.slice_timeout, i + 1, SLICE_RETRY, host, hosts[idx % len(hosts)]))
-                elif self.rotate_host:
+                        seq, self.slice_timeout, i + 1, SLICE_RETRY, short_host(host), short_host(hosts[idx % len(hosts)])))
+                elif self.rotate_host or rotate:
                     idx += 1
                 time.sleep((i + 1) * 2)
         raise last
@@ -483,18 +744,20 @@ class Client:
         blocks = list(sums["blocks"])
         if not need:
             need = list(range(len(blocks)))
+        need = [x for x in need if 0 <= x < len(blocks)]
         host_lock = threading.Lock()
-        host_list = [FIXED_HOST]
+        host_list = [self.line_host]
         host_at = 0.0
         counter = [0]
-        counter_lock = threading.Lock()
-        stop = threading.Event()
-        err_box = [None]
+        done_seqs = set()
+        done = [0]
+        start = time.time()
+        sel = self.selector
 
         def pick_host(seq, force=False):
             nonlocal host_list, host_at
             if not self.rotate_host and not force:
-                return [FIXED_HOST]
+                return [self.line_host]
             with host_lock:
                 if time.time() - host_at > 30 or not host_list or host_at == 0:
                     try:
@@ -506,60 +769,96 @@ class Client:
                     except Exception:
                         pass
                 n = len(host_list)
-                return [host_list[(seq + i) % n] for i in range(n)] or [FIXED_HOST]
+                return [host_list[(seq + i) % n] for i in range(n)] or [self.line_host]
 
-        def worker(seq):
-            if stop.is_set():
-                return
-            data = read_slice(local, seq, sums["block"], sums["size"])
-            try:
-                md5 = self.upload_slice(remote, upload_id, seq, data, counter, pick_host(seq), lambda: pick_host(seq, True))
-            except Exception as e:
-                if err_box[0] is None:
-                    err_box[0] = RuntimeError("分片 %d 上传失败: %s" % (seq, e))
-                    stop.set()
-                return
-            blocks[seq] = md5
-            with counter_lock:
-                counter[0]  # counted during send
-            done[0] += len(data)
-            with G_LOCK:
-                G_DONE[0] += len(data)
+        def run_phase(seqs, smart_mode):
+            stop = threading.Event()
+            err = [None]
 
-        done = [0]
-        start = time.time()
+            def worker(seq):
+                if stop.is_set():
+                    return
+                off = seq * sums["block"]
+                n = min(sums["block"], max(0, sums["size"] - off))
+                src = (local, off, n)
+                try:
+                    if smart_mode:
+                        host, role = sel.assign()
+                        try:
+                            def report(h, nbytes, elapsed, ok, attempt, role=role):
+                                sel.record(h, nbytes, elapsed, ok, role if attempt == 0 else "retry")
+                            md5 = self.upload_slice(remote, upload_id, seq, src, counter, sel.order(host),
+                                                    lambda: sel.order(None), report, True)
+                        finally:
+                            sel.release(role)
+                    else:
+                        md5 = self.upload_slice(remote, upload_id, seq, src, counter, pick_host(seq),
+                                                lambda: pick_host(seq, True))
+                except Exception as e:
+                    if err[0] is None:
+                        err[0] = RuntimeError("分片 %d 上传失败: %s" % (seq, e))
+                        stop.set()
+                    return
+                blocks[seq] = md5
+                done_seqs.add(seq)
+                done[0] += n
+                with G_LOCK:
+                    G_DONE[0] += n
+
+            with ThreadPoolExecutor(max_workers=self.parallel) as pool:
+                futs = [pool.submit(worker, x) for x in seqs]
+                for fut in as_completed(futs):
+                    fut.result()
+            return err[0]
+
+        pstop = threading.Event()
 
         def printer():
             last = start
             last_n = 0
-            while not stop.is_set():
-                time.sleep(3)
+            while not pstop.wait(3):
                 now = time.time()
                 n = done[0]
                 speed = int((n - last_n) / max(now - last, 0.001))
-                elapsed = time.time() - start
                 sys.stdout.write("\r[%s] ↑ %s/%s %s/s in %s ............" % (
                     fid, convert_size(n, 2), convert_size(sums["size"], 2),
-                    convert_size(speed, 2), fmt_elapsed(elapsed)))
+                    convert_size(speed, 2), fmt_elapsed(now - start)))
                 sys.stdout.flush()
                 last, last_n = now, n
 
         t = threading.Thread(target=printer, daemon=True)
         if not QUIET:
             t.start()
-        with ThreadPoolExecutor(max_workers=self.parallel) as pool:
-            futs = [pool.submit(worker, seq) for seq in need if 0 <= seq < len(blocks)]
-            for fut in as_completed(futs):
-                fut.result()
-        stop.set()
+
+        def learn_hosts():
+            if sel:
+                try:
+                    sel.add_hosts(self.locate_upload(remote, upload_id))
+                except Exception:
+                    pass
+
+        # 没指定线路: 一开始就智能择优; 指定了线路: 先走指定线路, 整体失败才启用智能择优
+        smart_first = sel is not None and not self.user_line
+        if smart_first:
+            learn_hosts()
+        err = run_phase(need, smart_first)
+        if err and sel is not None and self.user_line:
+            left = [x for x in need if x not in done_seqs]
+            print("\n[%s] 指定线路 %s 整体上传失败 (%s), 不判失败, 启用智能择优线路继续上传剩余 %d 个分片" % (
+                fid, short_host(self.line_host), err, len(left)))
+            sel.fallback_from(self.line_host)
+            learn_hosts()
+            err = run_phase(left, True)
+
+        pstop.set()
         if not QUIET:
             t.join(timeout=1)
-            uploaded = sums["size"] if err_box[0] is None else done[0]
+            uploaded = sums["size"] if err is None else done[0]
             sys.stdout.write("\r[%s] ↑ %s/%s %s/s in %s ............\n" % (
                 fid, convert_size(uploaded, 2), convert_size(sums["size"], 2),
                 convert_size(0, 2), fmt_elapsed(time.time() - start)))
-        if err_box[0]:
-            raise err_box[0]
+        if err:
+            raise err
         self.create(remote, upload_id, sums, policy, blocks)
 
     def upload(self, fid, local, remote, policy, rapid, scan_md5):
@@ -577,6 +876,9 @@ class Client:
             print("[%s] 文件超过32GB, 上传有可能失败, 建议分割文件..." % fid)
 
         block = block_size_of(size)
+        if block > MIN_BLOCK and block_count(size, block) <= MAX_SLICES and block not in (MID_BLOCK, MAX_BLOCK):
+            print("[%s] 单文件最多 %d 个分片, 分片大小调整为 %s (共 %d 片)" % (
+                fid, MAX_SLICES, convert_size(block, 2), block_count(size, block)))
         try:
             state, remote_size = self.check_exist(remote)
         except ApiError:
@@ -1019,6 +1321,11 @@ def main():
     p.add_argument("-norapid", "--norapid", action="store_true")
     p.add_argument("-md5", "--md5", type=bool_arg, default=True)
     p.add_argument("-rotatehost", "--rotatehost", action="store_true")
+    p.add_argument("-host", "--host", default="", help="指定上传线路, 如 c2 / c4 / d 或完整域名; 指定后整体上传失败才启用智能择优")
+    p.add_argument("-smart", "--smart", type=bool_arg, default=True, help="智能择优线路 (默认开启, -smart=false 关闭; 开了 -rotatehost 时不生效)")
+    p.add_argument("-nosmart", "--nosmart", action="store_true", help="同 -smart=false")
+    p.add_argument("-prefer", "--prefer", default=DEFAULT_PREFER, help="智能择优时优先测试的线路, 逗号分隔, 默认 c2,c4; 留空则不优先")
+    p.add_argument("-probes", "--probes", type=int, default=0, help="同时测速的分片数, 默认自动 (按 -parallel/4, 限制 1~5)")
     p.add_argument("-timeout", "--timeout", type=float, default=60.0, help="单个分片请求的超时秒数, 默认 60; 超时会自动换服务器重试 (最多 8 次); 0 表示不限")
     p.add_argument("-norefresh", "--norefresh", action="store_true", help="只用 config 里的 access_token, 绝不刷新 (过期直接报错); 此时不要求 client_id/secret/refresh_token")
 
@@ -1103,7 +1410,19 @@ def main():
         return 1
 
     global QUIET
-    client = Client(args.config, args.parallel, args.rotatehost, args.norefresh, args.timeout)
+    if args.host and args.rotatehost:
+        print("-host 与 -rotatehost 同时指定, 忽略 -host")
+    client = Client(args.config, args.parallel, args.rotatehost, args.norefresh, args.timeout,
+                    args.host, args.smart and not args.nosmart, args.prefer, args.probes)
+    if client.selector:
+        print("[0] 智能择优线路: 开启, 同时测速 %d 个分片, 优先测试 %s, 候选 %s%s" % (
+            client.selector.slots, args.prefer or "无",
+            ", ".join(short_host(h) for h in client.selector.hints),
+            ", 指定线路 %s 整体失败才启用" % short_host(client.line_host) if client.user_line else ""))
+    elif args.rotatehost:
+        print("[0] 智能择优线路: 关闭 (已启用 -rotatehost)")
+    else:
+        print("[0] 智能择优线路: 关闭%s" % (", 指定线路 %s" % short_host(client.line_host) if client.user_line else ""))
     try:
         name, uk = client.whoami()
         print("[0] 当前账号: %s (uk=%s)%s" % (name, uk, ", -norefresh: 不会刷新 token" if args.norefresh else ""))
@@ -1164,6 +1483,9 @@ def main():
     stop_progress.set()
     checks.sort(key=lambda x: int(x[0]))
 
+    if client.selector:
+        for line in client.selector.summary():
+            print("[smart] " + line)
     elapsed = time.time() - started
     print("\n上传结束, 时间: %s, 总大小: %s" % (fmt_elapsed(elapsed), convert_size(total)))
     if checks:
