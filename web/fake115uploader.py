@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import glob
 import hashlib
 import hmac
@@ -189,12 +190,22 @@ def clip_text(text, cols):
 RATE_WINDOW = 1.0  # 实时速度的统计窗口（秒），main 里按 --refresh 调整（1~5 秒）
 
 
+def snapshot(samples):
+    """复制一份采样。上传线程可能正在改 deque，遇到 RuntimeError 就重试。"""
+    for _ in range(10):
+        try:
+            return list(samples)
+        except RuntimeError:
+            continue
+    return []
+
+
 def window_rate(samples, now, window=1.0):
     """最近 window 秒内的实际上传速度：字节 / 这些字节真实占用的时间，不用全程平均。"""
     total = 0
     oldest = None
     cut = now - window
-    for ts, nbytes in samples:
+    for ts, nbytes in snapshot(samples):
         if ts < cut or nbytes <= 0:
             continue
         total += nbytes
@@ -1120,15 +1131,16 @@ class FileProgress:
         if nbytes <= 0:
             return
         now = time.monotonic()
-        self.done += nbytes
-        self.samples.append((now, nbytes))
-        cut = now - 5
-        while self.samples and self.samples[0][0] < cut:
-            self.samples.popleft()
-        if self.phase_start is None:
-            self.phase_start = now
-        if upload and ui is not None:
-            ui.add_upload(nbytes, now)
+        with (ui.lock if ui is not None else contextlib.nullcontext()):
+            self.done += nbytes
+            self.samples.append((now, nbytes))
+            cut = now - 5
+            while self.samples and self.samples[0][0] < cut:
+                self.samples.popleft()
+            if self.phase_start is None:
+                self.phase_start = now
+            if upload and ui is not None:
+                ui.add_upload(nbytes, now)
 
     def rate(self, now):
         return window_rate(self.samples, now, RATE_WINDOW)
@@ -1201,7 +1213,10 @@ class ProgressUI:
         if self.thread:
             self.thread.join(timeout=1.5)
         if self.tty:
-            self._render()
+            try:
+                self._render()
+            except Exception:
+                pass
             with PRINT_LOCK:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
@@ -1209,11 +1224,14 @@ class ProgressUI:
 
     def _loop(self):
         while self.alive:
-            if self.tty:
-                self._render()
-            else:
-                with PRINT_LOCK:
-                    print(self._oneline(time.monotonic()), file=sys.stderr, flush=True)
+            try:
+                if self.tty:
+                    self._render()
+                else:
+                    with PRINT_LOCK:
+                        print(self._oneline(time.monotonic()), file=sys.stderr, flush=True)
+            except Exception:
+                pass   # 显示出错不能影响上传，下个周期再画
             self._wake.wait(self.refresh)
 
     def _stats(self, now):
@@ -1238,7 +1256,7 @@ class ProgressUI:
                     "rate": item.rate(now),
                 })
             logs = list(self.logs)
-            up_samples = list(self.up_samples)
+            up_samples = snapshot(self.up_samples)
             done_n, fail_n, save_n = self.done_n, self.fail_n, self.save_n
         instant = window_rate(up_samples, now, RATE_WINDOW)
         remain = max(0, total_size - progressed)
