@@ -8,7 +8,8 @@
   --max N 每个通配符参数最多取 N 个文件，--max-order 选取顺序（默认最新修改优先）
   --prefix 给网盘上的文件名加前缀（只改发给 115 的名字，本地文件不动）
   1 秒滑动窗口的实时网速（不再只用全程平均速度）
-  低速自动重试：速度低于 --min-speed 持续 --slow-secs 秒就断开重试（默认开启）
+  低速自动重试：整批合计速度低于 --min-speed 持续 --slow-secs 秒就断开重试（默认开启）
+  --refresh 进度输出刷新间隔（秒，默认 3）
 
 依赖:
   pip install requests cryptography lz4
@@ -185,6 +186,9 @@ def clip_text(text, cols):
     return "".join(out)
 
 
+RATE_WINDOW = 1.0  # 实时速度的统计窗口（秒），main 里按 --refresh 调整（1~5 秒）
+
+
 def window_rate(samples, now, window=1.0):
     """最近 window 秒内的实际上传速度：字节 / 这些字节真实占用的时间，不用全程平均。"""
     total = 0
@@ -238,6 +242,9 @@ class SlowGuard:
         self.slow_since = None
         self.tripped = False
 
+    def sync(self):
+        """每个分片开始前调用；单文件检测要跨分片累计，所以什么都不做。"""
+
     def feed(self, nbytes):
         if not self.enabled or nbytes <= 0:
             return
@@ -260,6 +267,90 @@ class SlowGuard:
             self.tripped = True
             raise SlowSpeedError("速度 %s 持续低于 %s 达 %d 秒" % (
                 fmt_rate(rate), fmt_rate(self.min_bps), int(now - self.slow_since)))
+
+
+class BatchMonitor(SlowGuard):
+    """整批低速检测：把所有正在传输的文件的字节合在一起算速度。
+    合计速度连续 secs 秒低于 min_bps 就判定这一批过慢，generation 加 1，
+    每个正在上传的文件在下一次收到数据时各自抛 SlowSpeedError，断开并重试。
+    只有一个文件在传时，效果和单文件检测一样。"""
+
+    def __init__(self, min_bps, secs):
+        self.lock = threading.Lock()
+        self.active = 0
+        self.generation = 0
+        self.message = ""
+        super().__init__(min_bps, secs)
+
+    def configure(self, min_bps, secs):
+        with self.lock:
+            self.min_bps = float(min_bps)
+            self.secs = float(secs)
+            self.enabled = self.min_bps > 0 and self.secs > 0
+
+    def enter(self):
+        """有一个文件开始真正传输。从没人传变成有人传时，重新开始计时，不把空档算成低速。"""
+        with self.lock:
+            if self.active == 0:
+                SlowGuard.reset(self)
+            self.active += 1
+
+    def leave(self):
+        with self.lock:
+            self.active = max(0, self.active - 1)
+            if self.active == 0:
+                SlowGuard.reset(self)
+
+    def feed_batch(self, nbytes):
+        with self.lock:
+            try:
+                SlowGuard.feed(self, nbytes)
+            except SlowSpeedError as exc:
+                self.generation += 1
+                self.message = "整批合计" + str(exc)
+                SlowGuard.reset(self)
+
+
+class BatchGuard:
+    """每个文件一个，和 SlowGuard 接口一致；数据交给整批监控统计。"""
+
+    def __init__(self, monitor):
+        self.monitor = monitor
+        self.enabled = monitor.enabled
+        self.tripped = False
+        self.gen = monitor.generation
+
+    @property
+    def last_rate(self):
+        return self.monitor.last_rate
+
+    def reset(self):
+        self.gen = self.monitor.generation
+        self.tripped = False
+
+    sync = reset
+
+    def feed(self, nbytes):
+        monitor = self.monitor
+        if not monitor.enabled or nbytes <= 0:
+            return
+        monitor.feed_batch(nbytes)
+        if monitor.generation != self.gen:
+            self.gen = monitor.generation
+            self.tripped = True
+            raise SlowSpeedError(monitor.message)
+
+
+class _Transfer:
+    def __init__(self, monitor):
+        self.monitor = monitor
+
+    def __enter__(self):
+        self.monitor.enter()
+
+    def __exit__(self, *exc_info):
+        self.monitor.leave()
+        return False
 
 
 class EcdhCipher:
@@ -1040,7 +1131,7 @@ class FileProgress:
             ui.add_upload(nbytes, now)
 
     def rate(self, now):
-        return window_rate(self.samples, now, 1.0)
+        return window_rate(self.samples, now, RATE_WINDOW)
 
     def average(self, now):
         if not self.phase_start or self.done <= 0:
@@ -1049,9 +1140,11 @@ class FileProgress:
 
 
 class ProgressUI:
-    def __init__(self, jobs, mode_name):
+    def __init__(self, jobs, mode_name, refresh=3.0):
         self.jobs = jobs
         self.mode_name = mode_name
+        self.refresh = max(0.2, float(refresh))   # 输出刷新间隔（秒）
+        self._wake = threading.Event()
         self.files = []
         self.logs = deque(maxlen=5)
         self.lock = threading.RLock()
@@ -1104,6 +1197,7 @@ class ProgressUI:
 
     def stop(self):
         self.alive = False
+        self._wake.set()
         if self.thread:
             self.thread.join(timeout=1.5)
         if self.tty:
@@ -1114,17 +1208,13 @@ class ProgressUI:
             self.prev_lines = 0
 
     def _loop(self):
-        last_plain = 0.0
         while self.alive:
             if self.tty:
                 self._render()
             else:
-                now = time.monotonic()
-                if now - last_plain >= 1.0:
-                    last_plain = now
-                    with PRINT_LOCK:
-                        print(self._oneline(now), file=sys.stderr, flush=True)
-            time.sleep(0.2)
+                with PRINT_LOCK:
+                    print(self._oneline(time.monotonic()), file=sys.stderr, flush=True)
+            self._wake.wait(self.refresh)
 
     def _stats(self, now):
         with self.lock:
@@ -1150,7 +1240,7 @@ class ProgressUI:
             logs = list(self.logs)
             up_samples = list(self.up_samples)
             done_n, fail_n, save_n = self.done_n, self.fail_n, self.save_n
-        instant = window_rate(up_samples, now, 1.0)
+        instant = window_rate(up_samples, now, RATE_WINDOW)
         remain = max(0, total_size - progressed)
         eta = (remain / instant) if instant > 0 else None
         return {
@@ -1349,11 +1439,20 @@ class App:
         self.slow_secs = float(args.slow_secs)
         self.slow_max = max(0, int(args.slow_retry))   # 0 = 无限
         self.io_timeout = max(20.0, self.slow_secs * 2) if self.slow_on else None
+        self.slow_per_file = bool(getattr(args, "slow_per_file", False))
+        self.slow_monitor = BatchMonitor(0, 0)
 
     def new_guard(self):
         if not self.slow_on:
             return SlowGuard(0, 0)
-        return SlowGuard(self.slow_min, self.slow_secs)
+        if self.slow_per_file:
+            return SlowGuard(self.slow_min, self.slow_secs)
+        self.slow_monitor.configure(self.slow_min, self.slow_secs)   # GUI 会在运行中改阈值
+        return BatchGuard(self.slow_monitor)
+
+    def transfer(self):
+        """包住真正在传数据的那一段，让整批检测知道现在有几个文件在传。"""
+        return _Transfer(self.slow_monitor)
 
     def slow_limit_hit(self, count):
         return self.slow_max > 0 and count > self.slow_max
@@ -1512,7 +1611,7 @@ class App:
                     guard.feed(delta)
 
             try:
-                with self.net:
+                with self.net, self.transfer():
                     with open(path, "rb") as f:
                         resp = self.oss.put_object(bucket, key, f, size, headers, on_abs)
                 if resp.status_code // 100 == 2:
@@ -1602,10 +1701,11 @@ class App:
                     raise InterruptedError("已中断")
                 if attempt and time.monotonic() - self.oss._token_at > 50 * 60:
                     self.oss.refresh(force=True)
+                guard.sync()
                 try:
                     with lock:
                         inflight[number] = 0
-                    with self.net:
+                    with self.net, self.transfer():
                         with open(path, "rb") as f:
                             f.seek(int(part["offset"]))
                             etag = self.oss.upload_part(
@@ -1896,7 +1996,7 @@ def build_parser():
             "-j 是同时上传的文件数。单个文件的分片必须按顺序传，不能并发。\n"
             "--max N 对每个通配符参数分别限量，默认按最新修改时间选取，可用 --max-order 改成 size / name。\n"
             "网速「实时」是最近 1 秒内实际上传的速度，不是从开始算的平均速度。\n"
-            "低速重试默认开启：单个文件速度连续 10 秒低于 5 MB/s 就断开重试，次数无限（--slow-retry 0）。"
+            "低速重试默认开启：整批合计速度连续 10 秒低于 5 MB/s 就断开正在上传的文件并重试，次数无限（--slow-retry 0）。"
         ),
     )
     mode = parser.add_mutually_exclusive_group()
@@ -1929,13 +2029,17 @@ def build_parser():
     parser.add_argument("--prefix", default="", metavar="前缀",
                         help="给上传到 115 的文件名加前缀，只改网盘上的名字，本地文件不动；不影响文件夹名")
     parser.add_argument("--min-speed", dest="min_speed", type=parse_speed, default="5M", metavar="速度",
-                        help="低速阈值，默认 5M（单个文件的上传流速度）。\n"
+                        help="低速阈值，默认 5M（整批合计速度：所有正在上传的文件加起来）。\n"
                              "支持 K、K/s、KB/s、M、M/s、MB/s、G，不区分大小写；只写数字按 MB/s。\n"
                              "例：--min-speed 8M、--min-speed 500K/s")
     parser.add_argument("--slow-secs", dest="slow_secs", type=float, default=10.0, metavar="秒",
                         help="连续低于阈值多少秒就断开重试，默认 10")
+    parser.add_argument("--slow-per-file", dest="slow_per_file", action="store_true",
+                        help="低速检测改为按单个文件判断（默认按整批合计速度）")
+    parser.add_argument("--refresh", dest="refresh", type=float, default=3.0, metavar="秒",
+                        help="进度输出的刷新间隔，默认 3 秒，最小 0.2")
     parser.add_argument("--slow-retry", dest="slow_retry", type=int, default=0, metavar="N",
-                        help="每个文件低速重试次数上限，0 为无限（默认）")
+                        help="每个文件被低速打断的重试次数上限，0 为无限（默认）")
     parser.add_argument("--no-slow-retry", dest="no_slow_retry", action="store_true",
                         help="关闭低速自动重试（默认开启）")
     parser.add_argument("-v", action="store_true", help="打印调试信息")
@@ -2035,6 +2139,9 @@ def run_upload(args):
     if args.max_per < 0:
         log("--max 不能小于 0")
         sys.exit(1)
+    if args.refresh < 0.2:
+        log("--refresh 不能小于 0.2 秒")
+        sys.exit(1)
     if args.slow_retry < 0 or args.min_speed < 0 or args.slow_secs < 0:
         log("--slow-retry / --min-speed / --slow-secs 不能为负数")
         sys.exit(1)
@@ -2052,7 +2159,9 @@ def run_upload(args):
             log("没有匹配到：%s" % pattern)
     mode_name = {"f": "秒传", "u": "普通", "m": "断点续传"}["m" if args.m else ("u" if args.u else "f")]
     global GLOBAL_UI
-    GLOBAL_UI = ProgressUI(args.jobs, mode_name)
+    global RATE_WINDOW
+    RATE_WINDOW = min(5.0, max(1.0, args.refresh))
+    GLOBAL_UI = ProgressUI(args.jobs, mode_name, args.refresh)
     install_signal()
     api = Api115(config["cookies"], config["httpRetry"], http_proxy, args.v)
     try:
@@ -2080,7 +2189,8 @@ def run_upload(args):
         sys.exit(1)
     log("共 %d 个文件，并发 %d" % (len(pairs), args.jobs))
     if not args.no_slow_retry and (args.m or args.u):
-        log("低速重试：低于 %s 持续 %g 秒就断开重试，次数上限 %s" % (
+        log("低速重试：%s低于 %s 持续 %g 秒就断开重试，次数上限 %s" % (
+            "单文件速度" if args.slow_per_file else "整批合计速度",
             fmt_rate(args.min_speed), args.slow_secs, "无限" if args.slow_retry == 0 else args.slow_retry))
     app = App(args, config, api)
     tasks = []
@@ -2163,6 +2273,36 @@ def run_self_tests():
     g.feed(10 * 1024 * 1024)
     assert g.slow_since is None and not g.tripped
     assert not SlowGuard(0, 0).enabled
+    # 整批低速检测：合计速度够就不触发；不够时所有正在传的文件一起被打断
+    m = BatchMonitor(5 * 1024 * 1024, 10)
+    a, b = BatchGuard(m), BatchGuard(m)
+    m.enter()
+    m.enter()
+    m.bucket_start = time.monotonic() - 0.9
+    a.feed(4 * 1024 * 1024)
+    m.bucket_start = time.monotonic() - 1.1
+    b.feed(4 * 1024 * 1024)                      # 两个文件合计 8MB / 1.1s，正常
+    assert m.slow_since is None and m.generation == 0 and not a.tripped and not b.tripped
+    m.bucket_start = time.monotonic() - 11       # 11 秒里合计只来了 1KB
+    try:
+        a.feed(1024)
+        raise AssertionError("整批应该触发低速")
+    except SlowSpeedError as exc:
+        assert a.tripped and "整批合计" in str(exc)
+    try:
+        b.feed(1024)
+        raise AssertionError("另一个并发文件也应被打断")
+    except SlowSpeedError:
+        assert b.tripped
+    a.reset()
+    b.reset()
+    a.feed(1024)
+    b.feed(1024)                                 # 重试后不再重复触发
+    assert not a.tripped and not b.tripped
+    m.leave()
+    m.leave()
+    assert m.active == 0
+    assert ProgressUI(1, "x", 0.01).refresh == 0.2
     # 通配符
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
@@ -2277,6 +2417,10 @@ def run_self_tests():
             pass
     assert parser.parse_args(["-m", "--min-speed", "500K/s", "a.zip"]).min_speed == 500 * 1024
     assert parser.parse_args(["-m", "--no-slow-retry", "a.zip"]).no_slow_retry
+    ns = parser.parse_args(["-m", "a.zip"])
+    assert ns.refresh == 3.0 and not ns.slow_per_file
+    ns = parser.parse_args(["-m", "--refresh", "5", "--slow-per-file", "a.zip"])
+    assert ns.refresh == 5.0 and ns.slow_per_file
     ns = parser.parse_args(["-m", "-c", "/Photos/2024", "--no-create", "x.zip"])
     assert ns.c == "/Photos/2024" and ns.no_create
     assert parser.parse_args(["-m", "x.zip"]).c is None
