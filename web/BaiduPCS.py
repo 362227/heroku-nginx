@@ -31,6 +31,10 @@
 #   rsync     与 size 相同
 # 分片: <8GB 用 4MB，>=8GB 用 16MB，>=32GB 用 64MB; 单文件最多 100 片, 超过就自动加大分片。
 #
+# 网络容错: 除分片上传外的所有接口请求 (列目录/precreate/create/刷新 token 等) 遇到
+#   SSL 握手超时、连接重置、DNS 失败等网络错误时, 会自动重试 NET_RETRY 次 (间隔 3/6/9... 秒, 最长 30 秒)。
+#   分片上传自己有 SLICE_RETRY 次重试并会换线路。
+#
 # -v 详细模式会额外打印:
 #   - 每个分片的开始/完成 (大小、用时、速度、线路), 失败原因与重试 (第几次、换到哪条线路、等待多久)
 #   - 每 3 秒列出所有正在上传的分片: 实时速度、重试次数、本次用时 (等待重试的分片也会列出)
@@ -42,11 +46,13 @@ import argparse
 import collections
 import glob
 import hashlib
+import http.client
 import json
 import os
 import posixpath
 import re
 import socket
+import ssl
 import sys
 import threading
 import time
@@ -74,6 +80,7 @@ SKIP, OVERWRITE, RSYNC, SIZE = "skip", "overwrite", "rsync", "size"
 UA = "pan.baidu.com"
 FIXED_HOST = "https://c2.pcs.baidu.com"
 SLICE_RETRY = 8
+NET_RETRY = 6  # 普通接口 (非分片) 遇到网络错误时的最大尝试次数
 MAX_SLICES = 1000  # 单个文件最多切成多少个分片
 DEFAULT_PREFER = "c2,c5,d"  # 智能择优: 优先测试的线路
 PREFER_STRIKES = 3  # 优先线路连续这么多轮不如主线路, 就不再优先
@@ -659,14 +666,30 @@ class Client:
             json.dump(self.cfg, f, ensure_ascii=False, indent=2)
         os.replace(tmp, self.cfg_path)
 
-    def _request(self, method, url, data=None, headers=None, timeout=60):
-        req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
-        req.add_header("User-Agent", UA)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return resp.status, resp.read()
-        except urllib.error.HTTPError as e:
-            return e.code, e.read()
+    def _request(self, method, url, data=None, headers=None, timeout=60, retries=NET_RETRY):
+        """发一次 HTTP 请求。网络层错误 (SSL 握手超时/连接重置/DNS 失败等) 自动重试 retries 次。
+        HTTP 错误码 (4xx/5xx) 不重试, 原样返回交给上层解析。
+        data 是一次性流 (分片上传) 时必须传 retries=1, 由 upload_slice 自己重试。"""
+        retries = max(1, retries)
+        last = None
+        for i in range(retries):
+            req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+            req.add_header("User-Agent", UA)
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    return resp.status, resp.read()
+            except urllib.error.HTTPError as e:
+                return e.code, e.read()
+            except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError,
+                    ssl.SSLError, http.client.HTTPException, OSError) as e:
+                last = e
+                if i == retries - 1:
+                    break
+                wait = min(30, (i + 1) * 3)
+                log("net", "请求失败 (%s: %s), %d 秒后重试 %d/%d" % (
+                    type(e).__name__, truncate(str(e), 80), wait, i + 2, retries))
+                time.sleep(wait)
+        raise last
 
     def refresh(self):
         q = urllib.parse.urlencode({
@@ -876,10 +899,11 @@ class Client:
         body = SliceBody(local, offset, n, head, tail, progress, cancel, deadline)
         ok = False
         try:
+            # 请求体是一次性的流, 不能在 _request 里重放, 所以 retries=1, 重试交给 upload_slice
             status, resp = self._request("POST", url, body, {
                 "Content-Type": "multipart/form-data; boundary=%s" % boundary,
                 "Content-Length": str(body.length),
-            }, timeout=self.slice_timeout)
+            }, timeout=self.slice_timeout, retries=1)
             if status >= 400 and not resp:
                 raise RuntimeError("HTTP %d 空响应" % status)
             code, parsed = parse_api_code(resp)
@@ -1766,7 +1790,7 @@ def main():
     p.add_argument("-host", "--host", default="", help="指定上传线路, 如 c2 / c4 / d 或完整域名; 指定后整体上传失败才启用智能择优")
     p.add_argument("-smart", "--smart", type=bool_arg, default=True, help="智能择优线路 (默认开启, -smart=false 关闭; 开了 -rotatehost 时不生效)")
     p.add_argument("-nosmart", "--nosmart", action="store_true", help="同 -smart=false")
-    p.add_argument("-prefer", "--prefer", default=DEFAULT_PREFER, help="智能择优时优先测试的线路, 逗号分隔, 默认 c2,c4; 留空则不优先")
+    p.add_argument("-prefer", "--prefer", default=DEFAULT_PREFER, help="智能择优时优先测试的线路, 逗号分隔, 默认 c2,c5,d; 留空则不优先")
     p.add_argument("-probes", "--probes", type=int, default=0, help="同时测速的分片数, 默认自动 (按 -parallel/4, 限制 1~5)")
     p.add_argument("-timeout", "--timeout", type=float, default=60.0, help="每次分片尝试的时限, 默认 60 秒。到点无论快慢、第几次重试, 都中断并换线。0 表示关闭")
     p.add_argument("-norefresh", "--norefresh", action="store_true", help="只用 config 里的 access_token, 绝不刷新 (过期直接报错); 此时不要求 client_id/secret/refresh_token")
