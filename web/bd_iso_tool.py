@@ -9,6 +9,10 @@ DVD / 蓝光 ISO / 普通视频文件 -> 缩略图联系表 + MediaInfo  (ISO �
 GUI 的设置自动保存在脚本旁边的  "DVD蓝光iso截图.json"  里, 下次打开自动恢复.
 命令行默认用内置默认值; 加 --use-config 则以 GUI 保存的设置为基础.
 
+fix rename (默认开启): 若文件名含分辨率 (如 1080i/2160p) 或编码 (HEVC/AVC/H264/H265/VP9/VP8/MPEG2),
+会与 MediaInfo/ffprobe 对比并纠正 (HEVC→H265, AVC→H264). 一样则不动. BDMV 文件夹不支持, ISO 支持.
+关闭: --no-fix-rename  或 GUI 里取消勾选.
+
 原理:
   * 蓝光: ffmpeg/ffprobe 的 bluray: 协议 (libbluray 直接读 ISO). MediaInfo 精简/完整 = 移植自 MediaInfo.py (ffprobe);
           仅 "MediaInfo 原生" 模式才用 7-Zip 流式读出主 m2ts 开头一段给 mediainfo 命令行
@@ -71,6 +75,7 @@ DEFAULTS = {
     "shot_timeout": 30,            # 单张截图最长等待秒数, 超时强行结束并清除中间文件 (冷门编码/损坏的视频会一直卡住)
     "deinterlace": True,           # 反交错: 隔行视频截图去拉丝
     "enhance_shots": True,         # 加强截图: 有 1~2 张画面单调(黑/白/绿屏等)或失败, 就在附近关键帧重截; 超过 2 张则判断为视频可能损坏, 不重截
+    "fix_rename": True,            # 纠正文件名中的分辨率/编码 (与 MediaInfo/ffprobe 对比, 默认开启; BDMV 文件夹不支持, ISO 支持)
     # 高级
     "recursive": False, "extra_exts": "", "preroll": 10,
     "top_n": 1,                    # DVD/蓝光 ISO: 最多截取时长最长的前 N 个标题
@@ -2808,6 +2813,125 @@ def list_dvd_titles(dvd, mediainfo, iso, tmpdir):
     return out
 
 
+# ============================================================ fix rename: 纠正文件名里的分辨率 / 编码
+# 仅当文件名里出现了分辨率 ([0-9]{3,4}i/p) 或 编码 (HEVC/AVC/VP9/VP8/H264/H265/MPEG2) 时才尝试纠正.
+# 和 MediaInfo/ffprobe 的第一个视频轨对比, 一样就不动. HEVC→H265, AVC→H264 (纠正后不会再出现 HEVC/AVC).
+# HDR 不算分辨率/编码. BDMV/DVD 文件夹不支持, ISO 和普通视频文件支持.
+_FIX_CODEC_FROM_PROBE = {
+    "h264": "H264", "hevc": "H265", "vp9": "VP9", "vp8": "VP8", "mpeg2video": "MPEG2",
+}
+_FIX_CODEC_FROM_MI = {
+    "hevc": "H265", "h.265": "H265", "h265": "H265",
+    "avc": "H264", "h.264": "H264", "h264": "H264",
+    "vp9": "VP9", "vp8": "VP8",
+    "mpeg-2": "MPEG2", "mpeg2": "MPEG2",
+}
+_FIX_CODEC_NORM = {"HEVC": "H265", "AVC": "H264"}   # 文件名里的写法 → 标准写法
+
+
+def _fix_extract_spec(probe, mj):
+    """从 probe / MediaInfo JSON 取第一个视频轨的 (分辨率, 编码). 分辨率如 '2160p'/'1080i', 编码如 'H265'/'H264'/'VP9'/'VP8'/'MPEG2'.
+    取不到对应项则为 None. 多个视频轨只看第一个."""
+    res, codec = None, None
+    if probe:
+        for s in probe.get("streams", []) or []:
+            if s.get("codec_type") == "video" and not (s.get("disposition") or {}).get("attached_pic"):
+                codec = _FIX_CODEC_FROM_PROBE.get((s.get("codec_name") or "").lower())
+                interlaced = (s.get("field_order") or "progressive") not in ("progressive", "unknown", "")
+                res = _mi_resolution(s, interlaced) or None
+                break
+    if (not res or not codec) and mj:
+        for t in mj.get("media", {}).get("track", []) or []:
+            if t.get("@type") == "Video":
+                if not codec:
+                    fmt = (t.get("Format") or "").lower()
+                    codec = _FIX_CODEC_FROM_MI.get(fmt)
+                    if not codec:
+                        for k, v in _FIX_CODEC_FROM_MI.items():
+                            if k in fmt:
+                                codec = v
+                                break
+                if not res:
+                    try:
+                        h = int(t.get("Height") or 0)
+                        w = int(t.get("Width") or 0)
+                    except Exception:
+                        h = w = 0
+                    if h and w:
+                        fake = {"width": w, "height": h, "field_order": "tt" if t.get("ScanType") == "Interlaced" else "progressive"}
+                        res = _mi_resolution(fake, t.get("ScanType") == "Interlaced") or None
+                break
+    return res, codec
+
+
+def apply_fix_rename(path, probe, mj, c=None, spec=None):
+    """若开启且文件名含分辨率/编码, 与实际信息对比后纠正文件名. 返回最终路径 (可能已改名).
+    BDMV / DVD 文件夹不处理. 目标已存在则跳过.
+    spec: 可选, 已提取好的 (分辨率, 编码), 有则不再从 probe/mj 提取."""
+    c = c or {}
+    if not c.get("fix_rename", True):
+        return path
+    if c.get("_preview_out"):
+        return path
+    path = Path(path)
+    kind = media_kind(path)
+    if kind in ("bdfolder", "dvdfolder", "dir") or not path.is_file():
+        return path
+    if spec:
+        res, codec = spec
+    else:
+        res, codec = _fix_extract_spec(probe, mj)
+    if not res and not codec:
+        return path
+    stem = path.stem
+    new_stem = stem
+    changed = False
+    # 分辨率: 1080i / 2160p / 480P 等
+    res_pat = re.compile(r'(?<![0-9])([0-9]{3,4})([ipIP])(?![A-Za-z0-9])')
+    # 编码: 仅这几种 (大小写不敏感)
+    codec_pat = re.compile(r'(?i)(?<![A-Za-z0-9])(HEVC|AVC|VP9|VP8|H265|H264|MPEG2)(?![A-Za-z0-9])')
+    has_res = bool(res_pat.search(stem))
+    has_codec = bool(codec_pat.search(stem))
+    if not has_res and not has_codec:
+        return path
+
+    if has_res and res:
+        def _repl_res(m, _res=res):
+            nonlocal changed
+            cur = m.group(0)
+            if cur.lower() != _res.lower():
+                changed = True
+                return _res
+            return cur
+        new_stem = res_pat.sub(_repl_res, new_stem)
+
+    if has_codec and codec:
+        def _repl_codec(m, _codec=codec):
+            nonlocal changed
+            cur_raw = m.group(0)
+            cur = cur_raw.upper()
+            norm = _FIX_CODEC_NORM.get(cur, cur)
+            if norm != _codec or cur != _codec:
+                changed = True
+                return _codec
+            return cur_raw
+        new_stem = codec_pat.sub(_repl_codec, new_stem)
+
+    if not changed or new_stem == stem:
+        return path
+    new_path = path.with_name(new_stem + path.suffix)
+    if new_path.exists():
+        print(f"fix rename 跳过: 目标已存在 {new_path.name}")
+        return path
+    try:
+        path.rename(new_path)
+        print(f"fix rename: {path.name} → {new_path.name}")
+        return new_path
+    except OSError as e:
+        print(f"fix rename 失败: {e}")
+        return path
+
+
 def process_iso(iso, cfg):
     """处理一个文件. DVD/蓝光 ISO 且 top_n>1 时, 依次处理时长最长的前 N 个标题 (输出名加 [1][2]...)"""
     c = {**DEFAULTS, **cfg}
@@ -2857,6 +2981,7 @@ def process_iso(iso, cfg):
         print(f"取时长最长的 {total} 个标题: " + " | ".join(t["label"] for t in titles))
     merged = {"report": None, "sheet": None, "sheets": [], "report_path": None, "report_paths": [], "skipped": True}
     reports, errors = [], 0
+    fix_spec = None
     for i, t in enumerate(titles, 1):
         check_cancel()
         if total > 1:
@@ -2879,11 +3004,16 @@ def process_iso(iso, cfg):
             merged["sheets"].append(r["sheet"])
         if r.get("report_path"):
             merged["report_paths"].append(r["report_path"])
+        if fix_spec is None and r.get("fix_spec"):
+            fix_spec = r["fix_spec"]
     if errors == total:
         raise RuntimeError("所有标题都处理失败")
     merged["report"] = "\n\n".join(reports) if reports else None
     merged["sheet"] = merged["sheets"][0] if merged["sheets"] else None
     merged["report_path"] = merged["report_paths"][0] if merged["report_paths"] else None
+    # 多标题: 用最长标题的规格纠正 ISO 文件名 (单标题时已在 _process_iso_one 里做了)
+    if total > 1 and fix_spec and c.get("fix_rename", True):
+        apply_fix_rename(iso, None, None, c, spec=fix_spec)
     return merged
 
 
@@ -3181,6 +3311,13 @@ def _process_iso_one(iso, cfg):
                 res["sheet"] = str(sheet_path)
             if shot_stats.get("warn"):
                 res["warn"] = shot_stats["warn"]
+        # ---- fix rename: 纠正原文件名里的分辨率/编码 (单标题时在这里做; 多标题时把规格带回, 由 process_iso 统一做)
+        if c.get("fix_rename", True) and not preview:
+            spec = _fix_extract_spec(probe, mj)
+            if spec[0] or spec[1]:
+                res["fix_spec"] = spec
+                if c.get("_idx") is None:   # 单标题 / 普通文件: 立即纠正
+                    apply_fix_rename(iso, probe, mj, c, spec=spec)
         return res
     finally:
         if cleanup:
@@ -3260,6 +3397,8 @@ def build_cli_command(cfg, files, script=None):
         a.append("--no-enhance")
     if not c["deinterlace"]:
         a.append("--no-deinterlace")
+    if not c.get("fix_rename", True):
+        a.append("--no-fix-rename")
     val("shot_timeout", "--shot-timeout")
     val("bd_mode", "--bd-mode")
     # 后缀: 命令行不写 = 默认后缀; 写 "" = 无后缀 (所以和默认不同时, 即使是空串也要写出来)
@@ -3651,6 +3790,8 @@ def cli(argv):
                     help="单张截图最长等待秒数, 超时强行结束并清除中间文件 (默认 30); 连续 3 次超时判定视频无法解码, 放弃")
     ap.add_argument("--no-enhance", action="store_true",
                     help="关闭加强截图 (默认开: 1~2 张单调/失败的在附近关键帧重截, 超过 2 张判断为视频可能损坏并告警)")
+    ap.add_argument("--no-fix-rename", action="store_true",
+                    help="关闭文件名分辨率/编码纠正 (默认开启: 文件名里出现 1080i/2160p 或 HEVC/AVC/H264/H265/VP9/VP8/MPEG2 时与 MediaInfo 对比并纠正, HEVC→H265 AVC→H264; BDMV 文件夹不支持)")
     ap.add_argument("--top", type=int, metavar="N",
                     help="DVD/蓝光 ISO: 取时长最长的前 N 个标题各出一张联系表 (默认 1; N>1 时输出名加 [1][2]…)")
     ap.add_argument("--playlist", type=int, help="蓝光: 指定 mpls 编号, 如 800")
@@ -3749,6 +3890,8 @@ def cli(argv):
         cfg["enhance_shots"] = False
     if a.no_deinterlace:
         cfg["deinterlace"] = False
+    if a.no_fix_rename:
+        cfg["fix_rename"] = False
     if a.bd_mode:
         cfg["bd_mode"] = a.bd_mode
     if a.shot_timeout:
@@ -4272,14 +4415,18 @@ def run_gui(initial=()):
     for i, (val, txt) in enumerate((("overwrite", "覆盖"), ("skip", "跳过 (批量续跑)"),
                                     ("rename", "自动改名, 文件名后加 (1)(2)…"))):
         ttk.Radiobutton(lf2, text=txt, value=val, variable=var("exist_mode")).grid(row=i, column=0, sticky="w")
-    entry(t4, "联系表文件名前缀", "sheet_prefix", 6, width=20)
-    entry(t4, "联系表文件名后缀", "sheet_suffix", 7, width=20)
-    entry(t4, "MediaInfo 文件名前缀", "mi_prefix", 8, width=20)
-    entry(t4, "MediaInfo 文件名后缀", "mi_suffix", 9, width=20)
+    check(t4, "纠正文件名中的分辨率/编码 (fix rename, 默认开)", "fix_rename", 6, span=3)
+    ttk.Label(t4, text="文件名里出现 1080i/2160p 或 HEVC/AVC/H264/H265/VP9/VP8/MPEG2 时, 与 MediaInfo 对比并纠正;\n"
+                       "HEVC→H265, AVC→H264. 一样则不动. BDMV 文件夹不支持, ISO 和普通视频支持. HDR 不参与.",
+              foreground="#666").grid(row=7, column=0, columnspan=3, sticky="w")
+    entry(t4, "联系表文件名前缀", "sheet_prefix", 8, width=20)
+    entry(t4, "联系表文件名后缀", "sheet_suffix", 9, width=20)
+    entry(t4, "MediaInfo 文件名前缀", "mi_prefix", 10, width=20)
+    entry(t4, "MediaInfo 文件名后缀", "mi_suffix", 11, width=20)
     ttk.Label(t4, text="文件名 = 前缀 + 原名 + 后缀 (+ 扩展名)。前缀默认无, 如填 media_ → media_xxx.mkv.mediainfo.txt;\n"
                        "后缀留空 = 不加: 如 xxx.mkv.jpg / xxx.mkv.txt (默认 _sheet 和 .mediainfo)。\n"
                        "ISO 取多个标题时, 序号 [1] [2]… 仍会加在最后 (如 xxx[1].jpg)。",
-              foreground="#666").grid(row=10, column=0, columnspan=3, sticky="w")
+              foreground="#666").grid(row=12, column=0, columnspan=3, sticky="w")
     t4.columnconfigure(1, weight=1)
 
     # -- 高级
