@@ -10,6 +10,7 @@
   1 秒滑动窗口的实时网速（不再只用全程平均速度）
   低速自动重试：整批合计速度低于 --min-speed 持续 --slow-secs 秒就断开重试（默认开启）
   --refresh 进度输出刷新间隔（秒，默认 3）
+  日志每行带北京时间；notebook 模式最多保留 10 行（第一条一直保留，中间用 ... 省略）
   --ui 进度显示方式（自动识别）：
        notebook  Colab/Jupyter 内核里用 %run 运行：每个正在传的文件占一行，原地刷新
        colab     Colab 里用 !python 运行：只能单行原地刷新
@@ -45,7 +46,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from email.utils import formatdate
 
 APP_VER = "30.5.1"
@@ -177,6 +178,15 @@ def detect_ui(choice="auto"):
     if in_colab():
         return "colab"
     return "tty" if sys.stdout.isatty() else "lines"
+
+
+BJ_TZ = timezone(timedelta(hours=8))
+KEPT_LOG_MAX = 10      # notebook 面板里最多显示几行保留的日志（含“...”那一行）
+
+
+def bj_time():
+    """北京时间 HH:MM:SS，不依赖机器所在时区（Colab 默认是 UTC）。"""
+    return datetime.now(BJ_TZ).strftime("%H:%M:%S")
 
 
 def is_routine_log(msg):
@@ -1231,7 +1241,10 @@ class ProgressUI:
         self.colab = (style == "colab")
         self.nb = (style == "notebook")
         self._line_len = 0      # colab：当前未换行的进度行宽度，用来擦干净残留
-        self.kept = deque(maxlen=300)     # notebook：保留下来的日志（报错、重试等）
+        # notebook：保留的日志（报错、重试等）。第一条永远保留；其余只留最近的几条
+        self.kept_first = ""
+        self.kept_recent = deque(maxlen=KEPT_LOG_MAX - 1)
+        self.kept_n = 0
         self._nb_id = "fake115-%x" % id(self)
         self._nb_shown = False
         self._nb_lock = threading.Lock()
@@ -1269,25 +1282,31 @@ class ProgressUI:
 
     def log(self, msg):
         msg = str(msg)
+        if self.nb and self.closed:
+            with PRINT_LOCK:
+                print(msg, flush=True)      # 结束后的汇总信息，不加时间
+            return
+        line = "%s %s" % (bj_time(), msg)
         if self.nb:
-            if self.closed:
-                with PRINT_LOCK:
-                    print(msg, flush=True)
-            elif not is_routine_log(msg):
+            if not is_routine_log(msg):
                 with self.lock:
-                    self.kept.append(msg)
+                    if self.kept_n == 0:
+                        self.kept_first = line
+                    else:
+                        self.kept_recent.append(line)
+                    self.kept_n += 1
                 self._render_nb()
             return
         if self.colab:
             # 常规日志不单独成行；报错、重试等一律保留
             if not is_routine_log(msg):
-                self._emit_line(msg)
+                self._emit_line(line)
             return
         with self.lock:
-            self.logs.append(msg)
+            self.logs.append(line)
         if not self.tty:
             with PRINT_LOCK:
-                print(msg, file=sys.stderr, flush=True)
+                print(line, file=sys.stderr, flush=True)
 
     def start(self):
         self.started = True
@@ -1484,12 +1503,21 @@ class ProgressUI:
             line += "  " + item["error"]
         return line
 
+    def _kept_lines(self):
+        """保留的日志：不超过 KEPT_LOG_MAX 行。超出时 = 第一条 + "..." + 最近几条。"""
+        with self.lock:
+            n, first, recent = self.kept_n, self.kept_first, list(self.kept_recent)
+        if n == 0:
+            return []
+        if n <= KEPT_LOG_MAX:
+            return [first] + recent
+        return [first, "..."] + recent[-(KEPT_LOG_MAX - 2):]
+
     def _compose_nb(self, final=False):
         """notebook 面板：保留的日志 + 总进度 + 每个正在传的文件一行。"""
         now = time.monotonic()
         st = self._stats(now)
-        with self.lock:
-            lines = list(self.kept)
+        lines = self._kept_lines()
         pct = (st["progressed"] / st["total_size"]) if st["total_size"] else 0
         lines.append("─" * 60)
         lines.append("115上传  %s  并发 %d  完成 %d  失败 %d  已存档 %d" % (
@@ -2736,6 +2764,24 @@ def run_self_tests():
     assert len([l for l in last[0].split("\n") if ".mp4" in l]) == 3, last[0]
     ui.stop()
     assert ui.closed
+    # 日志上限：最多 10 行，第一条永远保留，中间用 ... 省略，每行带北京时间
+    assert re.fullmatch(r"\d\d:\d\d:\d\d", bj_time())
+    ui = ProgressUI(1, "x", 3.0, "notebook")
+    pushes = []
+    ui._nb_push = lambda data, did, first: pushes.append((data["text/plain"], did, first))
+    fx = FileProgress("/tmp/a.mp4", 100, 0)
+    fx.phase = "上传"
+    ui.add_file(fx)
+    for i in range(1, 4):
+        ui.log("分片 %d 速度过低，断开重试（第 %d 次）" % (i, i))
+    assert len([l for l in pushes[-1][0].split("\n") if re.match(r"\d\d:\d\d:\d\d ", l)]) == 3
+    assert "..." not in pushes[-1][0]
+    for i in range(4, 26):
+        ui.log("分片 %d 速度过低，断开重试（第 %d 次）" % (i, i))
+    shown = [l for l in pushes[-1][0].split("\n") if re.match(r"\d\d:\d\d:\d\d ", l) or l == "..."]
+    assert len(shown) == 10, shown
+    assert "第 1 次" in shown[0] and shown[1] == "..." and "第 18 次" in shown[2] and "第 25 次" in shown[-1], shown
+    ui.stop()
     reader = LimitedReader(open(os.devnull, "rb"), 0, None)
     assert reader.read() == b""
     print("self-test ok")
