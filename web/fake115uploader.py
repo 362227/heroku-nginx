@@ -9,6 +9,7 @@
   --prefix 给网盘上的文件名加前缀（只改发给 115 的名字，本地文件不动）
   1 秒滑动窗口的实时网速（不再只用全程平均速度）
   低速自动重试：整批合计速度低于 --min-speed 持续 --slow-secs 秒就断开重试（默认开启）
+  uploadId 失效（OSS 返回 404 NoSuchUpload）自动处理：删除存档 json，从头重新上传（最多 3 次）
   --refresh 进度输出刷新间隔（秒，默认 3）
   日志每行带北京时间；notebook 模式最多保留 10 行（第一条一直保留，中间用 ... 省略）
   --ui 进度显示方式（自动识别）：
@@ -63,6 +64,7 @@ OSS_MAX_PART = 5 * 1024 * 1024 * 1024
 MAX_FILE = 115 * 1024 * 1024 * 1024
 SIMPLE_LIMIT = 5 * 1024 * 1024 * 1024
 GB = 1024 * 1024 * 1024
+EXPIRE_RESTARTS = 3   # uploadId 失效后，同一个文件最多自动从头重传几次
 
 INFO_URL = "https://proapi.115.com/app/uploadinfo"
 INIT_URL = "https://uplb.115.com/4.0/initupload.php?k_ec=%s"
@@ -307,6 +309,17 @@ def parse_speed(text):
 
 class SlowSpeedError(Exception):
     """上传速度持续过低。注意不要继承 OSError，否则会被 urllib3 包装掉。"""
+
+
+class UploadExpired(RuntimeError):
+    """OSS 上的 uploadId 已经不存在（404 NoSuchUpload：被中止、已过期或已完成）。
+    断点存档作废，需要删除存档并重新走一遍上传流程。
+    sha1 / size 是原存档里记录的，文件大小没变时重传可以跳过重新计算 SHA1。"""
+
+    def __init__(self, message, sha1="", size=0):
+        super().__init__(message)
+        self.sha1 = sha1 or ""
+        self.size = int(size or 0)
 
 
 class SlowGuard:
@@ -677,6 +690,18 @@ def load_json(path):
         return json.load(f)
 
 
+def drop_checkpoint(cp_file):
+    """删除断点存档 json（以及可能残留的 .tmp）。删不掉也不影响后续流程。"""
+    for p in (cp_file, cp_file + ".tmp"):
+        try:
+            if p and os.path.isfile(p):
+                os.remove(p)
+                if p == cp_file:
+                    log("已删除失效的存档 %s" % p)
+        except OSError as exc:
+            log("删除存档失败 %s ：%s" % (p, exc))
+
+
 def parse_target(value):
     """-c / 配置里的 cid：纯数字当 cid，其余当网盘路径（/ 表示根目录）。返回 int 或规范化后的 /a/b。"""
     if value is None:
@@ -919,8 +944,9 @@ class Api115:
         except Exception as exc:
             raise RuntimeError("无法解析 initupload 响应: %s" % decrypted[:300]) from exc
 
-    def fast_or_token(self, cipher, path, cid, on_hash=None, name=None):
-        file_sha1 = sha1_file(path, on_hash)
+    def fast_or_token(self, cipher, path, cid, on_hash=None, name=None, known_sha1=None):
+        # known_sha1：重传时沿用旧存档里记录的 SHA1，省掉大文件重新哈希的时间
+        file_sha1 = known_sha1.upper() if known_sha1 else sha1_file(path, on_hash)
         filename = name or os.path.basename(path)
         size = os.path.getsize(path)
         payload = self.upload_sha1(cipher, filename, size, file_sha1, "", "", cid)
@@ -1118,6 +1144,10 @@ class OssClient:
         resp = self.call("PUT", bucket, key, params, headers, data=body,
                          timeout=(30, io_timeout))
         if resp.status_code // 100 != 2:
+            # uploadId 在 OSS 上已经不存在：重试多少次都没用，交给上层删存档重传
+            if resp.status_code == 404 or xml_text(resp.content, "Code") == "NoSuchUpload":
+                raise UploadExpired("分片 %s 失败 HTTP %s NoSuchUpload，uploadId 已失效" % (
+                    number, resp.status_code))
             if resp.status_code == 403:
                 self.refresh(force=True)
             raise RuntimeError("分片 %s 失败 HTTP %s %s" % (
@@ -1744,7 +1774,9 @@ class App:
         os.remove(path)
         log("已删除本地文件 %s" % path)
 
-    def upload_file(self, task):
+    def upload_file(self, task, _restart=0, _sha1=None):
+        """_restart / _sha1 仅内部使用：uploadId 失效后删除存档重新上传时，
+        _restart 记录已重传次数，_sha1 沿用旧存档里的 SHA1（省掉重新哈希）。"""
         path, cid, prog = task
         prev_cancel = getattr(_CANCEL, "ev", None)
         _CANCEL.ev = getattr(prog, "cancel", None)
@@ -1778,7 +1810,8 @@ class App:
 
             remote_name = (self.args.prefix + os.path.basename(path)) if self.args.prefix else None
             try:
-                kind, token = self.api.fast_or_token(self.cipher(), path, cid, on_hash, remote_name)
+                kind, token = self.api.fast_or_token(
+                    self.cipher(), path, cid, on_hash, remote_name, _sha1)
             except InterruptedError:
                 prog.set_phase("暂停", reset=False)
                 return
@@ -1810,6 +1843,26 @@ class App:
             self._multipart(path, cid, prog, self._new_cp(path, cid, token), cp_file, resume=False)
         except InterruptedError:
             prog.set_phase("暂停", reset=False)
+        except UploadExpired as exc:
+            # uploadId 在 OSS 上已失效：存档已在 _multipart 里删除，这里重新走一遍完整上传流程
+            if _restart >= EXPIRE_RESTARTS:
+                with GLOBAL_UI.lock:
+                    prog.phase = "失败"
+                    prog.error = "uploadId 连续失效 %d 次" % EXPIRE_RESTARTS
+                log("上传失败 %s ：uploadId 连续失效 %d 次，放弃：%s" % (path, EXPIRE_RESTARTS, exc))
+                self.record("failed", path, cid, "uploadId 连续失效 %d 次：%s" % (EXPIRE_RESTARTS, exc))
+            else:
+                log("uploadId 已失效，存档已删除，从头重新上传（第 %d/%d 次）%s" % (
+                    _restart + 1, EXPIRE_RESTARTS, path))
+                sha1 = None
+                try:
+                    if exc.sha1 and exc.size == os.path.getsize(path):
+                        sha1 = exc.sha1       # 文件大小没变，沿用旧 SHA1，不用重新哈希
+                except OSError:
+                    pass
+                prog.set_phase("等待")
+                time.sleep(1)
+                self.upload_file(task, _restart + 1, sha1)
         except Exception as exc:
             with GLOBAL_UI.lock:
                 prog.phase = "失败"
@@ -1982,6 +2035,11 @@ class App:
                     return {"number": number, "etag": etag}
                 except InterruptedError:
                     raise
+                except UploadExpired:
+                    # uploadId 已不存在，重试没有意义，直接交给上层删存档重传
+                    with lock:
+                        inflight.pop(number, None)
+                    raise
                 except Exception as exc:
                     with lock:
                         prev = inflight.pop(number, 0)
@@ -2018,12 +2076,16 @@ class App:
         guard.reset()
         futures = []
         error = None
+        expired = None
         # 顺序分片不能并发，后一片必须等前一片完成。-j 只并发不同文件。
         for part in pending:
             if halted() or error:
                 break
             try:
                 item = one(part)
+            except UploadExpired as exc:
+                expired = exc
+                break
             except Exception as exc:
                 error = exc
                 if not isinstance(exc, InterruptedError):
@@ -2033,6 +2095,11 @@ class App:
                 done_map[int(item["number"])] = item
                 cp["done"] = sorted(done_map.values(), key=lambda x: int(x["number"]))
                 atomic_write_json(cp_file, cp)
+        if expired is not None:
+            # uploadId 失效：存档里记的分片全都作废，删掉存档，让上层从头重新上传
+            log("%s" % expired)
+            drop_checkpoint(cp_file)
+            raise UploadExpired(str(expired), sha1, size)
         if error or halted() or len(done_map) < len(cp["parts"]):
             cp["done"] = sorted(done_map.values(), key=lambda x: int(x["number"]))
             atomic_write_json(cp_file, cp)
@@ -2061,13 +2128,10 @@ class App:
         if result.get("result") == "missing":
             confirmed, reason = self.api.verify(cid, sha1, remote_name, size)
             if not confirmed:
-                if os.path.isfile(cp_file):
-                    os.remove(cp_file)
                 detail = (result.get("body") or "").replace("\n", " ")[:500]
-                self.note("断点 uploadId 已失效，存档已删除。请再执行一次重新上传。列表：%s 响应：%s" % (reason, detail))
-                self.record("failed", path, cid, "uploadId 已失效，请再运行一次")
-                prog.set_phase("失败", reset=False)
-                return
+                log("合并时 uploadId 已失效。列表：%s 响应：%s" % (reason, detail))
+                drop_checkpoint(cp_file)
+                raise UploadExpired("合并时 uploadId 已失效（NoSuchUpload）", sha1, size)
         if not confirmed:
             confirmed, reason = self.api.verify(cid, sha1, remote_name, size)
         if not confirmed:
@@ -2259,6 +2323,7 @@ def build_parser():
             "--max N 对每个通配符参数分别限量，默认按最新修改时间选取，可用 --max-order 改成 size / name。\n"
             "网速「实时」是最近 1 秒内实际上传的速度，不是从开始算的平均速度。\n"
             "低速重试默认开启：整批合计速度连续 10 秒低于 5 MB/s 就断开正在上传的文件并重试，次数无限（--slow-retry 0）。\n"
+            "断点存档的 uploadId 如果在 OSS 上已失效（404 NoSuchUpload），会自动删除存档 json 并从头重新上传，最多 3 次。\n"
             "Colab：用 %run 运行时每个正在传的文件各占一行并原地刷新；用 !python 运行只能单行刷新。\n"
             "两种方式都只保留报错、重试等日志，成功等常规日志不刷屏。"
         ),
@@ -2602,6 +2667,12 @@ def run_self_tests():
         cp = checkpoint_path(tmp, os.path.join(tmp, "0.ZIP"))
         atomic_write_json(cp, {"upload_id": "x", "done": []})
         assert load_json(cp)["upload_id"] == "x"
+        # uploadId 失效：删除存档 json（包括残留的 .tmp）
+        with open(cp + ".tmp", "w") as f:
+            f.write("{}")
+        drop_checkpoint(cp)
+        assert not os.path.exists(cp) and not os.path.exists(cp + ".tmp")
+        drop_checkpoint(cp)      # 重复删除不报错
     # --max / --max-order：每个通配符各取 N 个，只取文件，不进文件夹
     with tempfile.TemporaryDirectory() as tmp2:
         for i in range(4):
@@ -2642,6 +2713,7 @@ def run_self_tests():
 
         def fake_init(cipher, filename, size, sha1, sign_key, sign_val, cid):
             seen["name"] = filename
+            seen["sha1"] = sha1
             return {"status": 2, "statuscode": 0}
 
         api.upload_sha1 = fake_init
@@ -2650,6 +2722,37 @@ def run_self_tests():
         kind, payload = api.fast_or_token(None, fp, 0, None)
         assert seen["name"] == "x.bin" and payload["_name"] == "x.bin"
         assert os.path.isfile(fp)
+        # 重传沿用旧 SHA1：不重新哈希，直接用传进去的值（大写）
+        kind, payload = api.fast_or_token(None, fp, 0, None, None, "abcdef0123")
+        assert seen["sha1"] == "ABCDEF0123" and payload["_sha1"] == "ABCDEF0123"
+    # uploadId 失效：OSS 返回 404 NoSuchUpload 时抛 UploadExpired，不走 3 次普通重试
+    class _Resp404:
+        status_code = 404
+        content = b'<?xml version="1.0"?><Error><Code>NoSuchUpload</Code></Error>'
+        headers = {}
+
+    class _Resp500:
+        status_code = 500
+        content = b"<Error><Code>InternalError</Code></Error>"
+        headers = {}
+
+    oss = OssClient(None, False, "", False)
+    oss.call = lambda *a, **k: _Resp404()
+    try:
+        oss.upload_part("b", "k", "uid", 1, open(os.devnull, "rb"), 0, None)
+        raise AssertionError("应该抛 UploadExpired")
+    except UploadExpired as exc:
+        assert "NoSuchUpload" in str(exc)
+    oss.call = lambda *a, **k: _Resp500()
+    try:
+        oss.upload_part("b", "k", "uid", 1, open(os.devnull, "rb"), 0, None)
+        raise AssertionError("应该抛 RuntimeError")
+    except UploadExpired:
+        raise AssertionError("500 不应被当成 uploadId 失效")
+    except RuntimeError:
+        pass
+    e = UploadExpired("x", "AB", 12)
+    assert e.sha1 == "AB" and e.size == 12 and isinstance(e, RuntimeError)
     # -c 路径：parse_target 与逐级解析
     assert parse_target(None) == 0 and parse_target("") == 0 and parse_target("/") == 0
     assert parse_target("123") == 123 and parse_target(456) == 456 and parse_target("2024") == 2024
