@@ -35,6 +35,7 @@ import tempfile
 import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
@@ -432,6 +433,23 @@ def frame_score(path):
         return 99.0
 
 
+def _run_shots_batch(funcs, on_done=None):
+    """并发跑一批截图任务 (最多 3 个). 任一任务抛 Cancelled / RuntimeError 则向上抛.
+    on_done(index, result) 在每个任务完成时立刻回调 (用于实时打印进度).
+    返回与 funcs 同顺序的结果列表."""
+    if not funcs:
+        return []
+    results = [None] * len(funcs)
+    with ThreadPoolExecutor(max_workers=len(funcs)) as ex:
+        futs = {ex.submit(fn): i for i, fn in enumerate(funcs)}
+        for fut in as_completed(futs):
+            i = futs[fut]
+            results[i] = fut.result()   # 可能抛 Cancelled / RuntimeError
+            if on_done:
+                on_done(i, results[i])
+    return results
+
+
 def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats, shot_timeout=30,
                       t_offset=0.0):
     """加强截图: 先每个位置截一张; 只有 1~2 张单调/失败时才在附近关键帧 (上下各最多 2 个) 重截,
@@ -457,17 +475,30 @@ def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n
         except (subprocess.TimeoutExpired, OSError, ValueError):
             return []
 
-    R = []
-    for i in range(n):
+    R = [None] * n
+
+    def do_initial(i):
         check_cancel()
         frac0 = (i + 1) / (n + 1)
         t0 = duration * frac0
         out = outdir / f"thumb_{i + 1:02d}.jpg"
         ok, t_used, err = shot(order[0], frac0, t0, out)
         sc = frame_score(out) if ok else -1.0
-        R.append({"i": i, "frac": frac0, "t0": t0, "out": out, "ok": ok, "t": t_used, "score": sc})
-        tag = "ok" if ok and sc >= MONO_STD else ("失败: " + err[-120:] if not ok else "画面单调")
-        print(f"  [{i + 1}/{n}] {fmt_t(t_used if ok else t0)} {tag}")
+        return {"i": i, "frac": frac0, "t0": t0, "out": out, "ok": ok, "t": t_used, "score": sc, "err": err}
+
+    for start in range(0, n, 3):
+        check_cancel()
+        batch = list(range(start, min(start + 3, n)))
+        print(f"  并发截图 {len(batch)} 张: " + " ".join(f"[{i+1}/{n}]" for i in batch))
+
+        def _on(idx, r):
+            tag = "ok" if r["ok"] and r["score"] >= MONO_STD else (
+                "失败: " + (r.get("err") or "")[-120:] if not r["ok"] else "画面单调")
+            print(f"  [{r['i'] + 1}/{n}] {fmt_t(r['t'] if r['ok'] else r['t0'])} {tag}")
+
+        batch_r = _run_shots_batch([lambda i=i: do_initial(i) for i in batch], on_done=_on)
+        for r in batch_r:
+            R[r["i"]] = r
 
     def bad_of(rs):
         return [r for r in rs if (not r["ok"]) or r["score"] < MONO_STD]
@@ -595,16 +626,18 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
                 float(m[0]) if m else None)
 
     pts0 = [None]
+    pts0_lock = threading.Lock()
 
     def byte_time(frac, pts):
-        if pts0[0] is None:
-            tmp = outdir / "_pts0.jpg"
-            _, _, p0 = grab_bytes(0.0, tmp)
-            pts0[0] = p0 if p0 is not None else 0.0
-            try:
-                tmp.unlink()
-            except OSError:
-                pass
+        with pts0_lock:
+            if pts0[0] is None:
+                tmp = outdir / "_pts0.jpg"
+                _, _, p0 = grab_bytes(0.0, tmp)
+                pts0[0] = p0 if p0 is not None else 0.0
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
         if pts is not None and 0 <= pts - pts0[0] <= duration + 10:
             return pts - pts0[0]
         return duration * frac  # PTS 不可信时按字节比例估算
@@ -620,7 +653,8 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
                                  shot_timeout, t_offset)
 
     files, black_cnt, shown = [], 0, False
-    for i in range(n):
+
+    def capture_one(i):
         check_cancel()
         frac0 = (i + 1) / (n + 1)
         t0 = duration * frac0
@@ -652,18 +686,32 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
                         got_black = True
             if got:
                 break
-        if got:
-            print(f"  [{i + 1}/{n}] {fmt_t(t_used)} ok")
-            files.append((t_used, out))
-        elif got_black and out.exists():
-            black_cnt += 1
-            print(f"  [{i + 1}/{n}] {fmt_t(t0)} (仍是黑屏)")
-            files.append((t0, out))
-            if not shown and last_err:
-                print("  ffmpeg 提示:", last_err[-400:])
-                shown = True
-        else:
-            print(f"  [{i + 1}/{n}] {fmt_t(t0)} 失败: {last_err[-200:]}")
+        return i, got, got_black, t_used, t0, out, last_err
+
+    for start in range(0, n, 3):
+        check_cancel()
+        batch = list(range(start, min(start + 3, n)))
+        print(f"  并发截图 {len(batch)} 张: " + " ".join(f"[{i+1}/{n}]" for i in batch))
+
+        def _on(idx, res):
+            i, got, got_black, t_used, t0, out, last_err = res
+            if got:
+                print(f"  [{i + 1}/{n}] {fmt_t(t_used)} ok")
+            elif got_black and out.exists():
+                print(f"  [{i + 1}/{n}] {fmt_t(t0)} (仍是黑屏)")
+            else:
+                print(f"  [{i + 1}/{n}] {fmt_t(t0)} 失败: {last_err[-200:]}")
+
+        batch_res = _run_shots_batch([lambda i=i: capture_one(i) for i in batch], on_done=_on)
+        for i, got, got_black, t_used, t0, out, last_err in batch_res:
+            if got:
+                files.append((t_used, out))
+            elif got_black and out.exists():
+                black_cnt += 1
+                files.append((t0, out))
+                if not shown and last_err:
+                    print("  ffmpeg 提示:", last_err[-400:])
+                    shown = True
     if black_cnt:
         print(f"!! 有 {black_cnt}/{n} 张截图重试后仍是黑屏")
     return files
