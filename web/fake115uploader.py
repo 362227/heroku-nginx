@@ -10,6 +10,8 @@
   1 秒滑动窗口的实时网速（不再只用全程平均速度）
   低速自动重试：整批合计速度低于 --min-speed 持续 --slow-secs 秒就断开重试（默认开启）
   --refresh 进度输出刷新间隔（秒，默认 3）
+  --ui 进度显示方式：自动识别 Colab（单行原地刷新，只有报错/重试才保留成行）、
+       终端（多行面板）、重定向（每次刷新一行）
 
 依赖:
   pip install requests cryptography lz4
@@ -121,13 +123,48 @@ def load_deps():
     return True
 
 
+UI_STYLE = "tty"      # tty=终端原地刷新 / colab=单行 \r 刷新 / lines=每次刷新一行（重定向到文件）
+COLAB_COLS = 120      # colab 单行进度的最大显示宽度
+
+# Colab 模式下这些常规日志不单独成行（成功数已经显示在进度行里）；其余日志一律保留
+ROUTINE_LOG_KEYS = (
+    "秒传成功", "普通上传成功", "断点续传成功", "继续断点续传",
+    "秒传未命中", "已删除本地文件", "小于等于 1KB",
+)
+
+
+def in_colab():
+    if "google.colab" in sys.modules:
+        return True
+    if any(k.startswith("COLAB_") for k in os.environ):   # !python 子进程里也能识别
+        return True
+    try:
+        import importlib.util
+        return importlib.util.find_spec("google.colab") is not None
+    except Exception:
+        return False
+
+
+def detect_ui(choice="auto"):
+    if choice != "auto":
+        return choice
+    if in_colab():
+        return "colab"
+    return "tty" if sys.stdout.isatty() else "lines"
+
+
+def is_routine_log(msg):
+    return any(k in msg for k in ROUTINE_LOG_KEYS)
+
+
 def log(msg):
     ui = GLOBAL_UI
     if ui is not None and ui.started:
         ui.log(msg)
     else:
         with PRINT_LOCK:
-            print(msg, file=sys.stderr, flush=True)
+            # colab 里 stderr 和 stdout 是两条流，顺序会乱，所以统一走 stdout
+            print(msg, file=sys.stdout if UI_STYLE == "colab" else sys.stderr, flush=True)
 
 
 GLOBAL_UI = None
@@ -1152,7 +1189,7 @@ class FileProgress:
 
 
 class ProgressUI:
-    def __init__(self, jobs, mode_name, refresh=3.0):
+    def __init__(self, jobs, mode_name, refresh=3.0, style="tty"):
         self.jobs = jobs
         self.mode_name = mode_name
         self.refresh = max(0.2, float(refresh))   # 输出刷新间隔（秒）
@@ -1163,7 +1200,10 @@ class ProgressUI:
         self.started = False
         self.alive = False
         self.thread = None
-        self.tty = sys.stdout.isatty()
+        self.style = style
+        self.tty = (style == "tty")
+        self.colab = (style == "colab")
+        self._line_len = 0      # colab：当前未换行的进度行宽度，用来擦干净残留
         self.prev_lines = 0
         self.up_samples = deque()
         self.up_total = 0
@@ -1195,8 +1235,14 @@ class ProgressUI:
                 self.save_n += 1
 
     def log(self, msg):
+        msg = str(msg)
+        if self.colab:
+            # 常规日志不单独成行；报错、重试等一律保留
+            if not is_routine_log(msg):
+                self._emit_line(msg)
+            return
         with self.lock:
-            self.logs.append(str(msg))
+            self.logs.append(msg)
         if not self.tty:
             with PRINT_LOCK:
                 print(msg, file=sys.stderr, flush=True)
@@ -1212,6 +1258,16 @@ class ProgressUI:
         self._wake.set()
         if self.thread:
             self.thread.join(timeout=1.5)
+        if self.colab:
+            try:
+                self._render_colab()
+            except Exception:
+                pass
+            with PRINT_LOCK:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+            self._line_len = 0
+            return
         if self.tty:
             try:
                 self._render()
@@ -1227,6 +1283,8 @@ class ProgressUI:
             try:
                 if self.tty:
                     self._render()
+                elif self.colab:
+                    self._render_colab()
                 else:
                     with PRINT_LOCK:
                         print(self._oneline(time.monotonic()), file=sys.stderr, flush=True)
@@ -1287,6 +1345,49 @@ class ProgressUI:
             pct, fmt_rate(st["instant"]),
             " ; ".join(bits) if bits else "等待中",
         )
+
+    def _colab_line(self, now):
+        """Colab 用的单行进度。"""
+        st = self._stats(now)
+        rows = st["rows"]
+        pct = (100.0 * st["progressed"] / st["total_size"]) if st["total_size"] else 0.0
+        active = [r for r in rows if r["phase"] in ("哈希", "秒传", "上传")]
+        waiting = sum(1 for r in rows if r["phase"] == "等待")
+        head = "总%5.1f%% %s/%s 实时%s ETA %s | 传%d 等%d 成%d" % (
+            pct, fmt_size(st["progressed"]), fmt_size(st["total_size"]),
+            fmt_rate(st["instant"]), fmt_eta(st["eta"]),
+            len(active), waiting, st["done_n"],
+        )
+        if st["fail_n"]:
+            head += " 败%d" % st["fail_n"]
+        if st["save_n"]:
+            head += " 存%d" % st["save_n"]
+        bits = []
+        for r in active[:2]:
+            p = (100.0 * r["done"] / r["size"]) if r["size"] else 0.0
+            bits.append("%s %s%.0f%%" % (
+                clip_text(os.path.basename(r["path"]), 14), r["phase"], p))
+        if len(active) > 2:
+            bits.append("+%d" % (len(active) - 2))
+        line = head + (" | " + " ; ".join(bits) if bits else "")
+        return clip_text(line, COLAB_COLS)
+
+    def _render_colab(self):
+        line = self._colab_line(time.monotonic())
+        width = disp_width(line)
+        with PRINT_LOCK:
+            pad = max(0, self._line_len - width)
+            sys.stdout.write("\r" + line + " " * pad)
+            sys.stdout.flush()
+            self._line_len = width
+
+    def _emit_line(self, msg):
+        """永久保留的一行：覆盖掉当前进度行，写完换行，下一次进度会出现在新的一行。"""
+        with PRINT_LOCK:
+            pad = max(0, self._line_len - disp_width(msg))
+            sys.stdout.write("\r" + msg + " " * pad + "\n")
+            sys.stdout.flush()
+            self._line_len = 0
 
     def _compose(self):
         now = time.monotonic()
@@ -2009,12 +2110,14 @@ def build_parser():
             "  python fake115uploader.py -m --min-speed 8 --slow-secs 15 --slow-retry 20 \"*.mp4\"\n"
             "  python fake115uploader.py -m --min-speed 500K/s --slow-secs 20 \"*.mp4\"\n"
             "  python fake115uploader.py -m --no-slow-retry \"*.mp4\"\n"
+            "  python fake115uploader.py -m --ui lines \"*.mp4\"      # 强制每次刷新输出一行\n"
             "\n"
             "通配符请加引号，否则会被 shell 提前展开。\n"
             "-j 是同时上传的文件数。单个文件的分片必须按顺序传，不能并发。\n"
             "--max N 对每个通配符参数分别限量，默认按最新修改时间选取，可用 --max-order 改成 size / name。\n"
             "网速「实时」是最近 1 秒内实际上传的速度，不是从开始算的平均速度。\n"
-            "低速重试默认开启：整批合计速度连续 10 秒低于 5 MB/s 就断开正在上传的文件并重试，次数无限（--slow-retry 0）。"
+            "低速重试默认开启：整批合计速度连续 10 秒低于 5 MB/s 就断开正在上传的文件并重试，次数无限（--slow-retry 0）。\n"
+            "Colab 里会自动用单行原地刷新，只有报错、重试等日志才保留成行。"
         ),
     )
     mode = parser.add_mutually_exclusive_group()
@@ -2056,6 +2159,9 @@ def build_parser():
                         help="低速检测改为按单个文件判断（默认按整批合计速度）")
     parser.add_argument("--refresh", dest="refresh", type=float, default=3.0, metavar="秒",
                         help="进度输出的刷新间隔，默认 3 秒，最小 0.2")
+    parser.add_argument("--ui", choices=("auto", "tty", "colab", "lines"), default="auto",
+                        help="进度显示方式，默认 auto 自动识别：Colab 用单行原地刷新，终端用多行面板，\n"
+                             "重定向到文件时每次刷新一行。可强制指定。")
     parser.add_argument("--slow-retry", dest="slow_retry", type=int, default=0, metavar="N",
                         help="每个文件被低速打断的重试次数上限，0 为无限（默认）")
     parser.add_argument("--no-slow-retry", dest="no_slow_retry", action="store_true",
@@ -2105,8 +2211,10 @@ def install_signal():
 
 
 def run_upload(args):
+    global UI_STYLE
     if not load_deps():
         sys.exit("缺少依赖（%s）。请执行: pip install requests cryptography lz4" % DEPS_ERR)
+    UI_STYLE = detect_ui(args.ui)
     base = script_dir()
     config_path = args.l or os.path.join(base, "fake115uploader.json")
     if not args.d:
@@ -2179,7 +2287,7 @@ def run_upload(args):
     global GLOBAL_UI
     global RATE_WINDOW
     RATE_WINDOW = min(5.0, max(1.0, args.refresh))
-    GLOBAL_UI = ProgressUI(args.jobs, mode_name, args.refresh)
+    GLOBAL_UI = ProgressUI(args.jobs, mode_name, args.refresh, UI_STYLE)
     install_signal()
     api = Api115(config["cookies"], config["httpRetry"], http_proxy, args.v)
     try:
@@ -2444,6 +2552,30 @@ def run_self_tests():
     assert parser.parse_args(["-m", "x.zip"]).c is None
     ns = parser.parse_args(["-m", "--prefix", "a_", "x.zip"])
     assert ns.prefix == "a_" and parser.parse_args(["-m", "x.zip"]).prefix == ""
+    # Colab 显示模式
+    os.environ["COLAB_RELEASE_TAG"] = "test"
+    assert in_colab() and detect_ui("auto") == "colab" and detect_ui("lines") == "lines"
+    del os.environ["COLAB_RELEASE_TAG"]
+    assert parser.parse_args(["-m", "--ui", "colab", "x.zip"]).ui == "colab"
+    assert parser.parse_args(["-m", "x.zip"]).ui == "auto"
+    import io
+    ui = ProgressUI(2, "x", 3.0, "colab")
+    f1 = FileProgress("/tmp/a.mp4", 100, 0)
+    f1.phase, f1.done = "上传", 50
+    ui.add_file(f1)
+    line = ui._colab_line(time.monotonic())
+    assert "\n" not in line and "a.mp4" in line, line
+    buf, old = io.StringIO(), sys.stdout
+    sys.stdout = buf
+    try:
+        ui._render_colab()
+        ui.log("秒传成功 x")                      # 常规日志：不输出
+        ui.log("分片 1 上传失败（第 1 次）：x")    # 错误日志：保留并换行
+        ui._render_colab()
+    finally:
+        sys.stdout = old
+    out = buf.getvalue()
+    assert "秒传成功" not in out and "上传失败" in out and out.count("\n") == 1, out
     reader = LimitedReader(open(os.devnull, "rb"), 0, None)
     assert reader.read() == b""
     print("self-test ok")
