@@ -78,7 +78,7 @@ DEFAULTS = {
     "enhance_shots": True,         # 加强截图: 有 1~2 张画面单调(黑/白/绿屏等)或失败, 就在附近关键帧重截; 超过 2 张则判断为视频可能损坏, 不重截
     "fix_rename": True,            # 纠正文件名中的分辨率/编码 (与 MediaInfo/ffprobe 对比, 默认开启; BDMV 文件夹不支持, ISO 支持)
     # 高级
-    "recursive": False, "extra_exts": "", "preroll": 10,
+    "recursive": False, "extra_exts": "", "preroll": 0,
     "top_n": 1,                    # DVD/蓝光 ISO: 最多截取时长最长的前 N 个标题
     # 过滤 (rclone 风格): 每行一条 "+ 模式" 包含 / "- 模式" 排除, 按顺序, 第一条匹配的生效
     "filter_rules": "", "min_size": "", "max_size": "", "min_age": "", "max_age": "", "filter_ignore_case": True,
@@ -588,13 +588,18 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     vf = ",".join(vf)
 
     def grab(t, out):
-        # 防白色马赛克: 先 seek 到目标前 preroll 秒(落在关键帧), 再从那里一路解码到目标时间,
-        # 这样目标帧一定是从完整的参考帧链解出来的, 而不是从非关键帧起解码 (TS/HDTV 常见)
-        roll = min(float(preroll), t + t_offset)
+        # preroll=0: 直接跳到关键帧取一帧 (最快, 时间戳是最近的关键帧)
+        # preroll>0: 先跳到目标前 N 秒的关键帧, 再解码到目标 (防 TS/HDTV 白色马赛克, 更准但更慢)
         cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "warning"] + pre
-        cmd += ["-probesize", "100M", "-analyzeduration", "100M",
-                "-ss", f"{t + t_offset - roll:.3f}", "-i", url, "-ss", f"{roll:.3f}",
-                "-map", "0:v:0", "-frames:v", "1", "-vf", vf, "-q:v", "2", "-update", "1", str(out)]
+        if float(preroll) <= 0:
+            cmd += ["-probesize", "5M", "-analyzeduration", "5M",
+                    "-ss", f"{t + t_offset:.3f}", "-i", url,
+                    "-map", "0:v:0", "-frames:v", "1", "-vf", vf, "-q:v", "2", "-update", "1", str(out)]
+        else:
+            roll = min(float(preroll), t + t_offset)
+            cmd += ["-probesize", "100M", "-analyzeduration", "100M",
+                    "-ss", f"{t + t_offset - roll:.3f}", "-i", url, "-ss", f"{roll:.3f}",
+                    "-map", "0:v:0", "-frames:v", "1", "-vf", vf, "-q:v", "2", "-update", "1", str(out)]
         r = run_shot(cmd, out)
         if debug:
             print("   $ " + " ".join(cmd))
@@ -3758,7 +3763,7 @@ def cli(argv):
     ap.add_argument("iso", nargs="*", help="ISO / 视频文件 / 目录, 可多个")
     ap.add_argument("-r", "--recursive", action="store_true", help="目录递归子文件夹")
     ap.add_argument("--ext", help="追加要识别的视频扩展名, 如 .mkv,.rmvb")
-    ap.add_argument("--preroll", type=float, help="预解码秒数 (默认 10, 防 HDTV 白色马赛克; 关键帧间隔很长时加大)")
+    ap.add_argument("--preroll", type=float, help="预解码秒数 (默认 0=直接关键帧最快; >0 时先跳到目标前 N 秒再解码, 防 TS 白色马赛克但更慢)")
     ap.add_argument("--gui", action="store_true", help="打开 GUI (可同时带 ISO 预加入列表)")
     ap.add_argument("--use-config", action="store_true", help=f"以 GUI 保存的设置 ({CONFIG_NAME}) 为基础")
     ap.add_argument("-d", "--dir", "-o", "--outdir", dest="outdir", metavar="DIR",
@@ -4263,8 +4268,9 @@ def run_gui(initial=()):
     ttk.Label(t1, text="仅 DVD / 蓝光 ISO: DVD 按标题集(VTS)、蓝光按播放列表(mpls) 取时长最长的 N 个,\n"
                        "每个各出一张联系表 + MediaInfo; N>1 时输出名加 [1] [2]…。默认 1 = 只取主标题。",
               foreground="#666").grid(row=12, column=0, columnspan=3, sticky="w", pady=(2, 0))
-    ttk.Label(t1, text="防 HDTV/TS 白色马赛克: 先 seek 到目标前 N 秒的关键帧, 再解码到目标时间。\n"
-                       "关键帧间隔很长 (>10 秒) 的视频可加大。", foreground="#666").grid(
+    ttk.Label(t1, text="0 = 直接跳到关键帧取一帧 (最快)。\n"
+                       ">0 时先跳到目标前 N 秒再解码到目标 (防 TS 白色马赛克, 更慢更准)。",
+              foreground="#666").grid(
         row=10, column=0, columnspan=3, sticky="w", pady=(2, 0))
 
     # -- 文件
