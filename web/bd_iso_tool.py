@@ -452,8 +452,8 @@ def _run_shots_batch(funcs, on_done=None):
 
 def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats, shot_timeout=30,
                       t_offset=0.0):
-    """加强截图: 先每个位置截一张; 只有 1~2 张单调/失败时才在附近关键帧 (上下各最多 2 个) 重截,
-    都单调就取最丰富的一张; 超过 2 张单调/失败 → 大概率视频本身有问题, 不重截, 只告警"""
+    """加强截图：先均匀截 2*n 张，再按画面丰富度选最好的 n 张（优先不单调的）。
+    不再做附近关键帧搜索（那个步骤太慢）。"""
     def shot(method, frac, t, out):
         if method == "bytes":
             f = min(max(frac, 0.0), 0.995)
@@ -462,6 +462,62 @@ def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n
         t2 = min(max(t, 0), max(duration - 1, 0))
         ok, err = grab(t2, out)
         return ok, t2, err
+
+    total = n * 2          # 默认 n=6 → 先截 12 张
+    R = [None] * total
+
+    def do_one(i):
+        check_cancel()
+        frac0 = (i + 1) / (total + 1)
+        t0 = duration * frac0
+        out = outdir / f"thumb_{i + 1:02d}.jpg"
+        ok, t_used, err = shot(order[0], frac0, t0, out)
+        sc = frame_score(out) if ok else -1.0
+        return {"i": i, "frac": frac0, "t0": t0, "out": out, "ok": ok, "t": t_used, "score": sc, "err": err}
+
+    # 分批截（每批最多 3 张，和原来一样）
+    for start in range(0, total, 3):
+        check_cancel()
+        batch = list(range(start, min(start + 3, total)))
+        print(f"  并发截图 {len(batch)} 张: " + " ".join(f"[{i+1}/{total}]" for i in batch))
+
+        def _on(idx, r):
+            tag = "ok" if r["ok"] and r["score"] >= MONO_STD else (
+                "失败: " + (r.get("err") or "")[-120:] if not r["ok"] else "画面单调")
+            print(f"  [{r['i'] + 1}/{total}] {fmt_t(r['t'] if r['ok'] else r['t0'])} {tag}")
+
+        batch_r = _run_shots_batch([lambda i=i: do_one(i) for i in batch], on_done=_on)
+        for r in batch_r:
+            R[r["i"]] = r
+
+    # 选最好的 n 张：优先不单调的，按分数从高到低
+    good = [r for r in R if r and r["ok"] and r["score"] >= MONO_STD]
+    bad  = [r for r in R if r and r["ok"] and r["score"] < MONO_STD]
+    # 好图不够就用单调的补
+    selected = sorted(good, key=lambda r: -r["score"])[:n]
+    if len(selected) < n:
+        need = n - len(selected)
+        selected += sorted(bad, key=lambda r: -r["score"])[:need]
+
+    # 按时间排序，保证联系表从左到右时间递增
+    selected = sorted(selected, key=lambda r: r["t"])
+
+    st = stats if stats is not None else {}
+    st.update(total=total, bad_initial=len(bad), warn="")
+    if len(good) < n:
+        st["warn"] = f"只有 {len(good)}/{total} 张画面不单调，已尽量选取"
+        print(f"!! {st['warn']}")
+
+    # 清理没被选中的临时图
+    selected_outs = {r["out"] for r in selected}
+    for r in R:
+        if r and r["out"] not in selected_outs:
+            try:
+                r["out"].unlink()
+            except OSError:
+                pass
+
+    return [(r["t"], r["out"]) for r in selected]
 
     def keyframes_near(t0):
         """目标时间附近的关键帧 (I 帧) 时间: 用 ffmpeg 从目标前 30 秒起往后找"""
@@ -1019,6 +1075,18 @@ def bd_direct_source(is_folder, root, playlist, sevenz, tmpdir, ffprobe=None):
             clips = [max(files, key=lambda k: files[k][1])]
         if any(c not in files for c in clips):
             return None
+
+        # 多片段时，如果有一个明显占主导的大文件（≥95%），就只留它
+        # 避免生成 ffconcat 后无法 seek，导致截图从文件头硬解到目标时间（极慢）
+        # ISO 和 BDMV 文件夹都走这里
+        if clips and len(clips) > 1:
+            biggest = max(clips, key=lambda c: files[c][1])
+            total = sum(files[c][1] for c in clips)
+            if total > 0 and files[biggest][1] >= total * 0.95:
+                print(f"播放列表含多个片段，最大文件占 {files[biggest][1]/total*100:.1f}%，只使用 {biggest}.m2ts")
+                clips = [biggest]
+                rng1 = None   # 单文件不再用原来的多片段 range
+
         if is_folder:
             paths = [files[c][0].resolve().as_posix() for c in clips]
             if len(paths) == 1:
