@@ -29,14 +29,38 @@
 #   skip      只要同名就跳过
 #   overwrite 一律覆盖
 #   rsync     与 size 相同
-# 分片: <8GB 用 4MB，>=8GB 用 16MB，>=32GB 用 64MB; 单文件最多 100 片, 超过就自动加大分片。
+# 分片: <8GB 用 4MB，>=8GB 用 16MB，>=32GB 用 64MB; 单文件最多 1000 片, 超过就自动加大分片。
 #
-# 网络容错: 除分片上传外的所有接口请求 (列目录/precreate/create/刷新 token 等) 遇到
-#   SSL 握手超时、连接重置、DNS 失败等网络错误时, 会自动重试 NET_RETRY 次 (间隔 3/6/9... 秒, 最长 30 秒)。
-#   分片上传自己有 SLICE_RETRY 次重试并会换线路。
+# 线路阶梯 (c10 -> c9 -> c8 ... -> c1, 到底再回 c10):
+#   1) 普通接口 (列目录/precreate/create/locateupload 等): 同一条线路连续 2 次连不上 (超时/握手失败/连接重置/DNS 失败),
+#      就换到 c10.pcs.baidu.com, 再连续 2 次连不上换 c9, 然后 c8 ... 倒序往下。
+#      注意: xpan 接口官方只在 pan.baidu.com, 备用线路返回的不是 JSON 接口数据时一律当作失败继续换, 不会把乱码当成功。
+#   2) 分片上传: 同一个分片连续 2 次连不上 (还没发出数据就失败), 或者连续 10 次太慢 (发了数据但超过 -timeout 时限没传完),
+#      就换到下一条阶梯线路 c10 -> c9 -> c8 ...; 接口报错 (errno) 说明线路是通的, 不计入这两个连续计数。
+#   -switch-conn / -switch-slow / -line-top 可以改这三个数字; -apifallback=false 可关闭普通接口的阶梯切换。
+#   开了 -rotatehost 时分片仍保持原来的逐次轮换。
+#
+# 线路冷却 (所有模式都生效, 含智能择优 / -rotatehost / -nosmart / -host 指定线路):
+#   同一条 pcs 线路 (所有分片、所有请求合计) 连续 3 次 "完全连不上" (-cool-fails), 就冷却 300 秒 (-cooldown, 0 关闭):
+#   冷却期间换线会跳过它; 正在用它的分片下一次重试直接换线, 不再等连续 2 次; 只要有一次上传成功就清零计数。
+#   只有 "完全连不上" 才计入冷却:
+#     - 连接/握手阶段失败或超时、DNS 失败、连接被拒、分片一个字节都没发出去
+#     - 分片发送中连续 -nodata-timeout 秒 (默认 6) 没有任何新数据
+#   下面这些都不算, 不会冷却, 还会把这条线路的连续计数清零 (说明线路是通的), 只按原来的逻辑处理 (连续太慢 -switch-slow 次才换线):
+#     - 速度低: 有速度但超过 -timeout 时限没传完
+#     - 传到一半被重置/断开、响应不是 JSON、接口返回 errno
+#     - 本地文件读取错误
+#   智能择优自己的线路冷却 (LineSelector) 也是同样的标准: 只有 "完全连不上" 连续 -cool-fails 次才冷却, 速度低只影响测速排名, 不冷却。
+#
+# 零速度快速判定 (-nodata-timeout, 默认 6 秒):
+#   分片还没发完时, 连续 6 秒没有任何新数据 (包括连接/握手阶段一个字节都没发出去) 就立刻中断本次尝试, 不再等 -timeout 的整体时限。
+#   这种情况按 '连不上' 算, 连续 2 次就换线 (c10 -> c9 -> ...), 同时计入线路冷却。-timeout 仍然是单次尝试的总时限 (慢但有速度的分片用它, 不冷却)。
+#
+# 网络容错: 普通接口遇到网络错误会自动重试 NET_RETRY 次 (同线路间隔 3/6/9... 秒, 最长 30 秒, 换线路时等 1 秒)。
+#   分片上传自己有 SLICE_RETRY 次重试 (间隔 2/4/6... 秒, 最长 10 秒)。
 #
 # -v 详细模式会额外打印:
-#   - 每个分片的开始/完成 (大小、用时、速度、线路), 失败原因与重试 (第几次、换到哪条线路、等待多久)
+#   - 每个分片的开始/完成 (大小、用时、速度、线路), 失败原因与重试 (第几次、连不上/太慢的连续次数、换到哪条线路、等待多久)
 #   - 每 3 秒列出所有正在上传的分片: 实时速度、重试次数、本次用时 (等待重试的分片也会列出)
 #   - 每 20 秒一行文件总进度: 百分比、实时速度、平均速度、活跃分片数、已完成分片数、重试数、总用时、ETA
 #   - 文件大小/分片数、存在性检查、precreate、create、校验等各步骤信息
@@ -79,8 +103,13 @@ EMPTY_MD5 = "d41d8cd98f00b204e9800998ecf8427e"
 SKIP, OVERWRITE, RSYNC, SIZE = "skip", "overwrite", "rsync", "size"
 UA = "pan.baidu.com"
 FIXED_HOST = "https://c2.pcs.baidu.com"
-SLICE_RETRY = 8
-NET_RETRY = 6  # 普通接口 (非分片) 遇到网络错误时的最大尝试次数
+SLICE_RETRY = 30  # 单个分片最多尝试次数 (要够走完 "连续 10 次太慢" 再换线路的阶梯)
+NET_RETRY = 12  # 普通接口 (非分片) 遇到网络错误时的最大尝试次数 (每条线路 2 次, 够走 6 条线路)
+CONN_SWITCH = 2  # 连续这么多次连不上就换线路
+SLOW_SWITCH = 10  # 分片连续这么多次太慢就换线路
+LADDER_TOP = 10  # 阶梯起点: c10 -> c9 -> ... -> c1
+COOL_FAILS = 3  # 同一条线路 (所有分片合计) 连续这么多次完全连不上, 就进入冷却 (冷却时长 HOST_COOLDOWN)
+NODATA_TIMEOUT = 6  # 分片发送中连续这么多秒没有任何新数据 (含一个字节都没发出去) 就立刻中断, 不等整体时限
 MAX_SLICES = 1000  # 单个文件最多切成多少个分片
 DEFAULT_PREFER = "c2,c5,d"  # 智能择优: 优先测试的线路
 PREFER_STRIKES = 3  # 优先线路连续这么多轮不如主线路, 就不再优先
@@ -88,7 +117,7 @@ SWITCH_MARGIN = 1.15  # 测速线路要比主线路快 15% 以上才切换
 MIN_MAIN_SAMPLES = 3  # 主线路至少有这么多个分片样本才做比较
 MIN_PROBE_SAMPLES = 2  # 测速线路至少有这么多个样本才有资格当主线路
 MAX_CANDIDATES = 8
-HOST_COOLDOWN = 300  # 线路连续失败后冷却秒数
+HOST_COOLDOWN = 300  # 线路连续完全连不上后冷却秒数
 SPEED_WINDOW = 4.0  # 实时速度的滑动窗口秒数
 QUIET = False  # 多文件并发时关闭每个文件各自的 \r 进度行
 VERBOSE = False  # -v: 详细输出
@@ -100,6 +129,10 @@ EXPIRED_CODES = (-6, 110, 111, 20016)  # token 无效/过期 (20016: nas access 
 
 class TokenExpired(RuntimeError):
     pass
+
+
+class LocalFileError(Exception):
+    """本地文件打不开/读不全。跟线路无关: 不计入换线计数, 也不计入线路冷却。"""
 
 
 def log(fid, msg):
@@ -180,11 +213,101 @@ def mean(xs):
     return sum(xs) / len(xs) if xs else 0.0
 
 
+def ladder_pick(k, top, avoid=()):
+    """倒序阶梯: k=0 -> c<top>, k=1 -> c<top-1> ... 到 c1 后回到 c<top>。
+    跳过 avoid 里的线路。返回 (线路, 新的 k)。"""
+    top = max(1, int(top))
+    for j in range(top):
+        h = "https://c%d.pcs.baidu.com" % (top - (k + j) % top)
+        if h not in avoid:
+            return h, k + j + 1
+    return "https://c%d.pcs.baidu.com" % (top - k % top), k + 1  # 全被 avoid 了: 硬着头皮按顺序来
+
+
+def looks_like_api(body):
+    """备用线路返回的内容必须是 JSON 对象, 否则当作这条线路不可用。"""
+    try:
+        return isinstance(json.loads(body), dict)
+    except Exception:
+        return False
+
+
+class HostHealth:
+    """全局线路冷却, 所有分片/所有请求共用, 与是否开智能择优无关。
+    只统计 "完全连不上" (连接/握手失败、一个字节都没发出去、-nodata-timeout 秒无任何新数据):
+    同一条 pcs 线路连续 fails 次 -> 冷却 cooldown 秒 (cooldown<=0 关闭)。
+    速度慢、传到一半断开、接口报错等失败不调用 fail(), 只调用 ok(host, False) 清零连续计数, 不会冷却。
+    冷却中的线路: 阶梯/轮换换线时被跳过, 正在使用它的分片下一次重试直接换走。"""
+
+    def __init__(self, cooldown=HOST_COOLDOWN, fails=COOL_FAILS):
+        self.lock = threading.Lock()
+        self.cooldown = float(cooldown or 0)
+        self.fails = max(1, int(fails))
+        self.st = {}
+        self.on_cool = None  # 进入冷却时回调 (通知智能择优换主线路)
+
+    @staticmethod
+    def _key(host):
+        h = norm_host(host)
+        return h if h.endswith(".pcs.baidu.com") else ""  # 只管上传线路, 不管 pan.baidu.com / openapi
+
+    def fail(self, host):
+        """记一次 '完全连不上'。返回 True 表示这一次让线路刚好进入冷却。"""
+        k = self._key(host)
+        if not k or self.cooldown <= 0:
+            return False
+        now = time.time()
+        with self.lock:
+            e = self.st.setdefault(k, {"cons": 0, "dead": 0.0})
+            if e["dead"] > now:
+                return False  # 已经在冷却, 别的分片的在途失败不重复触发
+            e["cons"] += 1
+            if e["cons"] < self.fails:
+                return False
+            e["cons"] = 0
+            e["dead"] = now + self.cooldown
+        log("cool", "线路 %s 连续 %d 次完全连不上, 冷却 %d 秒 (期间不再使用)" % (short_host(k), self.fails, int(self.cooldown)))
+        cb = self.on_cool
+        if cb:
+            try:
+                cb(k)
+            except Exception:
+                pass
+        return True
+
+    def ok(self, host, clear=True):
+        """线路是通的。clear=True (真正上传成功) 连冷却一起清掉; False (连上了但慢/断开/接口报错) 只清连续计数。"""
+        k = self._key(host)
+        if not k:
+            return
+        with self.lock:
+            e = self.st.get(k)
+            if e:
+                e["cons"] = 0
+                if clear:
+                    e["dead"] = 0.0
+
+    def is_dead(self, host):
+        k = self._key(host)
+        if not k:
+            return False
+        with self.lock:
+            e = self.st.get(k)
+            return bool(e and e["dead"] > time.time())
+
+    def dead_set(self):
+        now = time.time()
+        with self.lock:
+            return {h for h, e in self.st.items() if e["dead"] > now}
+
+
 class LineSelector:
     """智能择优线路: 始终有 slots 个分片在轮流测速, 其余分片走主线路; 测速最快且明显超过主线路就切换。"""
 
-    def __init__(self, main, prefer, slots):
+    def __init__(self, main, prefer, slots, cooldown=HOST_COOLDOWN, cool_fails=COOL_FAILS):
         self.lock = threading.Lock()
+        self.cooldown = cooldown if cooldown and cooldown > 0 else HOST_COOLDOWN
+        self.cool_fails = max(1, int(cool_fails))
         self.main = main
         self.slots = slots
         self.probing = 0
@@ -268,30 +391,35 @@ class LineSelector:
             cands.sort(key=lambda h: (-self._speed(h), self.hints.index(h)))
             self._switch(cands[0], "原主线路不可用")
 
-    def fallback_from(self, host):
+    def fallback_from(self, host, secs=None):
         with self.lock:
             host = norm_host(host)
             if host in self.stats:
-                self.stats[host]["dead_until"] = time.time() + HOST_COOLDOWN
-                self.stats[host]["cons_fail"] = 3
+                self.stats[host]["dead_until"] = time.time() + (secs or self.cooldown)
+                self.stats[host]["cons_fail"] = self.cool_fails
             if self.main == host:
                 self._replace_main()
 
-    def record(self, host, nbytes, elapsed, ok, role):
+    def record(self, host, nbytes, elapsed, ok, role, down=True):
+        """down=True: 这次失败是 "完全连不上" (一个字节没发出去 / 无数据), 才计入冷却的连续失败。
+        down=False: 失败但线路是通的 (速度低/传到一半断开), 只记失败次数, 并清零连续计数, 不冷却。"""
         with self.lock:
             st = self.stats.get(host)
             if st is None:
                 return
             if not ok:
                 st["fails"] += 1
-                st["cons_fail"] += 1
-                if st["cons_fail"] >= 3:
-                    st["dead_until"] = time.time() + HOST_COOLDOWN
-                    if VERBOSE:
-                        print("%s [smart] 线路 %s 连续失败 %d 次, 冷却 %d 秒" % (
-                            time.strftime("%H:%M:%S"), short_host(host), st["cons_fail"], HOST_COOLDOWN))
-                    if host == self.main:
-                        self._replace_main()
+                if down:
+                    st["cons_fail"] += 1
+                    if st["cons_fail"] >= self.cool_fails:
+                        st["dead_until"] = time.time() + self.cooldown
+                        if VERBOSE:
+                            print("%s [smart] 线路 %s 连续 %d 次完全连不上, 冷却 %d 秒" % (
+                                time.strftime("%H:%M:%S"), short_host(host), st["cons_fail"], self.cooldown))
+                        if host == self.main:
+                            self._replace_main()
+                else:
+                    st["cons_fail"] = 0
                 if role == "probe" and st["prefer"]:
                     st["slow"] += 1
                     if st["slow"] >= PREFER_STRIKES:
@@ -404,9 +532,12 @@ class SliceBody:
             out, self.head = self.head[:size], self.head[size:]
             size -= len(out)
         if size > 0 and self.left > 0:
-            chunk = self.f.read(min(size, self.left))
+            try:
+                chunk = self.f.read(min(size, self.left))
+            except OSError as e:
+                raise LocalFileError("读取本地文件失败: %s" % e)
             if not chunk:
-                raise IOError("读取本地文件失败 (文件被截断?)")
+                raise LocalFileError("读取本地文件失败 (文件被截断?)")
             self.left -= len(chunk)
             self.sent += len(chunk)
             if self.progress:
@@ -437,21 +568,50 @@ def slice_md5(path, offset, n):
 
 
 class Cancel:
+    """一次分片尝试的取消开关。set() 除了打标记, 还会直接关掉正在使用的 socket,
+    这样卡在 send/recv 里的线程也能立刻被打断 (而不是等到 socket 超时)。"""
+
     def __init__(self):
         self._ev = threading.Event()
         self.reason = ""
+        self.kind = ""  # "nodata": 一直没有数据 (按完全连不上算); "deadline": 超过整体时限 (按太慢算)
+        self._conn = None
+        self._lock = threading.Lock()
 
-    def set(self, reason):
+    def attach(self, conn):
+        with self._lock:
+            self._conn = conn
+        if self._ev.is_set():
+            self._kill()
+
+    def _kill(self):
+        with self._lock:
+            c = self._conn
+        if c is None:
+            return
+        try:
+            if c.sock is not None:
+                c.sock.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        try:
+            c.close()
+        except Exception:
+            pass
+
+    def set(self, reason, kind=""):
         if not self.reason:
             self.reason = reason
+            self.kind = kind
         self._ev.set()
+        self._kill()
 
     def is_set(self):
         return self._ev.is_set()
 
 
 class Inflight:
-    """正在发送的分片。单次时限一到就中断换线, 不管还在不在出数据。"""
+    """正在发送的分片。单次时限一到就中断本次尝试 (是否换线由 upload_slice 按连续次数决定)。"""
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -486,8 +646,11 @@ class Inflight:
         with self.lock:
             self.items.pop(seq, None)
 
-    def poll(self, timeout, sel, log_fn=None, total=0):
-        if not timeout or timeout <= 0:
+    def poll(self, timeout, nodata, sel, log_fn=None, total=0):
+        """每秒由 guard 线程调用一次。
+        - nodata (默认 6 秒): 数据还没发完时, 连续这么久没有任何新字节 (含一个字节都没发出去) -> 立刻中断
+        - timeout (-timeout): 单次尝试总时限, 到点不管快慢都中断 (数据发完后等服务器响应也受它限制)"""
+        if not (timeout and timeout > 0) and not (nodata and nodata > 0):
             return
         now = time.time()
         self.tick += 1
@@ -502,25 +665,24 @@ class Inflight:
                 if el >= 5 and spd > 0:
                     by_host.setdefault(st["host"], []).append(spd)
                 budget = st.get("budget") or timeout
+                fully_sent = st["size"] > 0 and st["sent"] >= st["size"]
                 if budget and el >= budget:
-                    # 到了本次时限就换线, 不管还在不在出数据
-                    st["cancel"].set("超过时限 %ds" % int(budget))
-                    notes.append((seq, "deadline", st["host"], spd, el, budget))
-                elif idle >= timeout:
-                    st["cancel"].set("超过 %d 秒没有新数据" % int(timeout))
-                    notes.append((seq, "stall", st["host"], spd, el, timeout))
+                    st["cancel"].set("超过时限 %ds" % int(budget), "deadline")
+                    notes.append((seq, "deadline", st["host"], spd, el, budget, st["sent"]))
+                elif nodata and nodata > 0 and not fully_sent and idle >= nodata:
+                    st["cancel"].set("超过 %d 秒没有任何新数据" % int(nodata), "nodata")
+                    notes.append((seq, "nodata", st["host"], spd, el, nodata, st["sent"]))
         if sel and self.tick % 5 == 0:
             for h, spds in by_host.items():
                 sel.note_live(h, mean(spds))
         if not log_fn:
             return
-        for note in notes:
-            seq, kind, host, spd, el, limit = note
-            if kind == "stall":
-                log_fn("分片 %d/%d 超过 %ds 没有新数据 (速度 %s/s, 线路 %s), 换线重试" % (
-                    seq + 1, total or (seq + 1), int(limit), convert_size(spd, 1), short_host(host)))
+        for seq, kind, host, spd, el, limit, sent in notes:
+            if kind == "nodata":
+                log_fn("分片 %d/%d 超过 %ds 没有任何新数据 (已发 %s, 线路 %s, 用时 %s), 中断本次尝试" % (
+                    seq + 1, total or (seq + 1), int(limit), convert_size(sent, 2), short_host(host), fmt_elapsed(el)))
             else:
-                log_fn("分片 %d/%d 超过时限 %ds 仍未完成 (速度 %s/s, 线路 %s, 用时 %s), 换线重试" % (
+                log_fn("分片 %d/%d 超过时限 %ds 仍未完成 (速度 %s/s, 线路 %s, 用时 %s), 中断本次尝试" % (
                     seq + 1, total or (seq + 1), int(limit), convert_size(spd, 1), short_host(host), fmt_elapsed(el)))
 
 
@@ -635,12 +797,20 @@ def err_text(e, n=160):
 
 class Client:
     def __init__(self, cfg_path, parallel=4, rotate_host=False, norefresh=False, slice_timeout=60.0,
-                 line_host=None, smart=True, prefer=DEFAULT_PREFER, probes=0):
+                 line_host=None, smart=True, prefer=DEFAULT_PREFER, probes=0,
+                 conn_switch=CONN_SWITCH, slow_switch=SLOW_SWITCH, ladder_top=LADDER_TOP, api_fallback=True,
+                 nodata_timeout=NODATA_TIMEOUT, cooldown=HOST_COOLDOWN, cool_fails=COOL_FAILS):
         self.cfg_path = cfg_path
         self.parallel = parallel if parallel > 0 else 20
         self.rotate_host = rotate_host
         self.norefresh = norefresh
         self.slice_timeout = slice_timeout if slice_timeout and slice_timeout > 0 else None
+        self.conn_switch = max(1, int(conn_switch))  # 连续几次连不上就换线路
+        self.slow_switch = max(1, int(slow_switch))  # 分片连续几次太慢就换线路
+        self.ladder_top = max(1, int(ladder_top))  # 阶梯起点 c<ladder_top>
+        self.api_fallback = bool(api_fallback)  # 普通接口是否启用阶梯切换
+        self.nodata_timeout = float(nodata_timeout) if nodata_timeout and nodata_timeout > 0 else None  # 零速度快速超时
+        self.health = HostHealth(cooldown, cool_fails)  # 全局线路冷却 (任何模式都生效, 只统计完全连不上)
         self.lock = threading.Lock()
         self.refreshed_at = 0.0
         self.user_line = bool(norm_host(line_host)) and not rotate_host  # 用户指定了线路
@@ -650,7 +820,10 @@ class Client:
         if self.smart:
             slots = probes if probes and probes > 0 else max(1, min(5, self.parallel // 4))
             slots = min(slots, max(1, self.parallel - 1))
-            self.selector = LineSelector(self.line_host, [x for x in str(prefer or "").split(",") if x.strip()], slots)
+            self.selector = LineSelector(self.line_host, [x for x in str(prefer or "").split(",") if x.strip()], slots,
+                                         cooldown, cool_fails)
+        if self.selector is not None:
+            self.health.on_cool = lambda h: self.selector.fallback_from(h, self.health.cooldown)
         self.dir_lock = threading.Lock()
         self.dirs_done = set()
         with open(cfg_path, "r", encoding="utf-8") as f:
@@ -666,28 +839,63 @@ class Client:
             json.dump(self.cfg, f, ensure_ascii=False, indent=2)
         os.replace(tmp, self.cfg_path)
 
-    def _request(self, method, url, data=None, headers=None, timeout=60, retries=NET_RETRY):
-        """发一次 HTTP 请求。网络层错误 (SSL 握手超时/连接重置/DNS 失败等) 自动重试 retries 次。
-        HTTP 错误码 (4xx/5xx) 不重试, 原样返回交给上层解析。
+    def _request(self, method, url, data=None, headers=None, timeout=30, retries=NET_RETRY, rotate=None):
+        """发一次 HTTP 请求。网络层错误 (SSL 握手超时/连接重置/DNS 失败/超时等) 自动重试 retries 次。
+        同一条线路连续 conn_switch (默认 2) 次连不上, 就按 c10 -> c9 -> c8 ... 倒序换线路 (只替换域名, 路径不变)。
+        备用线路返回的不是 JSON 接口数据时当作失败, 继续换下一条。
+        HTTP 错误码 (4xx/5xx) 在原线路上不重试, 原样返回交给上层解析。
+        线路冷却只统计 "完全连不上" (urllib 在建立连接/握手/发送请求阶段抛出的 URLError);
+        连上之后等响应超时、读响应中途断开等不算冷却。
         data 是一次性流 (分片上传) 时必须传 retries=1, 由 upload_slice 自己重试。"""
         retries = max(1, retries)
-        last = None
+        if rotate is None:
+            rotate = self.api_fallback
+        u = urllib.parse.urlparse(url)
+        base = "%s://%s" % (u.scheme, u.netloc)
+        tail = url[len(base):]
+        cur, fails, k, last = base, 0, 0, None
         for i in range(retries):
-            req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+            req = urllib.request.Request(cur + tail, data=data, headers=headers or {}, method=method)
             req.add_header("User-Agent", UA)
+            err = None
+            down = False  # 是否 "完全连不上" (连接/握手阶段就失败)
+            status, body = 0, b""
             try:
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    return resp.status, resp.read()
+                    status, body = resp.status, resp.read()
             except urllib.error.HTTPError as e:
-                return e.code, e.read()
+                status, body = e.code, e.read()
             except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError,
                     ssl.SSLError, http.client.HTTPException, OSError) as e:
-                last = e
-                if i == retries - 1:
-                    break
-                wait = min(30, (i + 1) * 3)
-                log("net", "请求失败 (%s: %s), %d 秒后重试 %d/%d" % (
-                    type(e).__name__, truncate(str(e), 80), wait, i + 2, retries))
+                err = e
+                down = isinstance(e, urllib.error.URLError)  # urllib 只把连接/握手/发送阶段的错误包成 URLError
+            net_err = err is not None
+            if err is None:
+                if cur == base or looks_like_api(body):
+                    self.health.ok(cur)
+                    if cur != base:
+                        log("net", "备用线路 %s 响应正常" % short_host(cur))
+                    return status, body
+                err = RuntimeError("备用线路 %s 返回的不是接口数据 (HTTP %d)" % (short_host(cur), status))
+            last = err
+            fails += 1
+            if net_err:
+                if down:
+                    self.health.fail(cur)  # 完全连不上才算线路冷却; 备用线路返回非 JSON 只说明它不服务这个接口
+                else:
+                    self.health.ok(cur, False)  # 连上了, 只是响应慢/中途断开: 不冷却, 清零连续计数
+            if i == retries - 1:
+                break
+            if rotate and fails >= self.conn_switch:
+                nxt, k = ladder_pick(k, self.ladder_top, {cur, base} | self.health.dead_set())
+                log("net", "请求失败 (%s: %s), 连续 %d 次连不上, 换线路 %s -> %s, 重试 %d/%d" % (
+                    type(err).__name__, truncate(str(err), 80), fails, short_host(cur), short_host(nxt), i + 2, retries))
+                cur, fails = nxt, 0
+                time.sleep(1)
+            else:
+                wait = min(30, fails * 3)
+                log("net", "请求失败 (%s: %s), 线路 %s, %d 秒后重试 %d/%d" % (
+                    type(err).__name__, truncate(str(err), 80), short_host(cur), wait, i + 2, retries))
                 time.sleep(wait)
         raise last
 
@@ -698,7 +906,7 @@ class Client:
             "client_id": self.cfg["client_id"],
             "client_secret": self.cfg["client_secret"],
         })
-        _, body = self._request("GET", "https://openapi.baidu.com/oauth/2.0/token?" + q)
+        _, body = self._request("GET", "https://openapi.baidu.com/oauth/2.0/token?" + q, rotate=False)
         try:
             r = json.loads(body)
         except Exception:
@@ -885,7 +1093,7 @@ class Client:
             add(s.get("server"))
         return hosts or [FIXED_HOST]
 
-    def post_slice(self, host, remote, upload_id, seq, src, progress, cancel=None, deadline=None):
+    def post_slice(self, host, remote, upload_id, seq, src, progress, cancel=None, deadline=None, stat=None):
         local, offset, n = src
         q = urllib.parse.urlencode({
             "method": "upload", "access_token": self.cfg["access_token"],
@@ -895,15 +1103,32 @@ class Client:
         head = ("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"file\"\r\n"
                 "Content-Type: application/octet-stream\r\n\r\n" % boundary).encode()
         tail = ("\r\n--%s--\r\n" % boundary).encode()
-        url = host.rstrip("/") + "/rest/2.0/pcs/superfile2?" + q
-        body = SliceBody(local, offset, n, head, tail, progress, cancel, deadline)
+        path = "/rest/2.0/pcs/superfile2?" + q
+        u = urllib.parse.urlparse(host)
+        try:
+            body = SliceBody(local, offset, n, head, tail, progress, cancel, deadline)
+        except OSError as e:
+            raise LocalFileError("打开本地文件失败: %s" % e)  # 本地问题, 与线路无关
+        conn = None
         ok = False
         try:
-            # 请求体是一次性的流, 不能在 _request 里重放, 所以 retries=1, 重试交给 upload_slice
-            status, resp = self._request("POST", url, body, {
+            # 直接用 http.client: 这样 guard 线程能在 cancel 时关掉 socket, 卡住的 connect 之后的 send/recv 会立刻断开。
+            # 连接/握手阶段的超时用 nodata_timeout (默认 6 秒), 连上之后 socket 超时改回 -timeout。
+            connect_to = self.nodata_timeout or self.slice_timeout
+            conn = http.client.HTTPSConnection(u.hostname, u.port or 443, timeout=connect_to,
+                                               context=ssl.create_default_context())
+            if cancel is not None:
+                cancel.attach(conn)
+            conn.connect()
+            if conn.sock is not None:
+                conn.sock.settimeout(self.slice_timeout)
+            conn.request("POST", path, body=body, headers={
+                "User-Agent": UA,
                 "Content-Type": "multipart/form-data; boundary=%s" % boundary,
                 "Content-Length": str(body.length),
-            }, timeout=self.slice_timeout, retries=1)
+            })
+            r = conn.getresponse()
+            status, resp = r.status, r.read()
             if status >= 400 and not resp:
                 raise RuntimeError("HTTP %d 空响应" % status)
             code, parsed = parse_api_code(resp)
@@ -913,16 +1138,39 @@ class Client:
                 raise ApiError(code, resp.decode("utf-8", "replace"))
             ok = True
             return resp
+        except Exception as e:
+            # socket 被 cancel 强行关掉时会冒出各种奇怪的异常, 统一还原成 "被中断" 的超时
+            if cancel is not None and cancel.is_set() and not isinstance(e, (TimeoutError, ApiError)):
+                raise TimeoutError(cancel.reason or "分片尝试被中断")
+            raise
         finally:
             body.close()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            if stat is not None:
+                stat["sent"] = body.sent  # 本次尝试已发出的字节数: 0 说明根本没连上, >0 说明连上了但没传完
             if not ok and body.sent and progress:
                 progress(-body.sent)  # 失败: 回滚这次尝试已计入的字节, 重试时不会重复统计
 
     def upload_slice(self, remote, upload_id, seq, src, progress, hosts, hosts_cb=None, report=None, rotate=False,
                      lg=None, on_retry=None, total=0, tag="", on_attempt=None, on_wait=None):
+        """上传一个分片。
+        线路切换规则 (未开 -rotatehost 时):
+          - 连续 conn_switch 次连不上 (一个字节都没发出去就失败, 或连续 nodata 秒没有新数据) -> 换线路
+          - 连续 slow_switch 次太慢 (发出了数据但超过时限没传完) -> 换线路
+          换线顺序: c10 -> c9 -> c8 ... -> c1 -> c10 ...
+          接口返回 errno 说明线路是通的, 不计入这两个连续计数。
+        线路冷却 (所有模式都生效):
+          只有 "完全连不上" (一个字节都没发出去 / nodata 秒无任何新数据) 才计入冷却;
+          速度低 (有速度但超时限)、传到一半断开、接口报错、本地文件错误都不冷却。"""
         hosts = hosts or [self.line_host]
-        idx = 0
+        idx = 0  # 仅 -rotatehost 模式使用
+        host = hosts[0]
         last = None
+        conn_fail = slow_fail = ladder_k = 0
         n = src[2]
         label = "分片 %d/%d" % (seq + 1, total) if total else "分片 %d" % (seq + 1)
         for i in range(SLICE_RETRY):
@@ -930,12 +1178,28 @@ class Client:
                 self.ensure_token(True)
             else:
                 self.ensure_token(False)
-            host = hosts[idx % len(hosts)]
+            if self.rotate_host:
+                # 轮换模式: 跳过冷却中的线路 (全都在冷却就硬着头皮用当前这条)
+                for _ in range(len(hosts)):
+                    host = hosts[idx % len(hosts)]
+                    if not self.health.is_dead(host):
+                        break
+                    idx += 1
+                else:
+                    host = hosts[idx % len(hosts)]
+            elif self.health.is_dead(host):
+                # 这条线路已经被别的分片判定冷却了, 不再等自己连续失败, 直接换
+                old = host
+                host, ladder_k = ladder_pick(ladder_k, self.ladder_top, {old} | self.health.dead_set())
+                conn_fail = slow_fail = 0
+                if lg:
+                    lg("%s 线路 %s 冷却中, 直接换到 %s" % (label, short_host(old), short_host(host)))
             t0 = time.time()
-            # 每一次尝试都是同一个时限, 到点就换线, 不随重试次数放宽
+            # 每一次尝试都是同一个时限, 不随重试次数放宽
             limit = self.slice_timeout if self.slice_timeout else None
             deadline = (t0 + limit) if limit else None
             cancel = Cancel()
+            stat = {"sent": 0}
             if on_attempt:
                 on_attempt(host, i, cancel, limit)
             if lg:
@@ -943,10 +1207,11 @@ class Client:
                     label, convert_size(n, 2), short_host(host), (" (%s)" % tag) if tag and i == 0 else "",
                     i + 1, SLICE_RETRY, (" 时限 %ds" % int(limit)) if limit else ""))
             try:
-                body = self.post_slice(host, remote, upload_id, seq, src, progress, cancel, deadline)
+                body = self.post_slice(host, remote, upload_id, seq, src, progress, cancel, deadline, stat)
                 el = time.time() - t0
                 if report:
                     report(host, n, el, True, i)
+                self.health.ok(host)
                 md5 = ""
                 try:
                     md5 = json.loads(body).get("md5") or ""
@@ -960,39 +1225,99 @@ class Client:
             except Exception as e:
                 last = e
                 el = time.time() - t0
-                if report and not isinstance(e, ApiError):  # 接口有响应说明线路通, 不算线路问题
-                    report(host, 0, el, False, i)
+                sent = stat.get("sent", 0)
+                local_err = isinstance(e, LocalFileError)
                 if isinstance(e, ApiError) and (e.code in (400, 413, 31024, 31364) or (self.norefresh and e.code in EXPIRED_CODES)):
                     if lg:
                         lg("%s 失败 (不可重试): %s" % (label, err_text(e)))
                     raise
-                timed_out = is_timeout(e)
-                if timed_out:
-                    # 超时一定换服务器: 先拿最新列表, 再切到当前之后的下一个
-                    if hosts_cb:
+                timed_out = is_timeout(e) or cancel.is_set()
+
+                # 判定这次失败的类型, 更新连续计数
+                # is_conn: 算 "连不上", 用于连续 conn_switch 次换线
+                # is_down: 完全连不上 (一个字节没发出去 / nodata 无新数据), 才计入线路冷却
+                is_conn = False
+                is_down = False
+                if isinstance(e, ApiError):
+                    kind = "接口报错"
+                    conn_fail = slow_fail = 0
+                elif local_err:
+                    kind = "本地文件错误"  # 不动任何连续计数
+                elif timed_out and sent > 0 and cancel.kind != "nodata":
+                    kind = "太慢 %d/%d" % (slow_fail + 1, self.slow_switch)
+                    slow_fail += 1
+                    conn_fail = 0
+                else:
+                    conn_fail += 1
+                    slow_fail = 0
+                    is_conn = True
+                    if cancel.kind == "nodata":
+                        is_down = True
+                        kind = "无数据 %d/%d" % (conn_fail, self.conn_switch)
+                    elif sent == 0:
+                        is_down = True
+                        kind = "连不上 %d/%d" % (conn_fail, self.conn_switch)
+                    else:
+                        kind = "传输中断 %d/%d" % (conn_fail, self.conn_switch)
+
+                # 全局冷却: 只有 "完全连不上" 才算一次失败, 所有分片合计连续 cool_fails 次 -> 冷却 (任何模式都生效)
+                # 速度慢/传到一半断开/接口报错: 线路是通的, 只清零连续计数, 不冷却
+                cooled = False
+                if is_down:
+                    cooled = self.health.fail(host)
+                    kind += " 计入冷却"
+                elif not local_err:
+                    self.health.ok(host, False)
+
+                # 智能择优也一样: 接口报错/本地错误与线路无关不上报; 其余失败上报, 但只有 "完全连不上" 才计入它的冷却
+                if report and not isinstance(e, ApiError) and not local_err:
+                    report(host, 0, el, False, i, is_down)
+
+                nxt = host
+                why = ""
+                if self.rotate_host:
+                    # -rotatehost: 保持原来的逐次轮换
+                    if timed_out and hosts_cb:
                         hosts = hosts_cb() or hosts
-                    idx = (hosts.index(host) + 1) % len(hosts) if host in hosts else 0
-                elif self.rotate_host or rotate:
-                    idx += 1
-                nxt = hosts[idx % len(hosts)]
+                        idx = (hosts.index(host) + 1) % len(hosts) if host in hosts else 0
+                    else:
+                        idx += 1
+                    for _ in range(len(hosts)):  # 跳过冷却中的线路
+                        if not self.health.is_dead(hosts[idx % len(hosts)]):
+                            break
+                        idx += 1
+                    nxt = hosts[idx % len(hosts)]
+                else:
+                    if cooled:
+                        why = "线路进入冷却"
+                    elif conn_fail >= self.conn_switch:
+                        why = "连续 %d 次连不上" % conn_fail
+                    elif slow_fail >= self.slow_switch:
+                        why = "连续 %d 次上传太慢" % slow_fail
+                    if why:
+                        nxt, ladder_k = ladder_pick(ladder_k, self.ladder_top, {host} | self.health.dead_set())
+                        conn_fail = slow_fail = 0
+
                 last_try = (i == SLICE_RETRY - 1)
                 if on_retry and not last_try:
                     on_retry()
+                wait = min(10, (i + 1) * 2)
                 if lg:
                     if last_try:
-                        lg("%s 第 %d/%d 次失败 [用时 %.1fs]: %s | 已用完重试次数, 放弃" % (
-                            label, i + 1, SLICE_RETRY, el, err_text(e)))
+                        lg("%s 第 %d/%d 次失败 [用时 %.1fs, 已发 %s] (%s): %s | 已用完重试次数, 放弃" % (
+                            label, i + 1, SLICE_RETRY, el, convert_size(sent, 2), kind, err_text(e)))
                     else:
-                        lg("%s 第 %d/%d 次失败 [用时 %.1fs]: %s | 线路 %s%s | %d 秒后重试" % (
-                            label, i + 1, SLICE_RETRY, el, err_text(e), short_host(host),
-                            (" -> 切换 %s" % short_host(nxt)) if nxt != host else "", (i + 1) * 2))
-                elif timed_out:
-                    print("分片 %d 超时 (%s 秒), 第 %d/%d 次, 切换服务器 %s -> %s" % (
-                        seq, self.slice_timeout, i + 1, SLICE_RETRY, short_host(host), short_host(nxt)))
+                        lg("%s 第 %d/%d 次失败 [用时 %.1fs, 已发 %s] (%s): %s | 线路 %s%s | %d 秒后重试" % (
+                            label, i + 1, SLICE_RETRY, el, convert_size(sent, 2), kind, err_text(e), short_host(host),
+                            (" -> %s 换到 %s" % (why, short_host(nxt))) if nxt != host else "", wait))
+                elif nxt != host:
+                    print("分片 %d %s, 第 %d/%d 次, 换线路 %s -> %s" % (
+                        seq, why or ("%s" % kind), i + 1, SLICE_RETRY, short_host(host), short_host(nxt)))
+                host = nxt
                 if not last_try:
                     if on_wait:
                         on_wait(el)
-                    time.sleep((i + 1) * 2)
+                    time.sleep(wait)
         raise last
 
     def create(self, remote, upload_id, sums, policy, block_md5):
@@ -1181,8 +1506,8 @@ class Client:
                     if smart_mode:
                         host, role = sel.assign()
                         try:
-                            def report(h, nbytes, elapsed, ok, attempt, role=role):
-                                sel.record(h, nbytes, elapsed, ok, role if attempt == 0 else "retry")
+                            def report(h, nbytes, elapsed, ok, attempt, down=True, role=role):
+                                sel.record(h, nbytes, elapsed, ok, role if attempt == 0 else "retry", down)
                             md5 = self.upload_slice(remote, upload_id, seq, src, progress_one, sel.order(host),
                                                     lambda: sel.order(None), report, True,
                                                     lg=lg, on_retry=on_retry, total=total_slices,
@@ -1260,7 +1585,7 @@ class Client:
 
         def guard():
             while not pstop.wait(1):
-                inflight.poll(self.slice_timeout, sel, lambda m: log(fid, m), total_slices)
+                inflight.poll(self.slice_timeout, self.nodata_timeout, sel, lambda m: log(fid, m), total_slices)
 
         t = threading.Thread(target=printer, daemon=True)
         g = threading.Thread(target=guard, daemon=True)
@@ -1472,7 +1797,7 @@ def sum_file(local, block, with_content, fid):
     if in_block:
         sums["blocks"].append(block_hash.hexdigest())
     if with_content:
-        sums["content"] = sums["md5"] = content.hexdigest() if False else content.hexdigest()
+        sums["content"] = sums["md5"] = content.hexdigest()
         sums["slice"] = sums["content"] if st.st_size <= SLICE_MD5 else slice_hash.hexdigest()
     if show and not VERBOSE:
         print("\r[%s] 扫描 MD5 %s/%s 完成" % (fid, convert_size(st.st_size, 2), convert_size(st.st_size, 2)))
@@ -1792,8 +2117,22 @@ def main():
     p.add_argument("-nosmart", "--nosmart", action="store_true", help="同 -smart=false")
     p.add_argument("-prefer", "--prefer", default=DEFAULT_PREFER, help="智能择优时优先测试的线路, 逗号分隔, 默认 c2,c5,d; 留空则不优先")
     p.add_argument("-probes", "--probes", type=int, default=0, help="同时测速的分片数, 默认自动 (按 -parallel/4, 限制 1~5)")
-    p.add_argument("-timeout", "--timeout", type=float, default=60.0, help="每次分片尝试的时限, 默认 60 秒。到点无论快慢、第几次重试, 都中断并换线。0 表示关闭")
+    p.add_argument("-timeout", "--timeout", type=float, default=60.0, help="每次分片尝试的时限, 默认 60 秒。到点无论快慢都中断本次尝试 (算一次 '太慢', 不冷却线路)。0 表示关闭")
     p.add_argument("-norefresh", "--norefresh", action="store_true", help="只用 config 里的 access_token, 绝不刷新 (过期直接报错); 此时不要求 client_id/secret/refresh_token")
+    p.add_argument("-switch-conn", "--switch-conn", dest="switch_conn", type=int, default=CONN_SWITCH,
+                   help="连续这么多次连不上就换线路 (c10 -> c9 -> c8 ...), 默认 %d; 对普通接口和分片都生效" % CONN_SWITCH)
+    p.add_argument("-switch-slow", "--switch-slow", dest="switch_slow", type=int, default=SLOW_SWITCH,
+                   help="分片连续这么多次上传太慢 (超时限没传完) 就换线路, 默认 %d" % SLOW_SWITCH)
+    p.add_argument("-line-top", "--line-top", dest="line_top", type=int, default=LADDER_TOP,
+                   help="换线路阶梯的起点, 默认 %d, 即 c%d -> c%d -> ... -> c1" % (LADDER_TOP, LADDER_TOP, LADDER_TOP - 1))
+    p.add_argument("-nodata-timeout", "--nodata-timeout", dest="nodata_timeout", type=float, default=NODATA_TIMEOUT,
+                   help="分片发送中连续这么多秒没有任何新数据 (含连接/握手阶段) 就立刻中断本次尝试并按 '完全连不上' 计数 (计入换线和线路冷却), 默认 %d 秒, 0 关闭" % NODATA_TIMEOUT)
+    p.add_argument("-cooldown", "--cooldown", type=float, default=HOST_COOLDOWN,
+                   help="线路冷却秒数: 同一条线路连续 -cool-fails 次 '完全连不上' (连接/握手失败、一个字节都没发出去、-nodata-timeout 秒无新数据) 就冷却这么久, 期间不再使用 (所有模式生效, 含智能择优/-rotatehost/-nosmart/-host)。速度低/传到一半断开/接口报错不冷却。默认 %d, 0 关闭" % HOST_COOLDOWN)
+    p.add_argument("-cool-fails", "--cool-fails", dest="cool_fails", type=int, default=COOL_FAILS,
+                   help="同一条线路 (所有分片合计) 连续这么多次完全连不上就进入冷却, 默认 %d" % COOL_FAILS)
+    p.add_argument("-apifallback", "--apifallback", type=bool_arg, default=True,
+                   help="普通接口 (列目录/precreate/create 等) 连不上时是否按 c10 -> c9 ... 换线路, 默认开启, -apifallback=false 关闭")
 
     g = p.add_argument_group("文件过滤 (rclone 风格)")
     p.set_defaults(rules=[])
@@ -1832,6 +2171,12 @@ def main():
     if args.transfers < 1:
         print("-transfers 必须 >= 1", file=sys.stderr)
         return 2
+    if args.cool_fails < 1:
+        print("-cool-fails 必须 >= 1", file=sys.stderr)
+        return 2
+    if args.switch_conn < 1 or args.switch_slow < 1 or args.line_top < 1:
+        print("-switch-conn / -switch-slow / -line-top 必须 >= 1", file=sys.stderr)
+        return 2
 
     now = time.time()
     try:
@@ -1847,9 +2192,10 @@ def main():
 
     if VERBOSE:
         print("[v] 详细模式已开启; 参数: parallel=%d transfers=%d policy=%s timeout=%s norapid=%s md5=%s rotatehost=%s host=%s "
-              "smart=%s prefer=%s probes=%d norefresh=%s" % (
+              "smart=%s prefer=%s probes=%d norefresh=%s switch-conn=%d switch-slow=%d line-top=%d apifallback=%s nodata-timeout=%s" % (
                   args.parallel, args.transfers, args.policy, args.timeout, args.norapid, args.md5, args.rotatehost,
-                  args.host or "-", args.smart and not args.nosmart, args.prefer or "-", args.probes, args.norefresh))
+                  args.host or "-", args.smart and not args.nosmart, args.prefer or "-", args.probes, args.norefresh,
+                  args.switch_conn, args.switch_slow, args.line_top, args.apifallback, args.nodata_timeout))
         if filt.rules:
             print("[v] 过滤规则 (按顺序): %s" % " | ".join(r.text() for r in filt.rules))
 
@@ -1892,7 +2238,19 @@ def main():
     if args.host and args.rotatehost:
         print("-host 与 -rotatehost 同时指定, 忽略 -host")
     client = Client(args.config, args.parallel, args.rotatehost, args.norefresh, args.timeout,
-                    args.host, args.smart and not args.nosmart, args.prefer, args.probes)
+                    args.host, args.smart and not args.nosmart, args.prefer, args.probes,
+                    args.switch_conn, args.switch_slow, args.line_top, args.apifallback, args.nodata_timeout,
+                    args.cooldown, args.cool_fails)
+    print("[0] 线路冷却: %s" % (
+        "同一条线路连续 %d 次完全连不上 (无数据/握手失败) 冷却 %d 秒 (所有模式生效; 速度低造成的失败不冷却)" % (
+            client.health.fails, int(client.health.cooldown))
+        if client.health.cooldown > 0 else "关闭"))
+    print("[0] 线路阶梯: 连续 %d 次连不上%s就换 c%d -> c%d -> ... -> c1%s; 普通接口阶梯切换: %s" % (
+        client.conn_switch,
+        "或分片连续 %d 次太慢" % client.slow_switch if not client.rotate_host else "",
+        client.ladder_top, max(1, client.ladder_top - 1),
+        " (-rotatehost 时分片保持逐次轮换)" if client.rotate_host else "",
+        "开启" if client.api_fallback else "关闭"))
     if client.selector:
         print("[0] 智能择优线路: 开启, 同时测速 %d 个分片, 优先测试 %s, 候选 %s%s" % (
             client.selector.slots, args.prefer or "无",
