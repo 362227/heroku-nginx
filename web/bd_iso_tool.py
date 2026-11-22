@@ -19,6 +19,7 @@ fix rename (默认开启): 若文件名含分辨率 (如 1080i/2160p) 或编码 
   * DVD : 自己解析 ISO9660, 找到最大标题集的 VOB 在 ISO 内的偏移, 用 ffmpeg 的 subfile 协议直接读;
           MediaInfo 读 VTS_xx_0.IFO
 依赖: ffmpeg/ffprobe (蓝光需带 libbluray, gyan.dev full 构建), MediaInfo CLI, pip install pillow
+      时间轴截图可选 pip install av (PyAV): 装了就多线程复用解码; 没装自动退回 ffmpeg
       7-Zip 是可选的: 只有「蓝光 ISO」的 隐藏字幕检测 / MediaInfo 原生模式 才会用到, 没有也能正常截图和出精简/完整报告
       GUI 拖拽需 pip install tkinterdnd2 (没装也能用按钮添加)
 """
@@ -643,24 +644,196 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     vf.append(f"scale={width}:-2")
     vf = ",".join(vf)
 
-    def grab(t, out):
-        # preroll=0: 直接跳到关键帧取一帧 (最快, 时间戳是最近的关键帧)
-        # preroll>0: 先跳到目标前 N 秒的关键帧, 再解码到目标 (防 TS/HDTV 白色马赛克, 更准但更慢)
+    # 时间轴截图: 最多 3 个线程各打开一份解码器并复用 (并发还在).
+    # preroll<=0: 退到目标前的关键帧, 至少再解 15 帧(避开坏关键帧), 然后取到目标时间.
+    # preroll>0 : 退到目标前 N 秒, 同样至少跳过关键帧后 15 帧, 再解到目标时间.
+    # 没装 PyAV / subfile / concat / HDR 时退回逐张 ffmpeg.
+    _av_slots = [{"container": None, "stream": None, "lock": threading.Lock()} for _ in range(3)]
+    _av_meta = {"ok": None, "said": False, "lock": threading.Lock()}
+
+    def close_av_slots():
+        for s in _av_slots:
+            with s["lock"]:
+                c = s["container"]
+                s["container"] = None
+                s["stream"] = None
+                if c is not None:
+                    try:
+                        c.close()
+                    except Exception:
+                        pass
+
+    def _drop_slot(s):
+        c = s["container"]
+        s["container"] = None
+        s["stream"] = None
+        if c is not None:
+            try:
+                c.close()
+            except Exception:
+                pass
+
+    def _acquire_slot():
+        while True:
+            check_cancel()
+            for s in _av_slots:
+                if s["lock"].acquire(blocking=False):
+                    return s
+            time.sleep(0.02)
+
+    def _plain_file():
+        if tonemap or pre:
+            return False
+        u = str(url or "")
+        if (not u) or u.startswith(("subfile", "bluray:", "concat:")):
+            return False
+        return os.path.isfile(u)
+
+    def grab_ffmpeg(t, out):
         cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "warning"] + pre
+        abs_t = float(t) + float(t_offset)
         if float(preroll) <= 0:
+            ts = f"{abs_t:.3f}"
             cmd += ["-probesize", "5M", "-analyzeduration", "5M",
-                    "-ss", f"{t + t_offset:.3f}", "-i", url,
-                    "-map", "0:v:0", "-frames:v", "1", "-vf", vf, "-q:v", "2", "-update", "1", str(out)]
+                    "-ss", ts, "-copyts", "-i", url, "-map", "0:v:0",
+                    "-vf", "select='gte(n\\,15)*gte(t\\," + ts + ")',setpts=PTS-STARTPTS," + vf,
+                    "-frames:v", "1", "-q:v", "2", "-update", "1", str(out)]
         else:
-            roll = min(float(preroll), t + t_offset)
+            roll = min(float(preroll), abs_t if abs_t > 0 else float(preroll))
             cmd += ["-probesize", "100M", "-analyzeduration", "100M",
-                    "-ss", f"{t + t_offset - roll:.3f}", "-i", url, "-ss", f"{roll:.3f}",
+                    "-ss", f"{abs_t - roll:.3f}", "-i", url, "-ss", f"{roll:.3f}",
                     "-map", "0:v:0", "-frames:v", "1", "-vf", vf, "-q:v", "2", "-update", "1", str(out)]
         r = run_shot(cmd, out)
         if debug:
             print("   $ " + " ".join(cmd))
             print("   " + clean_err(r.stderr).replace("\n", "\n   "))
         return (out.exists() and out.stat().st_size > 0), clean_err(r.stderr)
+
+    def grab_shared(t, out):
+        if not _plain_file():
+            return None
+        with _av_meta["lock"]:
+            if _av_meta["ok"] is False:
+                return None
+        slot = _acquire_slot()
+        try:
+            if slot["container"] is None:
+                try:
+                    import av
+                    container = av.open(str(url))
+                    stream = container.streams.video[0]
+                    try:
+                        stream.thread_type = "AUTO"
+                    except Exception:
+                        pass
+                    slot["container"] = container
+                    slot["stream"] = stream
+                    with _av_meta["lock"]:
+                        _av_meta["ok"] = True
+                        if not _av_meta["said"]:
+                            _av_meta["said"] = True
+                            prn = float(preroll or 0)
+                            if prn <= 0:
+                                print("  截图: 3 线程各开一份解码器并复用, 关键帧后再跳过 15 帧取到目标时间")
+                            else:
+                                print(f"  截图: 3 线程各开一份解码器并复用, 预解码 {prn:g} 秒, 且至少跳过关键帧后 15 帧")
+                except Exception as e:
+                    _drop_slot(slot)
+                    with _av_meta["lock"]:
+                        _av_meta["ok"] = False
+                    if debug:
+                        print("   无法用 PyAV, 退回逐张 ffmpeg:", e)
+                    return None
+            container = slot["container"]
+            stream = slot["stream"]
+            tb = float(stream.time_base or 0)
+            if tb <= 0:
+                return None
+            abs_t = max(0.0, float(t) + float(t_offset))
+            pr = float(preroll or 0)
+            seek_sec = max(0.0, abs_t - pr) if pr > 0 else abs_t
+            start = int(stream.start_time or 0)
+            target = int(round(abs_t / tb)) + start
+            seek_ts = int(round(seek_sec / tb)) + start
+            try:
+                container.seek(seek_ts, stream=stream, backward=True, any_frame=False)
+            except Exception as e:
+                _drop_slot(slot)
+                return False, f"seek 失败: {e}"
+            got = None
+            last = None
+            seen = 0
+            skip_n = 15   # 关键帧本身(和紧跟着的几帧)在开放 GOP 上可能是马赛克, 至少解过这几帧再取
+            limit = int((max(pr, 0) + 20) * 60)
+            try:
+                for packet in container.demux(stream):
+                    for frame in packet.decode():
+                        seen += 1
+                        if frame.pts is not None:
+                            last = frame
+                            if seen >= skip_n and frame.pts >= target:
+                                got = frame
+                                break
+                        if seen >= limit:
+                            break
+                    if got is not None or seen >= limit:
+                        break
+            except Exception as e:
+                _drop_slot(slot)
+                return False, f"解码失败: {e}"
+            if got is None and last is not None and last.pts is not None and last.pts >= target:
+                got = last   # 片尾不够 15 帧时, 用已经过了目标时间的最后一帧
+            if got is None:
+                return False, "没有解到目标时间的帧"
+            try:
+                im = got.to_image()
+            except Exception as e:
+                return False, f"取出画面失败: {e}"
+            interlaced = False
+            tff = True
+            try:
+                interlaced = bool(got.interlaced_frame)
+                tff = bool(got.top_field_first)
+            except Exception:
+                pass
+            sar = stream.sample_aspect_ratio
+            rot = 0
+            try:
+                rot = int(round(float((stream.metadata or {}).get("rotate") or 0))) % 360
+            except Exception:
+                rot = 0
+        finally:
+            slot["lock"].release()
+        if rot in (90, 180, 270):
+            from PIL import Image
+            im = im.transpose({90: Image.ROTATE_270, 180: Image.ROTATE_180, 270: Image.ROTATE_90}[rot])
+        vf_use = vf
+        if sar is not None and getattr(sar, "numerator", 0) and getattr(sar, "denominator", 0):
+            if not (sar.numerator == 1 and sar.denominator == 1):
+                vf_use = f"setsar={int(sar.numerator)}/{int(sar.denominator)}," + vf_use
+        if interlaced:
+            vf_use = ("setfield=tff," if tff else "setfield=bff,") + vf_use
+        srcp = outdir / f".src_{threading.get_ident()}_{out.name}.png"
+        try:
+            im.save(srcp)
+            cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "warning", "-i", str(srcp),
+                   "-frames:v", "1", "-vf", vf_use, "-q:v", "2", "-update", "1", str(out)]
+            r = run_shot(cmd, out)
+            if debug:
+                print("   $ " + " ".join(cmd))
+                print("   " + clean_err(r.stderr).replace("\n", "\n   "))
+            return (out.exists() and out.stat().st_size > 0), clean_err(r.stderr)
+        finally:
+            try:
+                srcp.unlink()
+            except OSError:
+                pass
+
+    def grab(t, out):
+        shared = grab_shared(t, out)
+        if shared is not None:
+            return shared
+        return grab_ffmpeg(t, out)
 
     def grab_bytes(frac, out):
         """从 ISO 内标题集的 frac 位置(按字节)开始读, 跳过开头 10 帧(此处可能缺参考帧)后取一帧;
@@ -709,73 +882,77 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     if seek_mode in ("auto", "time") or not dvd_range:
         order.append("time")
 
-    if enhance:
-        return _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats,
-                                 shot_timeout, t_offset)
+    try:
+        if enhance:
+            return _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats,
+                                     shot_timeout, t_offset)
 
-    files, black_cnt, shown = [], 0, False
+        files, black_cnt, shown = [], 0, False
 
-    def capture_one(i):
-        check_cancel()
-        frac0 = (i + 1) / (n + 1)
-        t0 = duration * frac0
-        out = outdir / f"thumb_{i + 1:02d}.jpg"
-        got = got_black = False
-        t_used, last_err = t0, ""
-        for method in order:
-            if method == "bytes":
-                for df in (0.0, 0.012, -0.012, 0.03, -0.03):
-                    check_cancel()
-                    f = min(max(frac0 + df, 0.0), 0.995)
-                    ok2, err2, pts = grab_bytes(f, out)
-                    last_err = err2 or last_err
-                    if ok2:
-                        if not is_black(out):
-                            got, t_used = True, byte_time(f, pts)
-                            break
-                        got_black = True
-            else:
-                for off in (0, 3, 8, -4, 15, 30):
-                    check_cancel()
-                    t2 = min(max(t0 + off, 0), max(duration - 1, 0))
-                    ok2, err2 = grab(t2, out)
-                    last_err = err2 or last_err
-                    if ok2:
-                        if not is_black(out):
-                            got, t_used = True, t2
-                            break
-                        got_black = True
-            if got:
-                break
-        return i, got, got_black, t_used, t0, out, last_err
+        def capture_one(i):
+            check_cancel()
+            frac0 = (i + 1) / (n + 1)
+            t0 = duration * frac0
+            out = outdir / f"thumb_{i + 1:02d}.jpg"
+            got = got_black = False
+            t_used, last_err = t0, ""
+            for method in order:
+                if method == "bytes":
+                    for df in (0.0, 0.012, -0.012, 0.03, -0.03):
+                        check_cancel()
+                        f = min(max(frac0 + df, 0.0), 0.995)
+                        ok2, err2, pts = grab_bytes(f, out)
+                        last_err = err2 or last_err
+                        if ok2:
+                            if not is_black(out):
+                                got, t_used = True, byte_time(f, pts)
+                                break
+                            got_black = True
+                else:
+                    for off in (0, 3, 8, -4, 15, 30):
+                        check_cancel()
+                        t2 = min(max(t0 + off, 0), max(duration - 1, 0))
+                        ok2, err2 = grab(t2, out)
+                        last_err = err2 or last_err
+                        if ok2:
+                            if not is_black(out):
+                                got, t_used = True, t2
+                                break
+                            got_black = True
+                if got:
+                    break
+            return i, got, got_black, t_used, t0, out, last_err
 
-    for start in range(0, n, 3):
-        check_cancel()
-        batch = list(range(start, min(start + 3, n)))
-        print(f"  并发截图 {len(batch)} 张: " + " ".join(f"[{i+1}/{n}]" for i in batch))
+        for start in range(0, n, 3):
+            check_cancel()
+            batch = list(range(start, min(start + 3, n)))
+            print(f"  并发截图 {len(batch)} 张: " + " ".join(f"[{i+1}/{n}]" for i in batch))
 
-        def _on(idx, res):
-            i, got, got_black, t_used, t0, out, last_err = res
-            if got:
-                print(f"  [{i + 1}/{n}] {fmt_t(t_used)} ok")
-            elif got_black and out.exists():
-                print(f"  [{i + 1}/{n}] {fmt_t(t0)} (仍是黑屏)")
-            else:
-                print(f"  [{i + 1}/{n}] {fmt_t(t0)} 失败: {last_err[-200:]}")
+            def _on(idx, res):
+                i, got, got_black, t_used, t0, out, last_err = res
+                if got:
+                    print(f"  [{i + 1}/{n}] {fmt_t(t_used)} ok")
+                elif got_black and out.exists():
+                    print(f"  [{i + 1}/{n}] {fmt_t(t0)} (仍是黑屏)")
+                else:
+                    print(f"  [{i + 1}/{n}] {fmt_t(t0)} 失败: {last_err[-200:]}")
 
-        batch_res = _run_shots_batch([lambda i=i: capture_one(i) for i in batch], on_done=_on)
-        for i, got, got_black, t_used, t0, out, last_err in batch_res:
-            if got:
-                files.append((t_used, out))
-            elif got_black and out.exists():
-                black_cnt += 1
-                files.append((t0, out))
-                if not shown and last_err:
-                    print("  ffmpeg 提示:", last_err[-400:])
-                    shown = True
-    if black_cnt:
-        print(f"!! 有 {black_cnt}/{n} 张截图重试后仍是黑屏")
-    return files
+            batch_res = _run_shots_batch([lambda i=i: capture_one(i) for i in batch], on_done=_on)
+            for i, got, got_black, t_used, t0, out, last_err in batch_res:
+                if got:
+                    files.append((t_used, out))
+                elif got_black and out.exists():
+                    black_cnt += 1
+                    files.append((t0, out))
+                    if not shown and last_err:
+                        print("  ffmpeg 提示:", last_err[-400:])
+                        shown = True
+        if black_cnt:
+            print(f"!! 有 {black_cnt}/{n} 张截图重试后仍是黑屏")
+        return files
+    finally:
+        close_av_slots()
+
 
 
 # ============================================================ 蓝光: 7z + mediainfo
