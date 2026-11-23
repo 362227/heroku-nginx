@@ -452,9 +452,9 @@ def _run_shots_batch(funcs, on_done=None):
 
 
 def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats, shot_timeout=30,
-                      t_offset=0.0):
+                      t_offset=0.0, preroll_box=None):
     """加强截图：先均匀截 2*n 张，再按画面丰富度选最好的 n 张（优先不单调的）。
-    不再做附近关键帧搜索（那个步骤太慢）。"""
+    不够 n 张时加大预解码，只在单调/失败的时间附近重截，已经成功的不再截。"""
     def shot(method, frac, t, out):
         if method == "bytes":
             f = min(max(frac, 0.0), 0.995)
@@ -491,8 +491,78 @@ def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n
         for r in batch_r:
             R[r["i"]] = r
 
+    def _is_good(r):
+        return bool(r and r["ok"] and r["score"] >= MONO_STD)
+
+    def _retry_near(items, roll, off):
+        """只重截这些单调/失败的时间点, 成功的不在列表里。off=0 用原时间, 否则在附近偏几秒。"""
+        if not items:
+            return
+        where = "原时间" if off == 0 else f"附近 {off:+g} 秒"
+        print(f"  预解码加大到 {roll:g} 秒, 重截 {len(items)} 张 ({where}), 已成功的跳过")
+
+        def work(r):
+            check_cancel()
+            t2 = min(max((r["t"] if r["ok"] else r["t0"]) + off, 0), max(duration - 1, 0))
+            if any(_is_good(g) and abs((g["t"] if g["ok"] else g["t0"]) - t2) < 1.0 for g in R if g is not r):
+                return r["i"], False, r["t"] if r["ok"] else r["t0"], r["score"], r.get("err") or ""
+            cand = outdir / f"thumb_{r['i'] + 1:02d}_r.jpg"
+            ok, t_used, err = shot("time", (t2 / duration) if duration else r["frac"], t2, cand)
+            sc = frame_score(cand) if ok else -1.0
+            old = r["score"] if r["ok"] else -1.0
+            if ok and sc > old:
+                try:
+                    os.replace(str(cand), str(r["out"]))
+                except OSError:
+                    shutil.copyfile(cand, r["out"])
+                    try:
+                        cand.unlink()
+                    except OSError:
+                        pass
+                return r["i"], True, t_used, sc, err
+            try:
+                cand.unlink()
+            except OSError:
+                pass
+            return r["i"], False, r["t"] if r["ok"] else r["t0"], old, err
+
+        for start_i in range(0, len(items), 3):
+            check_cancel()
+            batch = items[start_i:start_i + 3]
+            print("  并发重截 " + " ".join(f"[{r['i'] + 1}/{total}]" for r in batch))
+
+            def _on(idx, res):
+                i, better, t_used, sc, err = res
+                if better and sc >= MONO_STD:
+                    tag = "ok"
+                elif better:
+                    tag = "仍单调"
+                else:
+                    tag = "未改善"
+                print(f"  [{i + 1}/{total}] {fmt_t(t_used)} {tag}")
+
+            batch_r = _run_shots_batch([lambda r=r: work(r) for r in batch], on_done=_on)
+            for i, better, t_used, sc, err in batch_r:
+                if better:
+                    R[i].update(ok=True, t=t_used, score=sc, err=err)
+
+    if preroll_box is not None and order and order[0] == "time" and sum(1 for r in R if _is_good(r)) < n:
+        base = float(preroll_box[0] or 0)
+        steps = [s for s in (1.0, 2.0, 5.0, 8.0) if s > base + 0.05]
+        for step in steps:
+            if sum(1 for r in R if _is_good(r)) >= n:
+                break
+            preroll_box[0] = step
+            for off in (0, 2, -2, 4, -4):
+                if sum(1 for r in R if _is_good(r)) >= n:
+                    break
+                pending = [r for r in R if r and not _is_good(r)]
+                if not pending:
+                    break
+                _retry_near(pending, step, off)
+
     # 选最好的 n 张：优先不单调的，按分数从高到低
-    good = [r for r in R if r and r["ok"] and r["score"] >= MONO_STD]
+    good = [r for r in R if _is_good(r)]
     bad  = [r for r in R if r and r["ok"] and r["score"] < MONO_STD]
     # 好图不够就用单调的补
     selected = sorted(good, key=lambda r: -r["score"])[:n]
@@ -645,9 +715,11 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     vf = ",".join(vf)
 
     # 时间轴截图: 最多 3 个线程各打开一份解码器并复用 (并发还在).
+    # preroll_box[0] 可在加强截图里加大: 单调画面不够时只重截那些时间点.
     # preroll<=0: 退到目标前的关键帧, 至少再解 15 帧(避开坏关键帧), 然后取到目标时间.
     # preroll>0 : 退到目标前 N 秒, 同样至少跳过关键帧后 15 帧, 再解到目标时间.
     # 没装 PyAV / subfile / concat / HDR 时退回逐张 ffmpeg.
+    preroll_box = [float(preroll or 0)]
     _av_slots = [{"container": None, "stream": None, "lock": threading.Lock()} for _ in range(3)]
     _av_meta = {"ok": None, "said": False, "lock": threading.Lock()}
 
@@ -692,14 +764,14 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     def grab_ffmpeg(t, out):
         cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "warning"] + pre
         abs_t = float(t) + float(t_offset)
-        if float(preroll) <= 0:
+        if float(preroll_box[0] or 0) <= 0:
             ts = f"{abs_t:.3f}"
             cmd += ["-probesize", "5M", "-analyzeduration", "5M",
                     "-ss", ts, "-copyts", "-i", url, "-map", "0:v:0",
                     "-vf", "select='gte(n\\,15)*gte(t\\," + ts + ")',setpts=PTS-STARTPTS," + vf,
                     "-frames:v", "1", "-q:v", "2", "-update", "1", str(out)]
         else:
-            roll = min(float(preroll), abs_t if abs_t > 0 else float(preroll))
+            roll = min(float(preroll_box[0] or 0), abs_t if abs_t > 0 else float(preroll_box[0] or 0))
             cmd += ["-probesize", "100M", "-analyzeduration", "100M",
                     "-ss", f"{abs_t - roll:.3f}", "-i", url, "-ss", f"{roll:.3f}",
                     "-map", "0:v:0", "-frames:v", "1", "-vf", vf, "-q:v", "2", "-update", "1", str(out)]
@@ -732,7 +804,7 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
                         _av_meta["ok"] = True
                         if not _av_meta["said"]:
                             _av_meta["said"] = True
-                            prn = float(preroll or 0)
+                            prn = float(preroll_box[0] or 0)
                             if prn <= 0:
                                 print("  截图: 3 线程各开一份解码器并复用, 关键帧后再跳过 15 帧取到目标时间")
                             else:
@@ -750,7 +822,7 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
             if tb <= 0:
                 return None
             abs_t = max(0.0, float(t) + float(t_offset))
-            pr = float(preroll or 0)
+            pr = float(preroll_box[0] or 0)
             seek_sec = max(0.0, abs_t - pr) if pr > 0 else abs_t
             start = int(stream.start_time or 0)
             target = int(round(abs_t / tb)) + start
@@ -885,7 +957,7 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
     try:
         if enhance:
             return _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n, outdir, order, stats,
-                                     shot_timeout, t_offset)
+                                     shot_timeout, t_offset, preroll_box)
 
         files, black_cnt, shown = [], 0, False
 
