@@ -39,6 +39,14 @@ IO_LOCK = threading.Lock()
 # 这些状态码只代表"这条连接暂时不行", 不应该让整个下载失败
 RETRY_STATUS = (403, 429, 500, 502, 503, 504)
 
+
+def open_bin(path: str) -> int:
+    """二进制打开。Windows/Wine 不加 O_BINARY 会把 \\n 写成 \\r\\n，文件变大。"""
+    flags = os.O_RDWR | os.O_CREAT
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    return os.open(path, flags, 0o644)
+
 ZH = {
     "url-info": "文件名称: {name}\n文件大小: {size} ({size_in_bytes} 字节)\n文件路径: {path}\n并行数量: {concurrent}",
     "etag": "ETag: {etag}",
@@ -344,7 +352,7 @@ def registry_path() -> str:
 @contextlib.contextmanager
 def registry_edit():
     path = registry_path()
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    fd = open_bin(path)
     try:
         try:
             import fcntl
@@ -1166,7 +1174,7 @@ def _download_one(args: argparse.Namespace, url: str, gid: str, source_cycle: li
         eprint(t("available-ips", ips=", ".join(source_cycle)))
 
     fresh = not resume_from_ctrl
-    fd = os.open(dest, os.O_RDWR | os.O_CREAT, 0o644)
+    fd = open_bin(dest)
     retired_cnt = [0]
     workers_n = 0
     try:
