@@ -526,6 +526,7 @@ def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n
                 pass
             return r["i"], False, r["t"] if r["ok"] else r["t0"], old, err
 
+        improved = 0
         for start_i in range(0, len(items), 3):
             check_cancel()
             batch = items[start_i:start_i + 3]
@@ -544,40 +545,47 @@ def _capture_enhanced(grab, grab_bytes, byte_time, ffmpeg, pre, url, duration, n
             batch_r = _run_shots_batch([lambda r=r: work(r) for r in batch], on_done=_on)
             for i, better, t_used, sc, err in batch_r:
                 if better:
+                    improved += 1
                     R[i].update(ok=True, t=t_used, score=sc, err=err)
+        return improved
 
     if preroll_box is not None and order and order[0] == "time" and sum(1 for r in R if _is_good(r)) < n:
         base = float(preroll_box[0] or 0)
         steps = [s for s in (1.0, 2.0, 5.0, 8.0) if s > base + 0.05]
+        dead_rounds = 0
         for step in steps:
-            if sum(1 for r in R if _is_good(r)) >= n:
+            if sum(1 for r in R if _is_good(r)) >= n or dead_rounds >= 3:
                 break
             preroll_box[0] = step
             for off in (0, 2, -2, 4, -4):
-                if sum(1 for r in R if _is_good(r)) >= n:
+                if sum(1 for r in R if _is_good(r)) >= n or dead_rounds >= 3:
                     break
                 pending = [r for r in R if r and not _is_good(r)]
                 if not pending:
                     break
-                _retry_near(pending, step, off)
+                if not _retry_near(pending, step, off):
+                    dead_rounds += 1
+                    print(f"  本轮全部未改善 ({dead_rounds}/3), 这一轮结束")
+                    break
+        if dead_rounds >= 3 and sum(1 for r in R if _is_good(r)) < n:
+            print("  未改善已达 3 轮, 停止重截")
 
-    # 选最好的 n 张：优先不单调的，按分数从高到低
+    # 凑不满 n 张不单调的就失败, 不用单调画面补
     good = [r for r in R if _is_good(r)]
-    bad  = [r for r in R if r and r["ok"] and r["score"] < MONO_STD]
-    # 好图不够就用单调的补
-    selected = sorted(good, key=lambda r: -r["score"])[:n]
-    if len(selected) < n:
-        need = n - len(selected)
-        selected += sorted(bad, key=lambda r: -r["score"])[:need]
-
-    # 按时间排序，保证联系表从左到右时间递增
-    selected = sorted(selected, key=lambda r: r["t"])
+    selected = sorted(sorted(good, key=lambda r: -r["score"])[:n], key=lambda r: r["t"])
 
     st = stats if stats is not None else {}
-    st.update(total=total, bad_initial=len(bad), warn="")
+    st.update(total=total, bad_initial=total - len(good), warn="")
     if len(good) < n:
-        st["warn"] = f"只有 {len(good)}/{total} 张画面不单调，已尽量选取"
+        st["warn"] = f"只有 {len(good)}/{n} 张画面不单调, 放弃截图"
         print(f"!! {st['warn']}")
+        for r in R:
+            if r and r.get("out"):
+                try:
+                    r["out"].unlink()
+                except OSError:
+                    pass
+        raise RuntimeError(st["warn"])
 
     # 清理没被选中的临时图
     selected_outs = {r["out"] for r in selected}
@@ -766,9 +774,11 @@ def make_thumbs(ffmpeg, pre, url, duration, n, width, outdir, tonemap, dvd=False
         abs_t = float(t) + float(t_offset)
         if float(preroll_box[0] or 0) <= 0:
             ts = f"{abs_t:.3f}"
+            # 不能加 -copyts 再按绝对时间 select: 时间对不上时 ffmpeg 会从片头一直解码
+            # (2160p50 HDR 十几秒就超过超时). 只跳到目标前的关键帧, 丢掉紧跟着的 15 帧.
             cmd += ["-probesize", "5M", "-analyzeduration", "5M",
-                    "-ss", ts, "-copyts", "-i", url, "-map", "0:v:0",
-                    "-vf", "select='gte(n\\,15)*gte(t\\," + ts + ")',setpts=PTS-STARTPTS," + vf,
+                    "-ss", ts, "-i", url, "-map", "0:v:0",
+                    "-vf", "select='gte(n\\,15)',setpts=PTS-STARTPTS," + vf,
                     "-frames:v", "1", "-q:v", "2", "-update", "1", str(out)]
         else:
             roll = min(float(preroll_box[0] or 0), abs_t if abs_t > 0 else float(preroll_box[0] or 0))
